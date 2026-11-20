@@ -34,6 +34,12 @@ const keyParameterAuth = {
     inject: { into: 'query', name: 'apikey', format: '{{ parameters.key }}' },
   },
 };
+// An authentication parameter named key makes `key` a key name in every position.
+const withKeyParameter = (manifest: Record<string, unknown>) => ({
+  ...manifest,
+  ...keyParameterAuth,
+  parameters: { ...keyParameterAuth.parameters, ...(manifest.parameters as object) },
+});
 
 describe('redactMcpTelemetry for custom connectors', () => {
   it('preserves Credential IDs without masking their copies as secret values', () => {
@@ -1153,39 +1159,41 @@ describe('mcpManifestKeyPaths', () => {
     ],
     [
       'a key under a body property named parent',
-      node({ body: { parent: { key: 'sk_live_123456' } } }),
+      withKeyParameter(node({ body: { parent: { key: 'sk_live_123456' } } })),
       ['nodes.items.request.body.parent.key'],
     ],
     [
       'a key at a partition router path inside a request body',
-      node({ body: { partitionRouter: { parent: { key: 'sk_live_123456' } } } }),
+      withKeyParameter(node({ body: { partitionRouter: { parent: { key: 'sk_live_123456' } } } })),
       ['nodes.items.request.body.partitionRouter.parent.key'],
     ],
     [
       'a key at a partition router path inside a parameter default',
-      {
+      withKeyParameter({
         parameters: {
           P: {
             requiredType: 'object',
             default: { partitionRouter: { parent: { key: 'sk_live_123456' } } },
           },
         },
-      },
+      }),
       ['parameters.P.default.partitionRouter.parent.key'],
     ],
     [
       'a key at a partition router path under an unknown top-level key',
-      { foo: { bar: { partitionRouter: { parent: { key: 'sk_live_123456' } } } } },
+      withKeyParameter({
+        foo: { bar: { partitionRouter: { parent: { key: 'sk_live_123456' } } } },
+      }),
       ['foo.bar.partitionRouter.parent.key'],
     ],
     [
       'a key under a parent directly in a node request',
-      node({ parent: { key: 'sk_live_123456' } }),
+      withKeyParameter(node({ parent: { key: 'sk_live_123456' } })),
       ['nodes.items.request.parent.key'],
     ],
     [
       'a key under a partition router property other than parent',
-      substream(parentList, { other: { key: 'sk_live_123456' } }),
+      withKeyParameter(substream(parentList, { other: { key: 'sk_live_123456' } })),
       ['nodes.page_query_stats.partitionRouter.other.key'],
     ],
     [
@@ -1197,6 +1205,25 @@ describe('mcpManifestKeyPaths', () => {
       'a URL with credentials in a parent key',
       substream({ ...parentList, key: 'https://u:s3cretpass@h/x' }),
       ['nodes.page_query_stats.partitionRouter.parent.key'],
+    ],
+    [
+      'a key in a parent key array',
+      substream({ ...parentList, key: ['d', { api_key: 'sk_live_123456' }] }),
+      ['nodes.page_query_stats.partitionRouter.parent.key.1.api_key'],
+    ],
+    [
+      'a key-parameter name at the parent key of a list router',
+      withKeyParameter(substream({ ...parentList, key: 'sk_live_123456' }, { type: 'list' })),
+      ['nodes.page_query_stats.partitionRouter.parent.key'],
+    ],
+    [
+      'a bare key name in headers and query parameters',
+      node({ headers: { Key: 'abc123' }, queryParameters: { appid: 'abc123', auth: 'abc123' } }),
+      [
+        'nodes.items.request.headers.Key',
+        'nodes.items.request.queryParameters.appid',
+        'nodes.items.request.queryParameters.auth',
+      ],
     ],
   ])('finds %s', (_label, manifest, paths) => {
     expect(mcpManifestKeyPaths(manifest)).toEqual(paths);
@@ -1211,6 +1238,32 @@ describe('mcpManifestKeyPaths', () => {
     expect(
       Object.keys(masked.nodes.page_query_stats.partitionRouter.parent as Record<string, unknown>)
     ).toEqual(['key', 'request', 'recordPath']);
+  });
+
+  it.each([
+    ['an array', ['d', 'Query']],
+    ['a number', 1],
+  ])('accepts %s as the parent key and reads it back unchanged', (_label, key) => {
+    const manifest = { ...substream({ ...parentList, key }), ...keyParameterAuth };
+
+    expect(mcpManifestKeyPaths(manifest)).toEqual([]);
+    expect(maskMcpManifestKeys(manifest)).toEqual(manifest);
+  });
+
+  it('does not take a numeric parent key for a secret value', () => {
+    const input = { manifest: { ...substream({ ...parentList, key: 1 }), ...keyParameterAuth } };
+
+    expect(redactMcpTelemetry({ rows: [{ clicks: 1 }] }, input)).toEqual({ rows: [{ clicks: 1 }] });
+  });
+
+  it('accepts bare key, auth and appid names outside headers and query parameters', () => {
+    const manifest = node({
+      body: { filters: [{ key: 'country', value: 'US' }], auth: 'none', appid: 'web' },
+      tags: [{ Key: 'team' }],
+    });
+
+    expect(mcpManifestKeyPaths(manifest)).toEqual([]);
+    expect(maskMcpManifestKeys(manifest)).toEqual(manifest);
   });
 
   it('accepts the parent key when authentication uses a parameter named key', () => {

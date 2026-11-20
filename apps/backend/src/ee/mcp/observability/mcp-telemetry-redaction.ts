@@ -11,6 +11,14 @@ const TRUNCATED = '[TRUNCATED]';
 const MAX_DEPTH = 64;
 const objectSchema = z.record(z.string(), z.unknown());
 const connectorPayloadSchema = z.object({ manifest: objectSchema }).loose();
+// Checks the shape only: a parsed copy would break the identity check of substreamParents.
+const substreamNodeSchema = z
+  .object({
+    partitionRouter: z.object({ type: z.literal('substream'), parent: objectSchema }).loose(),
+  })
+  .loose();
+// Common words in a request body (filters[].key, Tags[].Key): keys only in headers and query.
+const BARE_KEY_NAMES = /^(?:key|auth|appid)$/i;
 const credentialListSchema = z.array(credentialListItemSchema);
 
 interface RedactionContext {
@@ -24,9 +32,6 @@ interface RedactionContext {
   substreamParents?: ReadonlySet<unknown>;
 }
 
-const isRecord = (value: unknown): value is Record<string, unknown> =>
-  typeof value === 'object' && value !== null && !Array.isArray(value);
-
 function isCredentialName(name: string): boolean {
   const normalized = name.replace(/[_\-\s]/g, '').toLowerCase();
   if (
@@ -39,7 +44,7 @@ function isCredentialName(name: string): boolean {
 }
 
 function isRequestCredentialName(name: string, inferCredentialNames: boolean): boolean {
-  if (inferCredentialNames) return isCredentialName(name) || /^(?:key|auth|appid)$/i.test(name);
+  if (inferCredentialNames) return isCredentialName(name) || BARE_KEY_NAMES.test(name);
   const normalized = name.replace(/[_\-\s]/g, '').toLowerCase();
   return (
     /^(?:(?:x|proxy)?authorization|bearer|cookie|password|passwd|token|clientsecret|key|auth|appid)$/.test(
@@ -202,21 +207,21 @@ function redact(value: unknown, context: RedactionContext, depth = 0, container 
       continue;
     }
     if (context.substreamParents?.has(item)) {
-      out[key] = redactSubstreamParent(item, context, depth + 1);
+      out[key] = redactSubstreamParent(item as Record<string, unknown>, context, depth + 1);
       continue;
     }
     const schemaName = context.connector && (container === 'fields' || container === 'nodes');
+    const requestCredentials = container === 'headers' || container === 'queryParameters';
     const namedSecret = container !== 'parameterDefinition' && context.secretNames.has(key);
     const credential =
       !schemaName &&
       (namedSecret ||
         (context.connector
           ? context.keyCheck
-            ? isKeyName(key)
+            ? isKeyName(key) && (requestCredentials || !BARE_KEY_NAMES.test(key))
             : ((context.inferCredentialNames || container === 'oauthParams') &&
                 isCredentialName(key)) ||
-              ((container === 'headers' || container === 'queryParameters') &&
-                isRequestCredentialName(key, context.inferCredentialNames))
+              (requestCredentials && isRequestCredentialName(key, context.inferCredentialNames))
           : REDACT_KEYS.test(key)));
     if (credential) {
       rememberSecret(item, context);
@@ -228,25 +233,28 @@ function redact(value: unknown, context: RedactionContext, depth = 0, container 
   return out;
 }
 
-// A substream parent.key is a path into the parent record, not a key.
-function redactSubstreamParent(parent: unknown, context: RedactionContext, depth: number): unknown {
-  if (!isRecord(parent)) return redact(parent, context, depth, 'parent');
+// A substream parent.key is a path into the parent record, not a key: its name is not checked.
+function redactSubstreamParent(
+  parent: Record<string, unknown>,
+  context: RedactionContext,
+  depth: number
+): unknown {
   const { key, ...rest } = parent;
-  if (typeof key !== 'string') return redact(parent, context, depth, 'parent');
   const masked = redact(rest, context, depth, 'parent') as Record<string, unknown>;
   return Object.fromEntries(
     Object.keys(parent).map(name => [
       name,
-      name === 'key' ? redactUrlCredentials(key, context) : masked[name],
+      name === 'key' ? redact(key, context, depth + 1, 'key') : masked[name],
     ])
   );
 }
 
 function substreamParents(nodes: unknown): Set<unknown> {
   const parents = new Set<unknown>();
-  for (const node of isRecord(nodes) ? Object.values(nodes) : []) {
-    if (isRecord(node) && isRecord(node.partitionRouter) && isRecord(node.partitionRouter.parent))
-      parents.add(node.partitionRouter.parent);
+  const parsed = objectSchema.safeParse(nodes);
+  for (const node of parsed.success ? Object.values(parsed.data) : []) {
+    if (substreamNodeSchema.safeParse(node).success)
+      parents.add((node as { partitionRouter: { parent: unknown } }).partitionRouter.parent);
   }
   return parents;
 }
