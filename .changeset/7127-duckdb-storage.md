@@ -14,7 +14,7 @@ DuckDB Data Marts support preview, SQL editing, calculated fields, joined Data M
 
 The video creates a DuckDB Storage, loads public holidays into it, queries them in a SQL Data Mart, sends them to Google Sheets with a report, and shows where the file is:
 
-<https://customer-4geatlj66rtkaxtz.cloudflarestream.com/25b5a04eefdc3ce8d6c10c27df10b2f1/iframe>
+<https://customer-4geatlj66rtkaxtz.cloudflarestream.com/eb5fcc808d63880d0241090956618083/iframe>
 
 - One load at a time per Storage: a second connector run into the same Storage waits for the first to end.
 - A Report Run or data quality run that starts during a load, or while an earlier load waits for the Storage, stays **Pending** until that load ends. A load waits for the Report Runs and data quality runs that are running.
