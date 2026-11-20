@@ -28,7 +28,7 @@ import type {
   UserProvisioningSettings,
   UserProvisioningSettingsUpdate,
 } from '@owox/idp-protocol';
-import { createMailingProvider } from '@owox/internal-helpers';
+import { castError, createMailingProvider } from '@owox/internal-helpers';
 import { getMigrations } from 'better-auth/db/migration';
 import cookieParser from 'cookie-parser';
 import e, { Express, NextFunction } from 'express';
@@ -665,14 +665,19 @@ export class OwoxBetterAuthIdp implements IdpProvider {
       if (auth.refreshToken && auth.refreshTokenExpiresIn !== undefined) {
         this.tokenFacade.setTokenToCookie(res, req, auth.refreshToken, auth.refreshTokenExpiresIn);
       }
-      try {
-        await this.userSignals.collect(
-          req,
-          res,
-          await this.tokenFacade.parseToken(auth.accessToken)
-        );
-      } catch {
-        this.logger.warn('Silent sign-in signals skipped', { path: req.path });
+      if (this.userSignals.hasPending(req)) {
+        try {
+          await this.userSignals.collect(
+            req,
+            res,
+            await this.tokenFacade.parseToken(auth.accessToken)
+          );
+        } catch (error) {
+          this.logger.warn('Silent sign-in signals skipped', {
+            path: req.path,
+            error: castError(error).message,
+          });
+        }
       }
       const redirectTarget = this.resolveExistingRefreshRedirect(extractAuthFlowParams(req));
       this.logger.info('Completed silent sign-in refresh', {

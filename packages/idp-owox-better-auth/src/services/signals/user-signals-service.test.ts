@@ -159,3 +159,20 @@ describe('UserSignalsService.list', () => {
     expect(await service.list('u1')).toBeUndefined();
   });
 });
+
+describe('UserSignalsService.hasPending', () => {
+  it('is false when the feature is off', () => {
+    const service = new UserSignalsService(undefined, {} as DatabaseStore);
+    expect(service.hasPending(req({ app_source: 'alpha-source' }))).toBe(false);
+  });
+
+  it('is false without intent cookies', () => {
+    const { service } = setup();
+    expect(service.hasPending(req({ other: 'x' }))).toBe(false);
+  });
+
+  it('is true with one intent cookie', () => {
+    const { service } = setup();
+    expect(service.hasPending(req({ app_storage: 'beta-storage' }))).toBe(true);
+  });
+});

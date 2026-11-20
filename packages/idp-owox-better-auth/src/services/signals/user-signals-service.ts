@@ -44,6 +44,15 @@ export class UserSignalsService {
     private readonly store: DatabaseStore
   ) {}
 
+  /** True when the feature is on and the request carries at least one intent cookie. */
+  hasPending(req: Request): boolean {
+    const config = this.config;
+    return (
+      !!config &&
+      INTENT_PARTS.some(part => getCookie(req, `${config.cookiePrefix}${part}`) !== undefined)
+    );
+  }
+
   /** Never throws. */
   async collect(req: Request, res: Response, payload: Payload | null | undefined): Promise<void> {
     const config = this.config;

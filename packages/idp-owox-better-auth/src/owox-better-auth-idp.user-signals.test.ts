@@ -237,4 +237,42 @@ describe('OwoxBetterAuthIdp user signals', () => {
     expect(res.redirect).toHaveBeenCalledWith('/');
     expect(store.recordUserSignal).not.toHaveBeenCalled();
   });
+
+  it('does not parse the token on a silent sign-in without intent cookies', async () => {
+    const { provider, tokenFacade } = createProvider({ productIntent: PRODUCT_INTENT });
+    const res = createResponse();
+
+    const handled = await (
+      provider as unknown as {
+        handleExistingRefreshToken: (
+          req: Request,
+          res: Response,
+          token: string
+        ) => Promise<boolean>;
+      }
+    ).handleExistingRefreshToken(createRequest(), res as unknown as Response, 'rt');
+
+    expect(handled).toBe(true);
+    expect(tokenFacade.parseToken).not.toHaveBeenCalled();
+    expect(res.redirect).toHaveBeenCalled();
+  });
+
+  it('does not parse the token on a silent sign-in when the feature is off', async () => {
+    const { provider, tokenFacade } = createProvider({});
+    const res = createResponse();
+
+    const handled = await (
+      provider as unknown as {
+        handleExistingRefreshToken: (
+          req: Request,
+          res: Response,
+          token: string
+        ) => Promise<boolean>;
+      }
+    ).handleExistingRefreshToken(createRequest(INTENT_COOKIES), res as unknown as Response, 'rt');
+
+    expect(handled).toBe(true);
+    expect(tokenFacade.parseToken).not.toHaveBeenCalled();
+    expect(res.redirect).toHaveBeenCalled();
+  });
 });
