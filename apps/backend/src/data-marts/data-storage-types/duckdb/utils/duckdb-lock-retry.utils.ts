@@ -61,6 +61,7 @@ export async function withDuckDbLockRetry<T>(
     try {
       return await fn();
     } catch (error) {
+      // Not castError: a native DuckDB error can come from another realm, where it gives "{}".
       const message = error instanceof Error ? error.message : String(error);
       if (!(error instanceof DuckDbFileBusyError) && !LOCK_CONFLICT.test(message)) throw error;
       // An abort during the attempt: the sleep's listener never fires for it.

@@ -1,6 +1,7 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import * as fs from 'node:fs';
+import { castError } from '@owox/internal-helpers';
 import { DataStorageType } from '../../enums/data-storage-type.enum';
 import {
   DataStorageAccessValidator,
@@ -42,7 +43,7 @@ export class DuckDbAccessValidator implements DataStorageAccessValidator {
     } catch (error) {
       this.logger.warn('Access validation failed', error);
       return ValidationResult.failure(`DuckDB data directory not writable: ${dir}`, {
-        error: String(error),
+        error: castError(error).message,
       });
     }
   }
