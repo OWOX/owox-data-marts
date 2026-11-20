@@ -13,6 +13,7 @@ import type {
   UiAuthProviders,
 } from '../types/index.js';
 import { BETTER_AUTH_BASE_PATH } from '../core/constants.js';
+import type { ProductIntentConfig } from '../services/signals/user-signals-service.js';
 import type { ServerEventsConfig } from '../services/analytics/server-events-service.js';
 
 const zMsString = z
@@ -375,6 +376,43 @@ export function loadServerEventsConfigFromEnv(
   };
 }
 
+const ProductIntentEnvSchema = z
+  .object({
+    IDP_OWOX_PRODUCT_INTENT_COOKIE_PREFIX: optionalEnv(
+      z.string().regex(/^[A-Za-z0-9_-]{1,56}$/, {
+        message: 'IDP_OWOX_PRODUCT_INTENT_COOKIE_PREFIX must be a cookie name prefix',
+      })
+    ),
+    IDP_OWOX_PRODUCT_INTENT_COOKIE_DOMAIN: optionalEnv(
+      z.string().regex(/^[a-z0-9]([a-z0-9-]*[a-z0-9])?(\.[a-z0-9]([a-z0-9-]*[a-z0-9])?)+$/, {
+        message: 'IDP_OWOX_PRODUCT_INTENT_COOKIE_DOMAIN must be a bare domain name',
+      })
+    ),
+  })
+  .refine(
+    e =>
+      Boolean(e.IDP_OWOX_PRODUCT_INTENT_COOKIE_PREFIX) ===
+      Boolean(e.IDP_OWOX_PRODUCT_INTENT_COOKIE_DOMAIN),
+    {
+      message:
+        'IDP_OWOX_PRODUCT_INTENT_COOKIE_PREFIX and IDP_OWOX_PRODUCT_INTENT_COOKIE_DOMAIN must be set together',
+    }
+  );
+
+/**
+ * Product intent signals: off unless both cookie variables are set.
+ */
+export function loadProductIntentConfigFromEnv(
+  env: Env = process.env
+): ProductIntentConfig | undefined {
+  const parsed = ProductIntentEnvSchema.parse(env);
+  if (!parsed.IDP_OWOX_PRODUCT_INTENT_COOKIE_PREFIX) return undefined;
+  return {
+    cookiePrefix: parsed.IDP_OWOX_PRODUCT_INTENT_COOKIE_PREFIX,
+    cookieDomain: parsed.IDP_OWOX_PRODUCT_INTENT_COOKIE_DOMAIN as string,
+  };
+}
+
 const SendgridEnvSchema = z.object({
   SENDGRID_API_KEY: z.string().min(1, 'SENDGRID_API_KEY is required'),
   IDP_OWOX_SENDGRID_VERIFIED_SENDER_EMAIL: z
@@ -486,6 +524,7 @@ export type BetterAuthProviderConfig = {
   uiProviders: UiAuthProviders;
   gtmContainerId?: string;
   serverEvents?: ServerEventsConfig;
+  productIntent?: ProductIntentConfig;
 };
 
 /**
@@ -563,5 +602,6 @@ export function loadBetterAuthProviderConfigFromEnv(
     uiProviders,
     gtmContainerId: baEnv.GOOGLE_TAG_MANAGER_CONTAINER_ID,
     serverEvents: loadServerEventsConfigFromEnv(env),
+    productIntent: loadProductIntentConfigFromEnv(env),
   };
 }

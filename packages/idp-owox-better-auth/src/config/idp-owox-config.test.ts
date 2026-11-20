@@ -113,6 +113,60 @@ describe('loadBetterAuthProviderConfigFromEnv', () => {
     ).toThrow();
   });
 
+  it('leaves product intent signals off without their variables', () => {
+    expect(loadBetterAuthProviderConfigFromEnv(baseEnv()).productIntent).toBeUndefined();
+  });
+
+  it('loads the product intent cookie prefix and domain', () => {
+    const config = loadBetterAuthProviderConfigFromEnv({
+      ...baseEnv(),
+      IDP_OWOX_PRODUCT_INTENT_COOKIE_PREFIX: 'app_',
+      IDP_OWOX_PRODUCT_INTENT_COOKIE_DOMAIN: 'example.com',
+    });
+
+    expect(config.productIntent).toEqual({ cookiePrefix: 'app_', cookieDomain: 'example.com' });
+  });
+
+  it.each([
+    { IDP_OWOX_PRODUCT_INTENT_COOKIE_PREFIX: 'app_' },
+    { IDP_OWOX_PRODUCT_INTENT_COOKIE_DOMAIN: 'example.com' },
+  ])('refuses one product intent variable without the other', vars => {
+    expect(() => loadBetterAuthProviderConfigFromEnv({ ...baseEnv(), ...vars })).toThrow();
+  });
+
+  it('treats blank product intent variables as unset', () => {
+    const config = loadBetterAuthProviderConfigFromEnv({
+      ...baseEnv(),
+      IDP_OWOX_PRODUCT_INTENT_COOKIE_PREFIX: ' ',
+      IDP_OWOX_PRODUCT_INTENT_COOKIE_DOMAIN: '',
+    });
+
+    expect(config.productIntent).toBeUndefined();
+  });
+
+  it.each(['app source', 'a'.repeat(57)])('refuses the cookie prefix %p', prefix => {
+    expect(() =>
+      loadBetterAuthProviderConfigFromEnv({
+        ...baseEnv(),
+        IDP_OWOX_PRODUCT_INTENT_COOKIE_PREFIX: prefix,
+        IDP_OWOX_PRODUCT_INTENT_COOKIE_DOMAIN: 'example.com',
+      })
+    ).toThrow();
+  });
+
+  it.each(['https://example.com', '.example.com', 'exa mple.com'])(
+    'refuses the cookie domain %p',
+    domain => {
+      expect(() =>
+        loadBetterAuthProviderConfigFromEnv({
+          ...baseEnv(),
+          IDP_OWOX_PRODUCT_INTENT_COOKIE_PREFIX: 'app_',
+          IDP_OWOX_PRODUCT_INTENT_COOKIE_DOMAIN: domain,
+        })
+      ).toThrow();
+    }
+  );
+
   it('refuses to enable Microsoft NAA without deployment-owned audience and scope', () => {
     expect(() =>
       loadBetterAuthProviderConfigFromEnv({
