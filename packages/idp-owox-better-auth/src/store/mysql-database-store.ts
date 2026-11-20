@@ -1,10 +1,14 @@
+import { randomUUID } from 'node:crypto';
 import type { ProjectMember } from '@owox/idp-protocol';
 import { createServiceLogger } from '../core/logger.js';
+import { MAX_USER_SIGNALS } from '../types/index.js';
 import type {
   DatabaseAccount,
   DatabaseOperationResult,
   DatabaseUser,
   OnboardingAnswer,
+  UserSignal,
+  UserSignalInput,
 } from '../types/index.js';
 import {
   parseSerializedAuthFlowParams,
@@ -43,6 +47,7 @@ export class MysqlDatabaseStore implements DatabaseStore {
   private projectTablesReady = false;
   private onboardingTableReady = false;
   private userProjectOnboardingTableReady = false;
+  private userSignalTableReady = false;
 
   constructor(private readonly config: MysqlConnectionConfig) {}
 
@@ -678,6 +683,77 @@ export class MysqlDatabaseStore implements DatabaseStore {
       otherText: row.otherText != null ? String(row.otherText) : null,
       userRole: String(row.userRole),
       createdAt: this.toIso(row.createdAt),
+    }));
+  }
+
+  // User Signal methods
+
+  private async ensureUserSignalTable(pool: MysqlPool): Promise<void> {
+    if (this.userSignalTableReady) return;
+
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS user_signal (
+        id VARCHAR(36) NOT NULL PRIMARY KEY,
+        userId VARCHAR(255) NOT NULL,
+        name VARCHAR(50) NOT NULL,
+        value VARCHAR(255) NOT NULL,
+        origin VARCHAR(30) NOT NULL,
+        firstSeenAt TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        lastSeenAt TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        seenCount INT NOT NULL DEFAULT 1,
+        UNIQUE KEY uq_user_signal (userId, name, value)
+      )
+    `);
+
+    this.userSignalTableReady = true;
+  }
+
+  async recordUserSignal(signal: UserSignalInput): Promise<void> {
+    const pool = await this.getPool();
+    await this.ensureUserSignalTable(pool);
+
+    const [result] = (await pool.execute(
+      `UPDATE user_signal SET lastSeenAt = CURRENT_TIMESTAMP, seenCount = seenCount + 1
+       WHERE userId = ? AND name = ? AND value = ?`,
+      [signal.userId, signal.name, signal.value]
+    )) as [{ affectedRows: number }, unknown];
+    if (result.affectedRows > 0) return;
+
+    const [rows] = (await pool.execute(`SELECT COUNT(*) AS cnt FROM user_signal WHERE userId = ?`, [
+      signal.userId,
+    ])) as [Array<{ cnt: number | bigint }>, unknown];
+    if (Number(rows[0]?.cnt ?? 0) >= MAX_USER_SIGNALS) return;
+
+    await pool.execute(
+      `INSERT INTO user_signal (id, userId, name, value, origin)
+       VALUES (?, ?, ?, ?, ?)
+       ON DUPLICATE KEY UPDATE
+         lastSeenAt = CURRENT_TIMESTAMP,
+         seenCount = seenCount + 1`,
+      [randomUUID(), signal.userId, signal.name, signal.value, signal.origin]
+    );
+  }
+
+  async getUserSignals(userId: string): Promise<UserSignal[]> {
+    const pool = await this.getPool();
+    await this.ensureUserSignalTable(pool);
+
+    const [rows] = (await pool.execute(
+      `SELECT userId, name, value, origin, firstSeenAt, lastSeenAt, seenCount
+       FROM user_signal
+       WHERE userId = ?
+       ORDER BY lastSeenAt DESC`,
+      [userId]
+    )) as [Array<Record<string, unknown>>, unknown];
+
+    return rows.map(row => ({
+      userId: String(row.userId),
+      name: String(row.name),
+      value: String(row.value),
+      origin: String(row.origin),
+      firstSeenAt: String(this.toIso(row.firstSeenAt)),
+      lastSeenAt: String(this.toIso(row.lastSeenAt)),
+      seenCount: Number(row.seenCount),
     }));
   }
 

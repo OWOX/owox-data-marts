@@ -1,10 +1,14 @@
+import { randomUUID } from 'node:crypto';
 import type { ProjectMember } from '@owox/idp-protocol';
 import { createServiceLogger } from '../core/logger.js';
+import { MAX_USER_SIGNALS } from '../types/index.js';
 import type {
   DatabaseAccount,
   DatabaseOperationResult,
   DatabaseUser,
   OnboardingAnswer,
+  UserSignal,
+  UserSignalInput,
 } from '../types/index.js';
 import {
   parseSerializedAuthFlowParams,
@@ -36,6 +40,7 @@ export class SqliteDatabaseStore implements DatabaseStore {
   private projectTablesReady = false;
   private onboardingTableReady = false;
   private userProjectOnboardingTableReady = false;
+  private userSignalTableReady = false;
 
   constructor(private readonly dbPath: string) {}
 
@@ -631,6 +636,82 @@ export class SqliteDatabaseStore implements DatabaseStore {
       otherText: row.otherText != null ? String(row.otherText) : null,
       userRole: String(row.userRole),
       createdAt: this.toIso(row.createdAt),
+    }));
+  }
+
+  // User Signal methods
+
+  private ensureUserSignalTable(): void {
+    if (this.userSignalTableReady) return;
+    const db = this.getDb();
+
+    db.prepare(
+      `CREATE TABLE IF NOT EXISTS user_signal (
+        id TEXT NOT NULL PRIMARY KEY,
+        userId TEXT NOT NULL,
+        name TEXT NOT NULL,
+        value TEXT NOT NULL,
+        origin TEXT NOT NULL,
+        firstSeenAt TEXT NOT NULL,
+        lastSeenAt TEXT NOT NULL,
+        seenCount INTEGER NOT NULL DEFAULT 1,
+        UNIQUE (userId, name, value)
+      )`
+    ).run();
+
+    this.userSignalTableReady = true;
+  }
+
+  async recordUserSignal(signal: UserSignalInput): Promise<void> {
+    await this.connect();
+    this.ensureUserSignalTable();
+
+    const db = this.getDb();
+    const now = new Date().toISOString();
+
+    const updated = db
+      .prepare(
+        `UPDATE user_signal SET lastSeenAt = ?, seenCount = seenCount + 1
+         WHERE userId = ? AND name = ? AND value = ?`
+      )
+      .run(now, signal.userId, signal.name, signal.value);
+    if (Number(updated.changes ?? 0) > 0) return;
+
+    const row = db
+      .prepare(`SELECT COUNT(*) AS cnt FROM user_signal WHERE userId = ?`)
+      .get(signal.userId) as { cnt: number } | undefined;
+    if ((row?.cnt ?? 0) >= MAX_USER_SIGNALS) return;
+
+    db.prepare(
+      `INSERT INTO user_signal (id, userId, name, value, origin, firstSeenAt, lastSeenAt)
+       VALUES (?, ?, ?, ?, ?, ?, ?)
+       ON CONFLICT(userId, name, value) DO UPDATE SET
+         lastSeenAt = excluded.lastSeenAt,
+         seenCount = seenCount + 1`
+    ).run(randomUUID(), signal.userId, signal.name, signal.value, signal.origin, now, now);
+  }
+
+  async getUserSignals(userId: string): Promise<UserSignal[]> {
+    await this.connect();
+    this.ensureUserSignalTable();
+
+    const rows = this.getDb()
+      .prepare(
+        `SELECT userId, name, value, origin, firstSeenAt, lastSeenAt, seenCount
+         FROM user_signal
+         WHERE userId = ?
+         ORDER BY lastSeenAt DESC`
+      )
+      .all(userId) as Array<Record<string, unknown>>;
+
+    return rows.map(row => ({
+      userId: String(row.userId),
+      name: String(row.name),
+      value: String(row.value),
+      origin: String(row.origin),
+      firstSeenAt: String(this.toIso(row.firstSeenAt)),
+      lastSeenAt: String(this.toIso(row.lastSeenAt)),
+      seenCount: Number(row.seenCount),
     }));
   }
 

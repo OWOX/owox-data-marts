@@ -1,5 +1,5 @@
 import { DatabaseAccount, DatabaseOperationResult, DatabaseUser } from '../types/index.js';
-import type { OnboardingAnswer } from '../types/index.js';
+import type { OnboardingAnswer, UserSignal, UserSignalInput } from '../types/index.js';
 import type { ProjectMember } from '@owox/idp-protocol';
 import type { AuthFlowParams } from '../utils/request-utils.js';
 import { StoreResult } from './store-result.js';
@@ -122,4 +122,16 @@ export interface DatabaseStore {
    * Get all onboarding answers for a user within a project.
    */
   getOnboardingAnswers(userId: string, projectId: string): Promise<OnboardingAnswer[]>;
+
+  // User Signals
+  /**
+   * Record a user signal: count a repeated value, add a new one while the user has fewer
+   * than MAX_USER_SIGNALS rows, otherwise drop it. Throws only on database errors.
+   */
+  recordUserSignal(signal: UserSignalInput): Promise<void>;
+
+  /**
+   * Get all signals of a user, most recently seen first.
+   */
+  getUserSignals(userId: string): Promise<UserSignal[]>;
 }
