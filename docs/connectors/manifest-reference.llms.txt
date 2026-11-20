@@ -334,11 +334,11 @@ Set `endLagDays: 1` when the API's docs say reports cover only completed days, o
 
 ## 10. `partitionRouter` — substream & list
 
-Optional, node-level; fans a single node out into one child request per "slice" value, exposed to the child request as `{{ stream_slice.<partitionField> }}`. **Mutually exclusive with `retriever: { type: "async" }`.** The node's own `request` / `recordSelector` / `pagination` describe the CHILD (per-slice) request.
+Optional, node-level; fans a single node out into one child request per "slice" value, exposed to the child request as `{{ stream_slice.<partitionField> }}`. `transformations.add.value` of the node can also read it: each record gets the value of the child request that returned it. **Mutually exclusive with `retriever: { type: "async" }`.** The node's own `request` / `recordSelector` / `pagination` describe the CHILD (per-slice) request.
 
 ### substream
 
-Fetches a parent list first, extracts a key from each parent record, and runs the child request once per distinct key value:
+Fetches a parent list first, extracts a key from each parent record, and runs the child request once per distinct key value. A parent record whose key is missing, null or empty text gives no slice. A key that names an object or an array stops the node with an error:
 
 ```json
 {
@@ -353,6 +353,16 @@ Fetches a parent list first, extracts a key from each parent record, and runs th
 ```
 
 `parent.request` is a full request spec (optionally with its own `parent.pagination`, if the parent list itself is paginated). `parent.recordPath` extracts the parent rows the same way `recordSelector.recordPath` does. `parent.key` is a dot-string path into each parent record naming the value to fan out on. `partitionField` names the key under `stream_slice` that the child request can reference: `{{ stream_slice.account_id }}`.
+
+If the child response does not repeat the parent value, add it to each record with `transformations.add`. The template renders the slice of the request that returned the record:
+
+```json
+"transformations": [
+  { "type": "add", "field": "account_id", "value": "{{ stream_slice.account_id }}" }
+]
+```
+
+To read the added value, declare a field `account_id` with no `dataPath`, or with `"dataPath": "account_id"`. The value renders as text. The field `type` casts it. Publish and Test refuse `{{ stream_slice.<x> }}` in `add` when the node has no partition router, or when `<x>` is not its `partitionField`: the value would be empty in every row.
 
 ### list
 
@@ -437,7 +447,7 @@ Optional, node-level array, applied in order, AFTER `recordFilter` and BEFORE fi
 ]
 ```
 
-- `add` — `{ field, value }`; sets a top-level field to a templated value. Templating here is **lenient** (an unresolved path renders as an empty string instead of throwing) and, uniquely, also exposes the record itself: `{{ parameters.X }}`, `{{ dateWindow.start }}` / `{{ dateWindow.end }}`, `{{ account.id }}`, and `{{ record.<field> }}` (a field already present on this same record) are all available.
+- `add` — `{ field, value }`; sets a top-level field to a templated value. Templating here is **lenient** (an unresolved path renders as an empty string instead of throwing) and, uniquely, also exposes the record itself: `{{ parameters.X }}`, `{{ dateWindow.start }}` / `{{ dateWindow.end }}`, `{{ account.id }}`, `{{ record.<field> }}` (a field already present on this same record), and `{{ stream_slice.<partitionField> }}` (in a `partitionRouter` node: the slice of the child request that returned the record) are all available.
 - `remove` — `{ field }`; deletes a top-level field.
 - `keysToLower` — no options; lowercases every top-level key (last one wins on a collision).
 - `flatten` — `{ separator? }` (default `"_"`); recursively flattens nested objects into separator-joined top-level keys (e.g. `{"stats":{"clicks":5}}` → `{"stats_clicks":5}`); arrays are left intact, not flattened. Fields read the new keys, not the old paths: with `"_"`, `stats.clicks` becomes the key `stats_clicks`; with `"."`, a field's `dataPath` `"stats.clicks"` reads the new key as before.
@@ -528,7 +538,7 @@ Every string field that accepts a template uses `{{ scope.path }}` syntax (doubl
 - `{{ auth.token }}` — the token issued by `tokenExchange`/`oauth2` (for its `inject.format` or a node's request; a request position only, like key parameters — see §4).
 - `{{ dateWindow.start }}` / `{{ dateWindow.end }}` — the current date window (`YYYY-MM-DD` strings), only in a node fetched by date window (§9).
 - `{{ node.selectedFields }}` — the names of the fields the Data Mart selected for this node, comma-separated (e.g. `date,rate`), for an API that takes the list of fields to return, such as a `fields` query parameter. These are the manifest's field names, not their `dataPath`s.
-- `{{ stream_slice.<partitionField> }}` — the current partition value inside a `partitionRouter` child request (§10).
+- `{{ stream_slice.<partitionField> }}` — the current partition value inside a `partitionRouter` child request, and in `transformations.add.value` of that node (§10, §13).
 - `{{ job.id }}` — the async job id, inside `retriever.async.poll` (§12).
 - `{{ record.<field> }}` — a field of the current record, only inside `transformations.add.value` (§13).
 

@@ -1102,6 +1102,145 @@ describe('DeclarativeSource (integration)', () => {
     );
   });
 
+  describe('stream_slice in transformations.add', () => {
+    const addSlice = { type: 'add', field: 'country', value: '{{ stream_slice.country }}' };
+    const buildManifest = node =>
+      JSON.stringify({
+        version: '1.0',
+        name: 'S',
+        baseUrl: 'https://api.example.com',
+        authentication: { type: 'apiKey', inject: { into: 'query', name: 'k', format: 'x' } },
+        parameters: {},
+        nodes: {
+          stats: {
+            destinationName: 'd',
+            isTimeSeries: false,
+            uniqueKeys: ['n'],
+            fields: {
+              country: { dataPath: 'country', type: 'string' },
+              n: { dataPath: 'n', type: 'integer' },
+            },
+            request: { method: 'GET', path: '/stats/{{ stream_slice.country }}' },
+            recordSelector: { recordPath: ['rows'] },
+            transformations: [addSlice],
+            ...node,
+          },
+        },
+      });
+    const run = async manifest => {
+      const source = new DeclarativeSource(makeContext(), new ManifestParser().parse(manifest));
+      source._delay = () => Promise.resolve();
+      return source.fetchData({
+        nodeName: 'stats',
+        fields: ['country', 'n'],
+        accountId: null,
+        startDate: null,
+        endDate: null,
+      });
+    };
+    // Rows are built on every call, as a decoder does: one shared object would link to the last slice only.
+    const okJson = body => ({
+      ok: true,
+      status: 200,
+      headers: { get: () => null },
+      async json() {
+        return body();
+      },
+    });
+
+    it('writes the list slice into each row', async () => {
+      globalThis.fetch = async url =>
+        okJson(() => ({ rows: [{ n: url.includes('/US') ? '1' : '2' }] }));
+      const out = await run(
+        buildManifest({
+          partitionRouter: { type: 'list', values: ['US', 'UK'], partitionField: 'country' },
+        })
+      );
+      assert.deepStrictEqual(out.map(r => [r.country, r.n]).sort(), [
+        ['UK', 2],
+        ['US', 1],
+      ]);
+    });
+
+    it('writes the substream slice into each row, with recordFilter and two child pages', async () => {
+      globalThis.fetch = async url => {
+        const u = String(url);
+        if (u.includes('/countries')) {
+          return okJson(() => ({ data: [{ id: 'US' }, { id: 'UK' }] }));
+        }
+        const page2 = u.includes('page=2');
+        return okJson(() => ({
+          rows: [
+            { n: page2 ? '2' : '1', keep: 'yes' },
+            { n: '99', keep: 'no' },
+          ],
+          next: page2 ? null : '2',
+        }));
+      };
+      const out = await run(
+        buildManifest({
+          partitionRouter: {
+            type: 'substream',
+            parent: {
+              request: { method: 'GET', path: '/countries' },
+              recordPath: ['data'],
+              key: 'id',
+            },
+            partitionField: 'country',
+          },
+          recordFilter: { path: ['keep'], operator: 'equals', value: 'yes' },
+          pagination: {
+            type: 'cursor',
+            cursor: { from: 'body', path: ['next'] },
+            inject: { into: 'query', name: 'page' },
+          },
+        })
+      );
+      assert.deepStrictEqual(out.map(r => [r.country, r.n]).sort(), [
+        ['UK', 1],
+        ['UK', 2],
+        ['US', 1],
+        ['US', 2],
+      ]);
+    });
+
+    it('renders the slice as text and the field type casts it, 0 included', async () => {
+      globalThis.fetch = async url => {
+        if (String(url).includes('/parents')) {
+          return okJson(() => ({ data: [{ id: 7 }, { id: 0 }] }));
+        }
+        return okJson(() => ({ rows: [{ n: '1' }] }));
+      };
+      const out = await run(
+        buildManifest({
+          fields: {
+            country: { type: 'integer' },
+            n: { dataPath: 'n', type: 'integer' },
+          },
+          partitionRouter: {
+            type: 'substream',
+            parent: {
+              request: { method: 'GET', path: '/parents' },
+              recordPath: ['data'],
+              key: 'id',
+            },
+            partitionField: 'country',
+          },
+        })
+      );
+      assert.deepStrictEqual(out.map(r => r.country).sort(), [0, 7]);
+    });
+
+    it('leaves the added field null in a node without a partition router', async () => {
+      globalThis.fetch = async () => okJson(() => ({ rows: [{ n: '1' }] }));
+      const out = await run(buildManifest({ request: { method: 'GET', path: '/stats' } }));
+      assert.deepStrictEqual(
+        out.map(r => [r.country, r.n]),
+        [[null, 1]]
+      );
+    });
+  });
+
   it('applies recordFilter BEFORE transformations', async () => {
     globalThis.fetch = async () => ({
       ok: true,

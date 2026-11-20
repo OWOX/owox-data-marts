@@ -5,11 +5,14 @@
  * file that was distributed with this source code.
  */
 
+import { sliceOf } from './recordSlices.js';
+
 /**
  * Applies an ordered list of record transformations to raw API records before
  * field projection/casting. Operates on a per-record shallow copy so retriever
  * output is never mutated. Transform types:
  *  - add        { field, value }    set a top-level field to a lenient-templated value
+ *                                   (a partition-router record also sees its stream_slice)
  *  - remove     { field }           delete a top-level field
  *  - keysToLower {}                 lowercase all top-level keys (last wins on collision)
  *  - flatten    { separator? }      recursively flatten nested objects into separator-joined
@@ -27,7 +30,7 @@ export class Transformer {
 
   /**
    * @param {object[]} records - raw records
-   * @param {object} scope - run scope (parameters/account/dateWindow/...)
+   * @param {object} scope - run scope (parameters/account/dateWindow/...); each record's own stream_slice comes from sliceOf
    * @returns {object[]} transformed records (input is not mutated)
    */
   transform(records, scope) {
@@ -48,20 +51,21 @@ export class Transformer {
     // come from decodeResponse — JSON.parse, or the CSV/JSONL parsers, which emit
     // plain strings — so they only ever hold JSON-native values already.
     return records.map(record => {
+      const slice = sliceOf(record);
       let out = { ...record };
       for (const t of this.transformations) {
-        out = this._applyOne(out, t, scope);
+        out = this._applyOne(out, t, scope, slice);
       }
       return out;
     });
   }
 
-  _applyOne(record, t, scope) {
+  _applyOne(record, t, scope, slice) {
     switch (t.type) {
       case 'add':
         record[t.field] = this.templateEngine.render(
           t.value ?? '',
-          { ...scope, record },
+          slice ? { ...scope, stream_slice: slice, record } : { ...scope, record },
           { lenient: true }
         );
         return record;

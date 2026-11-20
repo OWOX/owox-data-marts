@@ -1855,6 +1855,58 @@ describe('ManifestParser standard advanced params', () => {
     });
   });
 
+  // `add` renders an unresolved path as empty text, and an empty unique key merges rows. Refused
+  // only while authoring, like dateWindow above.
+  describe('stream_slice in transformations.add', () => {
+    const manifestWith = node => ({
+      version: '1.0',
+      name: 'X',
+      baseUrl: 'https://api.x.com',
+      parameters: {},
+      nodes: {
+        a: {
+          request: { method: 'GET', path: '/stats/{{ stream_slice.page }}' },
+          recordSelector: { recordPath: [] },
+          fields: { id: { type: 'integer' }, page: { type: 'string' } },
+          partitionRouter: { type: 'list', values: ['p1'], partitionField: 'page' },
+          ...node,
+        },
+      },
+    });
+    const add = value => ({ transformations: [{ type: 'add', field: 'page', value }] });
+    const parse = (node, options = { authoring: true }) =>
+      new ManifestParser().parse(JSON.stringify(manifestWith(node)), options);
+
+    it('accepts the partition field, also inside other text and a nested value', () => {
+      assert.doesNotThrow(() => parse(add('site-{{ stream_slice.page }}')));
+      assert.doesNotThrow(() => parse(add({ page: ['{{stream_slice.page}}'] })));
+    });
+
+    it('rejects another name than the partition field, naming the fix', () => {
+      assert.throws(
+        () => parse(add('{{ stream_slice.pageId }}')),
+        /node "a" uses "\{\{ stream_slice\.pageId \}\}" in transformations\.add, but its partitionRouter\.partitionField is "page"\. Use "\{\{ stream_slice\.page \}\}"/
+      );
+      assert.throws(() => parse(add('{{ stream_slice }}')), /uses "\{\{ stream_slice \}\}"/);
+    });
+
+    it('rejects it in a node without a partition router', () => {
+      assert.throws(
+        () =>
+          parse({
+            request: { method: 'GET', path: '/stats' },
+            partitionRouter: undefined,
+            ...add('{{ stream_slice.page }}'),
+          }),
+        /node "a" uses "\{\{ stream_slice\.page \}\}" in transformations\.add, but the node has no partitionRouter/
+      );
+    });
+
+    it('accepts the same manifest outside authoring, so a stored version still runs', () => {
+      assert.doesNotThrow(() => parse(add('{{ stream_slice.pageId }}'), {}));
+    });
+  });
+
   it('still accepts a non-time-series node that declares no incremental block', () => {
     const m = new ManifestParser().parse(
       JSON.stringify({

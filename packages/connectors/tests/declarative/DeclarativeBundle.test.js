@@ -54,6 +54,63 @@ describe('Declarative connector through the built bundle', () => {
       `expected a DNS error carrying a code, got: ${err.message}`
     );
   });
+
+  // Transformer reads the slice of each record through sliceOf for every declarative node; a
+  // binding lost in the bundle would fail every custom connector, not only partition nodes.
+  it('writes the slice of each list request into its rows through the bundle', async () => {
+    const manifest = {
+      version: '1.0',
+      name: 'S',
+      baseUrl: 'https://api.example.com',
+      authentication: { type: 'apiKey', inject: { into: 'query', name: 'k', format: 'x' } },
+      parameters: {},
+      nodes: {
+        stats: {
+          destinationName: 'd',
+          isTimeSeries: false,
+          uniqueKeys: ['country', 'n'],
+          fields: { country: { type: 'string' }, n: { type: 'integer' } },
+          request: { method: 'GET', path: '/stats/{{ stream_slice.country }}' },
+          recordSelector: { recordPath: ['rows'] },
+          partitionRouter: { type: 'list', values: ['US', 'UK'], partitionField: 'country' },
+          transformations: [{ type: 'add', field: 'country', value: '{{ stream_slice.country }}' }],
+        },
+      },
+    };
+    const context = new owox.Core.AbstractContext({
+      source: { name: 'S', config: {} },
+      storage: { name: 'MockStorage', config: {} },
+      runConfig: { type: 'INCREMENTAL', data: [], state: {} },
+      env: { datamartId: 'dm', runId: 'run' },
+    });
+    const source = new owox.Core.DeclarativeSource(
+      context,
+      new owox.Core.ManifestParser().parse(JSON.stringify(manifest))
+    );
+    const realFetch = globalThis.fetch;
+    // A fresh row object on each call, as a decoder builds: a shared one links to the last slice.
+    globalThis.fetch = async url => ({
+      ok: true,
+      status: 200,
+      headers: { get: () => null },
+      json: async () => ({ rows: [{ n: String(url).includes('/US') ? 1 : 2 }] }),
+    });
+    try {
+      const rows = await source.fetchData({
+        nodeName: 'stats',
+        fields: ['country', 'n'],
+        accountId: null,
+        startDate: null,
+        endDate: null,
+      });
+      assert.deepStrictEqual(rows.map(r => [r.country, r.n]).sort(), [
+        ['UK', 2],
+        ['US', 1],
+      ]);
+    } finally {
+      globalThis.fetch = realFetch;
+    }
+  });
 });
 
 // No connector in src/Sources/ is a manifest alone, so the build's path for one runs against

@@ -7,6 +7,7 @@
 
 import { SyncRetriever } from './SyncRetriever.js';
 import { Paginator } from './Paginator.js';
+import { linkSlice } from './recordSlices.js';
 
 /**
  * Runs the child request once per slice value with the value exposed as
@@ -37,7 +38,8 @@ export async function runChildSlices(
   let total = 0;
   for (const value of sliceValues) {
     if (total >= maxRows) break;
-    const childScope = { ...scope, stream_slice: { [partitionField]: value } };
+    const slice = { [partitionField]: value };
+    const childScope = { ...scope, stream_slice: slice };
     const child = new SyncRetriever({
       requester,
       recordSelector: childRecordSelector,
@@ -48,6 +50,7 @@ export async function runChildSlices(
       context,
     });
     const records = await child.run(childScope);
+    linkSlice(records, slice);
     if (records.length > 0) {
       batches.push(records);
       total += records.length;
