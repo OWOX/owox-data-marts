@@ -351,8 +351,10 @@ Keys go only through Credentials. Declare each key as a parameter with
 `attributes: ["SECRET"]` and use parameter references in the manifest.
 `create_custom_connector` and `save_custom_connector_draft` reject a manifest with
 a literal key or a `[REDACTED]` value. They look for keys in `authentication`, in
-`SECRET` parameters, and in credential headers and query parameters such as
-`Authorization` and `api_key`. `get_custom_connector_version` shows a literal key
+`SECRET` parameters, and in any property whose name ends in a key word, such as
+`Authorization`, `api_key` or `X-Auth-Token`. The bare names `key`, `auth` and
+`appid` are keys only in `headers` and `queryParameters`, so a body filter such as
+`filters[].key` is not a key. `get_custom_connector_version` shows a literal key
 in these places as `[REDACTED]`. Text around a parameter reference, such as
 `Klaviyo-API-Key {{ parameters.ApiKey }}` or `sid={{ parameters.Sid }}; lang=en`,
 is not a key unless it holds a run of 16 or more letters and digits. A number or a

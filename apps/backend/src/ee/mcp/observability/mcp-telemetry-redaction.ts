@@ -11,6 +11,14 @@ const TRUNCATED = '[TRUNCATED]';
 const MAX_DEPTH = 64;
 const objectSchema = z.record(z.string(), z.unknown());
 const connectorPayloadSchema = z.object({ manifest: objectSchema }).loose();
+// Checks the shape only: a parsed copy would break the identity check of substreamParents.
+const substreamNodeSchema = z
+  .object({
+    partitionRouter: z.object({ type: z.literal('substream'), parent: objectSchema }).loose(),
+  })
+  .loose();
+// Common words in a request body (filters[].key, Tags[].Key): keys only in headers and query.
+const BARE_KEY_NAMES = /^(?:key|auth|appid)$/i;
 const credentialListSchema = z.array(credentialListItemSchema);
 
 interface RedactionContext {
@@ -20,6 +28,8 @@ interface RedactionContext {
   keyCheck: boolean;
   secretNames: Set<string>;
   secretValues: Set<string>;
+  /** Node router parents, by identity: the same names elsewhere in a manifest stay checked. */
+  substreamParents?: ReadonlySet<unknown>;
 }
 
 function isCredentialName(name: string): boolean {
@@ -34,7 +44,7 @@ function isCredentialName(name: string): boolean {
 }
 
 function isRequestCredentialName(name: string, inferCredentialNames: boolean): boolean {
-  if (inferCredentialNames) return isCredentialName(name) || /^(?:key|auth|appid)$/i.test(name);
+  if (inferCredentialNames) return isCredentialName(name) || BARE_KEY_NAMES.test(name);
   const normalized = name.replace(/[_\-\s]/g, '').toLowerCase();
   return (
     /^(?:(?:x|proxy)?authorization|bearer|cookie|password|passwd|token|clientsecret|key|auth|appid)$/.test(
@@ -196,18 +206,22 @@ function redact(value: unknown, context: RedactionContext, depth = 0, container 
       out[key] = maskParameters(item, context, depth + 1);
       continue;
     }
+    if (context.substreamParents?.has(item)) {
+      out[key] = redactSubstreamParent(item as Record<string, unknown>, context, depth + 1);
+      continue;
+    }
     const schemaName = context.connector && (container === 'fields' || container === 'nodes');
+    const requestCredentials = container === 'headers' || container === 'queryParameters';
     const namedSecret = container !== 'parameterDefinition' && context.secretNames.has(key);
     const credential =
       !schemaName &&
       (namedSecret ||
         (context.connector
           ? context.keyCheck
-            ? isKeyName(key)
+            ? isKeyName(key) && (requestCredentials || !BARE_KEY_NAMES.test(key))
             : ((context.inferCredentialNames || container === 'oauthParams') &&
                 isCredentialName(key)) ||
-              ((container === 'headers' || container === 'queryParameters') &&
-                isRequestCredentialName(key, context.inferCredentialNames))
+              (requestCredentials && isRequestCredentialName(key, context.inferCredentialNames))
           : REDACT_KEYS.test(key)));
     if (credential) {
       rememberSecret(item, context);
@@ -217,6 +231,32 @@ function redact(value: unknown, context: RedactionContext, depth = 0, container 
     }
   }
   return out;
+}
+
+// A substream parent.key is a path into the parent record, not a key: its name is not checked.
+function redactSubstreamParent(
+  parent: Record<string, unknown>,
+  context: RedactionContext,
+  depth: number
+): unknown {
+  const { key, ...rest } = parent;
+  const masked = redact(rest, context, depth, 'parent') as Record<string, unknown>;
+  return Object.fromEntries(
+    Object.keys(parent).map(name => [
+      name,
+      name === 'key' ? redact(key, context, depth + 1, 'key') : masked[name],
+    ])
+  );
+}
+
+function substreamParents(nodes: unknown): Set<unknown> {
+  const parents = new Set<unknown>();
+  const parsed = objectSchema.safeParse(nodes);
+  for (const node of parsed.success ? Object.values(parsed.data) : []) {
+    if (substreamNodeSchema.safeParse(node).success)
+      parents.add((node as { partitionRouter: { parent: unknown } }).partitionRouter.parent);
+  }
+  return parents;
 }
 
 function maskParameters(value: unknown, context: RedactionContext, depth = 0): unknown {
@@ -276,6 +316,8 @@ function maskParameters(value: unknown, context: RedactionContext, depth = 0): u
 
 function maskPayload(value: unknown, context: RedactionContext): unknown {
   const parsed = connectorPayloadSchema.safeParse(value);
+  // Reset per payload: redactMcpTelemetry masks the input and then the value on one context.
+  context.substreamParents = substreamParents(parsed.data?.manifest.nodes);
   if (!parsed.success) return redact(value, context);
   context.connector = true;
   const { manifest, configuration, ...rest } = parsed.data;
