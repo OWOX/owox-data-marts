@@ -3,6 +3,7 @@ import { DateTime } from 'luxon';
 import { AthenaFieldType } from '../../../../data-storage-types/athena/enums/athena-field-type.enum';
 import { BigQueryFieldType } from '../../../../data-storage-types/bigquery/enums/bigquery-field-type.enum';
 import { DuckdbFieldType } from '../../../../data-storage-types/duckdb/enums/duckdb-field-type.enum';
+import { DataStorageType } from '../../../../data-storage-types/enums/data-storage-type.enum';
 import { SnowflakeFieldType } from '../../../../data-storage-types/snowflake/enums/snowflake-field-type.enum';
 import { ReportDataHeader } from '../../../../dto/domain/report-data-header.dto';
 import { StorageFieldType } from '../../../../dto/domain/storage-field-type';
@@ -20,8 +21,14 @@ export class SheetValuesFormatter {
     [AthenaFieldType.TIMESTAMP, this.formatTimestamp],
     [AthenaFieldType.TIMESTAMP_WITH_TIME_ZONE, this.formatTimestamp],
     [SnowflakeFieldType.TIMESTAMP, this.formatTimestamp],
-    [DuckdbFieldType.TIMESTAMPTZ, this.formatTimestamp],
   ]);
+
+  // For a type name that another storage shares with a different value format: Redshift
+  // also has 'TIMESTAMPTZ'.
+  private readonly storageFormatters = new Map<
+    DataStorageType,
+    Map<StorageFieldType, FormatterFunction>
+  >([[DataStorageType.DUCKDB, new Map([[DuckdbFieldType.TIMESTAMPTZ, this.formatTimestamp]])]]);
 
   /**
    * Formats values in rows based on field types, resolving the per-column
@@ -40,19 +47,24 @@ export class SheetValuesFormatter {
    * @param finalNames - Column names in the order they appear in the sheet
    * @param headersByName - SQL output schema indexed by column name
    * @param sheetTimeZone - Time zone of the sheet
+   * @param storageType - Storage of the report's Data Mart
    */
   public formatRowsValuesByName(
     orderedRows: unknown[][],
     finalNames: string[],
     headersByName: ReadonlyMap<string, ReportDataHeader>,
-    sheetTimeZone: string
+    sheetTimeZone: string,
+    storageType?: DataStorageType
   ): unknown[][] {
+    const storageFormatters = storageType ? this.storageFormatters.get(storageType) : undefined;
     const columnsToFormat = finalNames
       .map((name, index) => {
-        const header = headersByName.get(name);
+        const fieldType = headersByName.get(name)?.storageFieldType;
         return {
           index,
-          formatter: header ? this.formatters.get(header.storageFieldType!) : undefined,
+          formatter: fieldType
+            ? (storageFormatters?.get(fieldType) ?? this.formatters.get(fieldType))
+            : undefined,
         };
       })
       .filter(item => item.formatter);
