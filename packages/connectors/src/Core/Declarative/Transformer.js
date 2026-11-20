@@ -5,7 +5,7 @@
  * file that was distributed with this source code.
  */
 
-import { sliceOf } from './partitionChild.js';
+import { sliceOf } from './recordSlices.js';
 
 /**
  * Applies an ordered list of record transformations to raw API records before

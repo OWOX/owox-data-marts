@@ -58,7 +58,13 @@ export class SubstreamRetriever {
     const sliceValues = [];
     for (const record of parentRecords) {
       const value = getPath(record, keyPath);
-      if (value === undefined || value === null || seen.has(value)) continue;
+      // An empty value gives a slice whose rows have an empty key in transformations.add.
+      if (value === undefined || value === null || value === '' || seen.has(value)) continue;
+      if (typeof value === 'object') {
+        throw new Error(
+          `SubstreamRetriever: partitionRouter.parent.key "${keyPath.join('.')}" names an object in a parent record, not a value. Point it at a string or number field of the record.`
+        );
+      }
       seen.add(value);
       sliceValues.push(value);
       if (sliceValues.length >= this.maxSlices) break;

@@ -2,7 +2,7 @@ import assert from 'node:assert';
 import { describe, it } from 'node:test';
 import { SubstreamRetriever } from '../../src/Core/Declarative/SubstreamRetriever.js';
 import { RecordSelector } from '../../src/Core/Declarative/RecordSelector.js';
-import { sliceOf } from '../../src/Core/Declarative/partitionChild.js';
+import { sliceOf } from '../../src/Core/Declarative/recordSlices.js';
 
 const partitionRouter = {
   type: 'substream',
@@ -138,5 +138,33 @@ describe('SubstreamRetriever', () => {
       { campaign_id: 'B' },
     ]);
     assert.strictEqual(sliceOf('x'), undefined);
+  });
+
+  const parentOf = parents => ({
+    async send(requestSpec, scope) {
+      if (requestSpec.path === '/campaigns') return { data: parents };
+      return { stats: [{ who: scope.stream_slice.campaign_id }] };
+    },
+  });
+  const retriever = parents =>
+    new SubstreamRetriever({
+      requester: parentOf(parents),
+      partitionRouter,
+      childRequestSpec,
+      childRecordSelector,
+    });
+
+  it('skips an empty parent key, which would give rows an empty key', async () => {
+    const out = await retriever([{ id: '' }, { id: 'A' }, { id: 0 }]).run({ parameters: {} });
+    assert.deepStrictEqual(out, [{ who: 'A' }, { who: 0 }]);
+  });
+
+  it('fails on a parent key that names an object, naming parent.key', async () => {
+    for (const id of [{ nested: 'A' }, ['A']]) {
+      await assert.rejects(
+        retriever([{ id: 'A' }, { id }]).run({ parameters: {} }),
+        /partitionRouter\.parent\.key "id" names an object in a parent record, not a value/
+      );
+    }
   });
 });

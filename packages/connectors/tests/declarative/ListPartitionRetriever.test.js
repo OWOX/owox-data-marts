@@ -2,7 +2,7 @@ import assert from 'node:assert';
 import { describe, it } from 'node:test';
 import { ListPartitionRetriever } from '../../src/Core/Declarative/ListPartitionRetriever.js';
 import { RecordSelector } from '../../src/Core/Declarative/RecordSelector.js';
-import { sliceOf } from '../../src/Core/Declarative/partitionChild.js';
+import { sliceOf } from '../../src/Core/Declarative/recordSlices.js';
 
 const childRequestSpec = { method: 'GET', path: '/stats/{{ stream_slice.country }}' };
 const childRecordSelector = new RecordSelector({ recordPath: ['rows'] });

@@ -97,6 +97,42 @@ function assertNoStrictDateWindowTemplate(nodeName, node) {
   }
 }
 
+const TEMPLATE_PATH = /\{\{\s*([a-zA-Z0-9_.]+)\s*\}\}/g;
+
+/** The paths after `stream_slice.` that a template string, array or object refers to. */
+function streamSlicePathsIn(value, paths = []) {
+  if (typeof value === 'string') {
+    for (const [, path] of value.matchAll(TEMPLATE_PATH)) {
+      const [head, ...rest] = path.split('.');
+      if (head === 'stream_slice') paths.push(rest.join('.'));
+    }
+  } else if (value && typeof value === 'object') {
+    for (const item of Object.values(value)) streamSlicePathsIn(item, paths);
+  }
+  return paths;
+}
+
+/**
+ * Refuses `{{ stream_slice.* }}` in an `add` value that can never resolve. `add` renders an
+ * unresolved path as empty text, so the field would be empty in every row, and an empty unique
+ * key merges the rows of a write.
+ */
+function assertResolvableStreamSlice(nodeName, node) {
+  const field = node.partitionRouter?.partitionField;
+  for (const t of node.transformations ?? []) {
+    if (t.type !== 'add') continue;
+    for (const path of streamSlicePathsIn(t.value)) {
+      if (field && path.split('.')[0] === field) continue;
+      const template = `{{ stream_slice${path ? `.${path}` : ''} }}`;
+      throw new Error(
+        field
+          ? `ManifestParser: node "${nodeName}" uses "${template}" in transformations.add, but its partitionRouter.partitionField is "${field}". Use "{{ stream_slice.${field} }}".`
+          : `ManifestParser: node "${nodeName}" uses "${template}" in transformations.add, but the node has no partitionRouter: only a substream or list node has a stream_slice. Add a partitionRouter, or remove the template.`
+      );
+    }
+  }
+}
+
 // The pre-`inject` spelling of the query parameter each pagination type writes
 // its value into (Paginator._legacyParam). Still honoured at run time, so still
 // accepted here as the alternative to an `inject` block.
@@ -794,6 +830,8 @@ export class ManifestParser {
           );
         }
       }
+      // After the router checks, so partitionField is valid. Only while authoring, as above.
+      if (authoring) assertResolvableStreamSlice(nodeName, node);
       if (node.recordFilter !== undefined) {
         const rf = node.recordFilter;
         if (typeof rf !== 'object' || rf === null || Array.isArray(rf)) {

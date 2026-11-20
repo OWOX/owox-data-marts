@@ -436,7 +436,7 @@ Optional, node-level; fans a single node out into one child request per "slice" 
 
 ### Substream
 
-Fetches a parent list first, extracts a key from each parent record, and runs the child request once per distinct key value:
+Fetches a parent list first, extracts a key from each parent record, and runs the child request once per distinct key value. A parent record whose key is missing, null or empty text gives no slice. A key that names an object or an array stops the node with an error:
 
 ```json
 {
@@ -460,7 +460,7 @@ If the child response does not repeat the parent value, add it to each record wi
 ]
 ```
 
-To read the added value, declare a field `account_id` with no `dataPath`, or with `"dataPath": "account_id"`. The value renders as text. The field `type` casts it.
+To read the added value, declare a field `account_id` with no `dataPath`, or with `"dataPath": "account_id"`. The value renders as text. The field `type` casts it. Publish and Test refuse `{{ stream_slice.<x> }}` in `add` when the node has no partition router, or when `<x>` is not its `partitionField`: the value would be empty in every row.
 
 ### List
 
