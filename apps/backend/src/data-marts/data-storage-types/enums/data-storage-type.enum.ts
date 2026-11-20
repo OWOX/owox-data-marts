@@ -35,6 +35,14 @@ export function usesStoredCredentials(type: DataStorageType): boolean {
 }
 
 /**
+ * Whether this storage's report reader holds an open cursor and its file between reads. Requests
+ * then cannot share one reader, and the request that used it must finalize it.
+ */
+export function readerHoldsOpenCursor(type: DataStorageType): boolean {
+  return type === DataStorageType.DUCKDB;
+}
+
+/**
  * Whether `INTEGER / INTEGER` truncates on this storage instead of promoting to a float — measured
  * per dialect. A truncating storage rounds a ratio per row, so recomputing it from group totals
  * moves the number: rows (5,2) and (1,3) show 2 and 0 while `SUM(a)/SUM(b)` is 1.
