@@ -102,7 +102,7 @@ export function RunDataQualityBatchDialog({
       confirmLabel={isRunning ? 'Starting…' : 'Check Quality'}
       cancelLabel='Cancel'
       confirmDisabled={selectedCount === 0 || isRunning}
-      variant='brand'
+      variant='default'
       onConfirm={() => {
         void handleRun();
       }}

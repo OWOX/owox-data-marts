@@ -368,7 +368,7 @@ export const DataStorageList = ({
         onCancel={() => {
           setStorageToPublish(null);
         }}
-        variant='brand'
+        variant='default'
       />
     </div>
   );
