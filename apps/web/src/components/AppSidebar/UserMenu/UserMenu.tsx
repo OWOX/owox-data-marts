@@ -1,7 +1,10 @@
 import { useState } from 'react';
 import { DropdownMenu } from '@owox/ui/components/dropdown-menu';
 import { useTheme } from 'next-themes';
+import { useNavigate } from 'react-router';
 import { useAuth } from '../../../features/idp/hooks';
+import { MY_ACCOUNT_PATH } from '../../../features/idp/utils/my-account-path';
+import { useAccountApiOrigin } from '../../../features/my-account/use-account-api-origin';
 import { generateInitials } from '../../../shared/utils';
 import { UserMenuItems } from './items';
 import { UserMenuTrigger } from './UserMenuTrigger';
@@ -10,6 +13,8 @@ import { UserMenuContent } from './UserMenuContent';
 export function UserMenu() {
   const { user, signOut } = useAuth();
   const { setTheme, theme } = useTheme();
+  const navigate = useNavigate();
+  const accountApiOrigin = useAccountApiOrigin();
   const [isOpen, setIsOpen] = useState(false);
 
   if (!user) return null;
@@ -32,7 +37,18 @@ export function UserMenu() {
           avatar={avatar}
           initials={initials}
         />
-        <UserMenuContent items={UserMenuItems({ theme, setTheme, signOut })} />
+        <UserMenuContent
+          items={UserMenuItems({
+            theme,
+            setTheme,
+            signOut,
+            openMyAccount: accountApiOrigin
+              ? () => {
+                  void navigate(MY_ACCOUNT_PATH);
+                }
+              : undefined,
+          })}
+        />
       </DropdownMenu>
     </div>
   );

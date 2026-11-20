@@ -68,11 +68,11 @@ export function AppBootstrap({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     if (status === AuthStatus.AUTHENTICATED && user?.projectId) {
       dispatch(setProject({ id: user.projectId, title: user.projectTitle ?? null }));
-      if (!hasEmptyProjectRoles && flagsStatus === RequestStatus.IDLE) {
+      if (flagsStatus === RequestStatus.IDLE) {
         void fetchFlags(dispatch);
       }
     }
-  }, [status, user?.projectId, user?.projectTitle, hasEmptyProjectRoles, flagsStatus, dispatch]);
+  }, [status, user?.projectId, user?.projectTitle, flagsStatus, dispatch]);
 
   useEffect(() => {
     const ready =

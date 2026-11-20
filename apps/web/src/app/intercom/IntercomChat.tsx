@@ -97,7 +97,7 @@ async function initializeIntercom(appId: string, user: User): Promise<void> {
 
 /**
  * Boots the Intercom widget when configured via app flags.
- * Skipped entirely in view-only sessions: the script is never loaded, so
+ * Skipped in view-only sessions and sessions without project roles: the script is never loaded, so
  * `window.Intercom` stays undefined and `openIntercom()` becomes a no-op.
  * The backend also refuses to issue an Intercom JWT for such sessions.
  */
@@ -112,6 +112,7 @@ export function IntercomChat(): null {
     // Fail closed until auth resolves: do not load Intercom without a known user.
     if (callState !== RequestStatus.LOADED || !flags || !user) return;
     if (isViewOnlySession(user)) return;
+    if (Array.isArray(user.roles) && user.roles.length === 0) return;
 
     const rawAppId = flags[INTERCOM_APP_ID_FLAG];
     const appId = (typeof rawAppId === 'string' ? rawAppId : '').trim();

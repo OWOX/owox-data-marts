@@ -119,6 +119,45 @@ describe('IntercomChat', () => {
     expect(intercomSpy).not.toHaveBeenCalled();
   });
 
+  it('does not load Intercom or request a JWT when project roles are empty', () => {
+    vi.mocked(useFlags).mockReturnValue({
+      flags: { INTERCOM_APP_ID: 'app_no_access' },
+      callState: RequestStatus.LOADED,
+    } as never);
+    vi.mocked(useAuth).mockReturnValue({
+      user: { id: 'u-no-access', projectId: 'project', roles: [], viewOnly: false },
+    } as never);
+
+    render(<IntercomChat />);
+
+    expect(document.getElementById('intercom-widget-script')).toBeNull();
+    expect(apiClient.post).not.toHaveBeenCalled();
+    expect(intercomSpy).not.toHaveBeenCalled();
+  });
+
+  it('starts Intercom after project access becomes available', async () => {
+    vi.mocked(useFlags).mockReturnValue({
+      flags: { INTERCOM_APP_ID: 'app_access_granted' },
+      callState: RequestStatus.LOADED,
+    } as never);
+    vi.mocked(useAuth).mockReturnValue({ user: { id: 'u', roles: [] } } as never);
+    apiClient.post.mockResolvedValue({ data: { token: 'jwt' } });
+
+    const { rerender } = render(<IntercomChat />);
+    expect(apiClient.post).not.toHaveBeenCalled();
+    expect(document.getElementById('intercom-widget-script')).toBeNull();
+
+    vi.mocked(useAuth).mockReturnValue({ user: { id: 'u', roles: ['viewer'] } } as never);
+    rerender(<IntercomChat />);
+    const script = document.getElementById('intercom-widget-script') as HTMLScriptElement;
+    expect(script).not.toBeNull();
+    script.onload?.(new Event('load'));
+
+    await waitFor(() => {
+      expect(apiClient.post).toHaveBeenCalledWith('/intercom/jwt');
+    });
+  });
+
   it('injects script, fetches JWT, and boots Intercom with intercom_user_jwt', async () => {
     const appId = 'app_123';
     const user = { id: 'u1', email: 'a@b.c', fullName: 'John Doe', projectTitle: 'Proj' };

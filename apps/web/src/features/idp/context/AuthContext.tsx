@@ -10,7 +10,8 @@ import {
   isBlockedUserError,
   isViewOnlySession,
 } from '../services';
-import { getProjectIdFromPath } from '../utils/project-id';
+import { getProjectIdFromPath, isProjectPath } from '../utils/project-id';
+import { isMyAccountPath } from '../utils/my-account-path';
 import {
   ConnectProjectMismatchError,
   ConnectAccountMismatchError,
@@ -292,7 +293,26 @@ export function AuthProvider({ children }: AuthProviderProps) {
           if (!hasEmptyProjectRoles(user)) return;
         }
 
-        if (hasEmptyProjectRoles(user)) {
+        if (isMyAccountPath(currentPath)) {
+          RedirectStorageService.clear();
+          return;
+        }
+
+        if (currentPath === '/') {
+          const target = RedirectStorageService.retrieve();
+          if (target && isMyAccountPath(new URL(target, window.location.origin).pathname)) {
+            RedirectStorageService.clear();
+            window.location.replace(target);
+            return;
+          }
+        }
+
+        if (
+          hasEmptyProjectRoles(user) &&
+          (currentPath === '/' ||
+            currentPath === LEGACY_REQUEST_ACCESS_PATH ||
+            isProjectPath(currentPath))
+        ) {
           const isRequestAccessPath =
             currentPath === LEGACY_REQUEST_ACCESS_PATH ||
             isProjectRequestAccessPath(

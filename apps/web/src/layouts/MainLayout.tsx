@@ -23,7 +23,7 @@ import { GlobalLoader, LoadingProvider, useLoading } from '../shared/components/
 import { Toaster as SonnerToaster } from '@owox/ui/components/sonner';
 import { Toaster as HotToaster } from '../shared/components/Toaster';
 import { useUser } from '../features/idp/hooks';
-import { ProjectAuthGuards } from './ProjectAuthGuards';
+import { AccountAuthGuards, ProjectAuthGuards } from './ProjectAuthGuards';
 import { Separator } from '@owox/ui/components/separator';
 import { ArchiveRestore, Box, DatabaseIcon, LockKeyhole } from 'lucide-react';
 import { HelpMenu } from '../components/AppSidebar/HelpMenu';
@@ -98,13 +98,14 @@ function RestrictedProjectSidebar() {
   );
 }
 
-function MainLayoutContent() {
+function MainLayoutContent({ accountOnly }: { accountOnly: boolean }) {
   const { state, isMobile } = useSidebar();
   const user = useUser();
   const isCollapsed = state === 'collapsed';
   const showTrigger = isMobile || isCollapsed;
   const { isLoading, progress } = useLoading();
   const hasEmptyProjectRoles = Array.isArray(user?.roles) && user.roles.length === 0;
+  const Guards = accountOnly ? AccountAuthGuards : ProjectAuthGuards;
 
   return (
     <>
@@ -113,7 +114,7 @@ function MainLayoutContent() {
       {/* Legacy react-hot-toast Toaster to keep previously configured toasts working */}
       <HotToaster />
       <GlobalLoader isLoading={isLoading} progress={progress} />
-      <ProjectAuthGuards>
+      <Guards>
         {user && hasEmptyProjectRoles ? (
           <>
             <RestrictedProjectSidebar />
@@ -132,12 +133,12 @@ function MainLayoutContent() {
             </SidebarInset>
           </>
         )}
-      </ProjectAuthGuards>
+      </Guards>
     </>
   );
 }
 
-function MainLayout() {
+function MainLayout({ accountOnly = false }: { accountOnly?: boolean }) {
   // Read the initial state from localStorage using our service
   const [sidebarOpen, setSidebarOpen] = useState<boolean>(() => {
     // Get value as boolean, default to true if not found
@@ -154,7 +155,7 @@ function MainLayout() {
     <ThemeProvider>
       <LoadingProvider>
         <SidebarProvider open={sidebarOpen} onOpenChange={handleSidebarChange}>
-          <MainLayoutContent />
+          <MainLayoutContent accountOnly={accountOnly} />
         </SidebarProvider>
       </LoadingProvider>
     </ThemeProvider>
