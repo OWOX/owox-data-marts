@@ -10,6 +10,7 @@ import { showApiErrorToast } from '../../shared/utils';
 import {
   getAccountEmailPreferences,
   getAccountProfile,
+  getAccountPersonalData,
   updateAccountEmailPreference,
   updateAccountProfile,
   updateErasureRequest,
@@ -84,6 +85,13 @@ afterEach(() => {
 
 describe('account requests through the shared API client', () => {
   it.each([
+    {
+      name: 'personal data export',
+      run: () => getAccountPersonalData(origin, session),
+      data: { account: 'anna@example.test', policyInteraction: 'inactive' },
+      method: 'get',
+      path: '/api/account/me/personal-data',
+    },
     {
       name: 'profile read',
       run: () => getAccountProfile(origin, session, new AbortController().signal),
@@ -206,6 +214,23 @@ describe('account requests through the shared API client', () => {
     expect(logout).not.toHaveBeenCalled();
     expect(showApiErrorToast).not.toHaveBeenCalled();
   });
+
+  it.each(['userId', 'projectId'] as const)(
+    'does not replay an export after %s changes during refresh',
+    async key => {
+      adapter.mockImplementation(async config => fail(config, 401));
+      provider.refresh.mockImplementation(async () => {
+        provider[key] = 'other-session';
+        provider.token = 'replacement-session-token';
+        return provider.token;
+      });
+      await expect(getAccountPersonalData(origin, session)).rejects.toThrow(
+        'The active project or account changed'
+      );
+      expect(adapter).toHaveBeenCalledTimes(1);
+      expect(logout).not.toHaveBeenCalled();
+    }
+  );
 
   it('lets the account page handle forbidden responses without a persistent global toast', async () => {
     adapter.mockImplementation(async config => fail(config, 403));
