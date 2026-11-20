@@ -185,6 +185,13 @@ describe('OwoxBetterAuthIdp user signals', () => {
     expect(store.recordUserSignal).toHaveBeenCalledWith(
       expect.objectContaining({ userId: 'user-1' })
     );
+    expect(res.clearCookie).toHaveBeenCalledWith('app_destination', {
+      domain: 'example.com',
+      path: '/',
+    });
+    expect(res.clearCookie.mock.invocationCallOrder[0]).toBeLessThan(
+      res.redirect.mock.invocationCallOrder[0] as number
+    );
     expect(res.redirect).toHaveBeenCalled();
   });
 

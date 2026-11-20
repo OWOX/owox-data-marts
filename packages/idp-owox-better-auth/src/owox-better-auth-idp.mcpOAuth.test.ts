@@ -29,7 +29,6 @@ describe('OwoxBetterAuthIdp MCP OAuth methods', () => {
     Object.assign(Object.create(OwoxBetterAuthIdp.prototype), {
       serverEvents: new ServerEventsService(undefined),
       userSignals: { collect: jest.fn(), list: jest.fn() },
-      userSignals: { collect: jest.fn(), list: jest.fn() },
       identityClient,
     }) as OwoxBetterAuthIdp;
 
@@ -37,7 +36,6 @@ describe('OwoxBetterAuthIdp MCP OAuth methods', () => {
     const projectId = '8c90f0b0f314bf5f5d6f69d24fd7ee3b';
     const provider = Object.assign(Object.create(OwoxBetterAuthIdp.prototype), {
       serverEvents: new ServerEventsService(undefined),
-      userSignals: { collect: jest.fn(), list: jest.fn() },
       userSignals: { collect: jest.fn(), list: jest.fn() },
       tokenFacade: {
         parseToken: jest.fn().mockResolvedValue({
@@ -147,7 +145,6 @@ describe('OwoxBetterAuthIdp MCP OAuth methods', () => {
     const provider = Object.assign(Object.create(OwoxBetterAuthIdp.prototype), {
       serverEvents: new ServerEventsService(undefined),
       userSignals: { collect: jest.fn(), list: jest.fn() },
-      userSignals: { collect: jest.fn(), list: jest.fn() },
       tokenFacade,
       config: {
         idpOwox: {
@@ -184,7 +181,6 @@ describe('OwoxBetterAuthIdp MCP OAuth methods', () => {
     const idpStartMiddleware = jest.fn().mockResolvedValue(undefined);
     const provider = Object.assign(Object.create(OwoxBetterAuthIdp.prototype), {
       serverEvents: new ServerEventsService(undefined),
-      userSignals: { collect: jest.fn(), list: jest.fn() },
       userSignals: { collect: jest.fn(), list: jest.fn() },
       authFlowMiddleware: {
         idpStartMiddleware,
@@ -261,7 +257,6 @@ describe('OwoxBetterAuthIdp MCP OAuth methods', () => {
     };
     const provider = Object.assign(Object.create(OwoxBetterAuthIdp.prototype), {
       serverEvents: new ServerEventsService(undefined),
-      userSignals: { collect: jest.fn(), list: jest.fn() },
       userSignals: { collect: jest.fn(), list: jest.fn() },
       betterAuthProxyHandler: { setupBetterAuthHandler: jest.fn() },
       authErrorController: { registerRoutes: jest.fn() },
@@ -348,7 +343,6 @@ describe('OwoxBetterAuthIdp MCP OAuth methods', () => {
     };
     const provider = Object.assign(Object.create(OwoxBetterAuthIdp.prototype), {
       serverEvents: new ServerEventsService(undefined),
-      userSignals: { collect: jest.fn(), list: jest.fn() },
       userSignals: { collect: jest.fn(), list: jest.fn() },
       betterAuthProxyHandler: { setupBetterAuthHandler: jest.fn() },
       authErrorController: { registerRoutes: jest.fn() },
