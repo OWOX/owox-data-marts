@@ -135,6 +135,14 @@ The visitor's IP, User-Agent, language and Client Hints are forwarded.
 Sending runs in the background with a 3-second timeout and never blocks or
 fails a page or a sign-in; a failed send is logged as a warning.
 
+## Product intent signals
+
+Disabled unless both `IDP_OWOX_PRODUCT_INTENT_COOKIE_PREFIX` and
+`IDP_OWOX_PRODUCT_INTENT_COOKIE_DOMAIN` are set; setting only one is a
+configuration error. After a completed sign-in the provider reads the request
+cookies whose names start with the prefix and stores their values for the user.
+The cookies are then cleared on the configured domain.
+
 ## Troubleshooting
 
 ### "IDP_BETTER_AUTH_SECRET is not set" Error
@@ -217,11 +225,3 @@ Entry point (OwoxBetterAuthIdp)
 2. Check rendering locally (via the app that consumes this package).
 3. Run `npm run build` to update `dist/resources/templates`.
 4. Commit changes in `src` (and `dist` if you ship built artifacts).
-
-## Product intent signals
-
-Disabled unless both `IDP_OWOX_PRODUCT_INTENT_COOKIE_PREFIX` and
-`IDP_OWOX_PRODUCT_INTENT_COOKIE_DOMAIN` are set; setting only one is a
-configuration error. After a completed sign-in the provider reads the request
-cookies whose names start with the prefix and stores their values for the user.
-The cookies are then cleared on the configured domain.
