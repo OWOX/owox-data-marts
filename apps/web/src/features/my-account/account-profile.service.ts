@@ -73,6 +73,14 @@ export async function getAccountProfile(
   return accountProfileSchema.parse(response.data);
 }
 
+export async function getAccountPersonalData(
+  origin: string,
+  session: AccountSession
+): Promise<unknown> {
+  const response = await accountRequest(origin, session, '/api/account/me/personal-data', 'GET');
+  return response.data;
+}
+
 export async function updateAccountProfile(
   origin: string,
   session: AccountSession,

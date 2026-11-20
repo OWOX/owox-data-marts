@@ -34,6 +34,8 @@ import { CredentialsPage } from '../pages/credentials/CredentialsPage';
 import ConnectorBuilderRoutePage from '../pages/connectors/builder/BuilderPage';
 import { InviteTeammatesPage } from '../pages/onboarding/InviteTeammatesPage';
 import { MyAccountPage } from '../features/my-account/MyAccountPage';
+import { AccountLinkPage } from '../features/my-account/AccountLinkPage';
+import { accountLinkRoutes } from '../features/my-account/account-link-paths';
 import {
   MY_ACCOUNT_EMAIL_PATH,
   MY_ACCOUNT_PATH,
@@ -42,6 +44,10 @@ import {
 } from '../features/idp/utils/my-account-path';
 
 const routes: RouteObject[] = [
+  ...accountLinkRoutes.map(({ path, action }) => ({
+    path,
+    element: <AccountLinkPage action={action} />,
+  })),
   {
     index: true,
     path: '/',
