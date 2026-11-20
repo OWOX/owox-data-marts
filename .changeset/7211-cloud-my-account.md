@@ -6,7 +6,7 @@
 
 Cloud members waiting for project access previously had to open Platform to check or update their personal details. You can now open **My profile** from the user menu in OWOX Data Marts, including on the **Request access** screen.
 
-On **Overview**, check your sign-in email, edit your contact and company details, and download your personal data. You can also request deletion of your Cloud account and cancel the request while it is pending.
+On **Overview**, check your sign-in email, edit your contact and company details, and download your personal data. You can also request deletion of your Cloud profile and cancel the request while it is pending.
 
 The **Projects** table shows your memberships and roles. Search by project name or filter by role or project status.
 

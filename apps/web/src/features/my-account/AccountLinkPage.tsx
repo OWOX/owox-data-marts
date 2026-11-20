@@ -34,11 +34,11 @@ export function AccountLinkPage({ action }: { action: 'subscriptions' | 'export'
   if (!link.success) {
     content = <LinkError>Open the full link from your OWOX email.</LinkError>;
   } else if (flags.isPending) {
-    content = <LoadingSpinner message='Loading account settings...' />;
+    content = <LoadingSpinner message='Loading profile settings...' />;
   } else if (flags.isError) {
     content = (
       <>
-        <LinkError>Could not load account settings. Try again.</LinkError>
+        <LinkError>Could not load profile settings. Try again.</LinkError>
         <Button variant='outline' onClick={() => void flags.refetch()}>
           Try again
         </Button>

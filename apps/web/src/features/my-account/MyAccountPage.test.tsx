@@ -219,12 +219,12 @@ describe('My profile', () => {
       .mockResolvedValueOnce({ data: profile });
 
     renderProfile();
-    fireEvent.click(await screen.findByRole('button', { name: 'Request account deletion' }));
+    fireEvent.click(await screen.findByRole('button', { name: 'Request profile deletion' }));
     fireEvent.click(screen.getByRole('button', { name: /^Request deletion$/ }));
     fireEvent.click(await screen.findByRole('button', { name: 'Cancel deletion request' }));
 
     await waitFor(() => {
-      expect(screen.getByRole('button', { name: 'Request account deletion' })).toBeVisible();
+      expect(screen.getByRole('button', { name: 'Request profile deletion' })).toBeVisible();
     });
     expect(request).toHaveBeenCalledWith(
       expect.objectContaining({ url: '/api/account/me/erasure-request', method: 'POST' })
@@ -247,10 +247,10 @@ describe('My profile', () => {
       renderProfile();
 
       expect(await screen.findByText('Anna Kowalska')).toBeVisible();
-      expect(screen.getByText(/viewing this account in read-only mode/)).toBeVisible();
+      expect(screen.getByText(/viewing this profile in read-only mode/)).toBeVisible();
       expect(screen.queryByRole('button', { name: 'Edit profile' })).not.toBeInTheDocument();
       expect(
-        screen.queryByRole('button', { name: 'Request account deletion' })
+        screen.queryByRole('button', { name: 'Request profile deletion' })
       ).not.toBeInTheDocument();
       expect(
         screen.queryByRole('button', { name: 'Cancel deletion request' })

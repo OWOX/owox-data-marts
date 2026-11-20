@@ -29,7 +29,7 @@ export function AccountErasureCard({
     >
       <div className='flex w-full flex-wrap items-center justify-between gap-2'>
         <h2 id='account-erasure-heading' className='text-base font-medium'>
-          Account deletion
+          Profile deletion
         </h2>
         {request && (
           <StatusLabel type={pending ? StatusTypeEnum.NEUTRAL : StatusTypeEnum.INFO}>
@@ -57,7 +57,7 @@ export function AccountErasureCard({
       ) : (
         <>
           <p className='text-muted-foreground text-sm'>
-            Request deletion of your Cloud account and personal data.
+            Request deletion of your Cloud profile and personal data.
           </p>
           {!viewOnly && (
             <Button
@@ -67,7 +67,7 @@ export function AccountErasureCard({
                 setConfirmOpen(true);
               }}
             >
-              Request account deletion
+              Request profile deletion
             </Button>
           )}
         </>
@@ -83,9 +83,9 @@ export function AccountErasureCard({
           onOpenChange={open => {
             if (!busy) setConfirmOpen(open);
           }}
-          title='Request account deletion?'
-          description='Your Cloud account and personal data will be deleted after the request is confirmed. You can cancel while the request is pending.'
-          cancelLabel='Keep account'
+          title='Request profile deletion?'
+          description='Your Cloud profile and personal data will be deleted after the request is confirmed. You can cancel while the request is pending.'
+          cancelLabel='Keep profile'
           confirmLabel='Request deletion'
           confirmDisabled={busy}
           cancelDisabled={busy}
