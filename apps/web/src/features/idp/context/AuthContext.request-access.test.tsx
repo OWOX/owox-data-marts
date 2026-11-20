@@ -105,20 +105,23 @@ describe('AuthProvider request-access entry', () => {
     });
   });
 
-  it('keeps the account profile open for a session with empty project roles', async () => {
-    window.history.replaceState({}, '', '/ui/me/profile');
-    const replace = vi.spyOn(window.location, 'replace').mockImplementation(() => {});
+  it.each(['/ui/me/profile', '/ui/me/api-keys', '/ui/me/unknown/nested'])(
+    'keeps account route %s available for the router with empty project roles',
+    async path => {
+      window.history.replaceState({}, '', path);
+      const replace = vi.spyOn(window.location, 'replace').mockImplementation(() => {});
 
-    render(
-      <AuthProvider>
-        <Status />
-      </AuthProvider>
-    );
-    await screen.findByText('authenticated');
+      render(
+        <AuthProvider>
+          <Status />
+        </AuthProvider>
+      );
+      await screen.findByText('authenticated');
 
-    expect(replace).not.toHaveBeenCalled();
-    expect(api.signIn).not.toHaveBeenCalled();
-  });
+      expect(replace).not.toHaveBeenCalled();
+      expect(api.signIn).not.toHaveBeenCalled();
+    }
+  );
 
   it('returns a session with empty roles to the account profile after sign-in', async () => {
     RedirectStorageService.save('/ui/me/profile');

@@ -249,6 +249,10 @@ const routes: RouteObject[] = [
         element: <MyAccountPage section='email-preferences' />,
         errorElement: <LayoutErrorBoundary />,
       },
+      {
+        path: '*',
+        element: <Navigate to={MY_ACCOUNT_PATH} replace />,
+      },
     ],
   },
   {

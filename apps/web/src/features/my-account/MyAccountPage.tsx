@@ -19,6 +19,7 @@ import {
   getAccountProfile,
   updateAccountProfile,
   updateErasureRequest,
+  type AccountSession,
 } from './account-profile.service';
 import { AccountProfileCard } from './AccountProfileCard';
 import { AccountErasureCard } from './AccountErasureCard';
@@ -58,7 +59,11 @@ export function MyAccountPage({
     needsProjectAccess ? '/request-access' : '/data-marts'
   );
   const viewOnly = user.viewOnly === true;
-  const account = { origin, userId: user.id, accessToken: session.accessToken, viewOnly };
+  const account = {
+    origin,
+    session: { userId: user.id, projectId: user.projectId },
+    viewOnly,
+  };
 
   return (
     <div className='dm-page-content pb-6'>
@@ -114,33 +119,31 @@ export function MyAccountPage({
 
 function AccountDetails({
   origin,
-  userId,
-  accessToken,
+  session,
   viewOnly,
 }: {
   origin: string;
-  userId: string;
-  accessToken: string;
+  session: AccountSession;
   viewOnly: boolean;
 }) {
   const [editing, setEditing] = useState(false);
   const queryClient = useQueryClient();
-  const queryKey = ['account-profile', origin, userId, viewOnly];
+  const queryKey = ['account-profile', origin, session.userId, session.projectId, viewOnly];
   const profile = useQuery({
     queryKey,
-    queryFn: ({ signal }) => getAccountProfile(origin, accessToken, signal),
+    queryFn: ({ signal }) => getAccountProfile(origin, session, signal),
     gcTime: 0,
   });
   const save = useMutation({
     mutationFn: (fields: Parameters<typeof updateAccountProfile>[2]) =>
-      updateAccountProfile(origin, accessToken, fields),
+      updateAccountProfile(origin, session, fields),
     onSuccess: data => {
       queryClient.setQueryData(queryKey, data);
       setEditing(false);
     },
   });
   const erasure = useMutation({
-    mutationFn: (requestId?: string) => updateErasureRequest(origin, accessToken, requestId),
+    mutationFn: (requestId?: string) => updateErasureRequest(origin, session, requestId),
     onSuccess: () => queryClient.invalidateQueries({ queryKey }),
   });
 

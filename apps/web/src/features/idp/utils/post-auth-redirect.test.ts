@@ -6,6 +6,18 @@ import {
 } from './post-auth-redirect';
 
 describe('storedRedirectTarget', () => {
+  it.each(['/ui/me/api-keys', '/ui/me/unknown/nested?tab=profile#details'])(
+    'restores %s as an account URL rather than switching to a project named me',
+    storedRedirect => {
+      expect(
+        storedRedirectTarget({ storedRedirect, currentUrl: '/', projectId: 'project-1' })
+      ).toBe(storedRedirect);
+      expect(
+        storedRedirectTarget({ storedRedirect, currentUrl: storedRedirect, projectId: 'project-1' })
+      ).toBeNull();
+    }
+  );
+
   it('resolves a stored placeholder link to the member project', () => {
     expect(
       storedRedirectTarget({

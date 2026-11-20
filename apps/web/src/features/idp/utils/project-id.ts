@@ -1,5 +1,5 @@
 import { PROJECT_PLACEHOLDER } from '../../../utils/path';
-import { MY_ACCOUNT_PREFIX } from './my-account-path';
+import { isMyAccountPath } from './my-account-path';
 
 const PROJECT_ID_PATTERN = /^[a-zA-Z0-9_-]+$/;
 
@@ -12,8 +12,7 @@ export function normalizeProjectId(value?: string | null): string | null {
 }
 
 function getProjectPathSegment(path: string): string | null {
-  const lower = path.toLowerCase();
-  if (lower === MY_ACCOUNT_PREFIX || lower.startsWith(`${MY_ACCOUNT_PREFIX}/`)) return null;
+  if (isMyAccountPath(path)) return null;
   return /^\/ui\/([^/]+)/i.exec(path)?.[1] ?? null;
 }
 

@@ -65,6 +65,37 @@ describe('GoogleTagManager', () => {
     expect(document.getElementById('gtm-script')).toBeNull();
   });
 
+  it('does not install GTM when project roles are empty', () => {
+    vi.mocked(useFlags).mockReturnValue({
+      flags: { GOOGLE_TAG_MANAGER_CONTAINER_ID: 'GTM-TEST123' },
+      callState: RequestStatus.LOADED,
+    } as never);
+    vi.mocked(useAuth).mockReturnValue({
+      user: { id: 'u', projectId: 'p', roles: [], viewOnly: false },
+    } as never);
+
+    render(<GoogleTagManager />);
+
+    expect(document.getElementById('gtm-script')).toBeNull();
+    expect(document.getElementById('gtm-noscript')).toBeNull();
+  });
+
+  it('installs GTM after project access becomes available', () => {
+    vi.mocked(useFlags).mockReturnValue({
+      flags: { GOOGLE_TAG_MANAGER_CONTAINER_ID: 'GTM-TEST123' },
+      callState: RequestStatus.LOADED,
+    } as never);
+    vi.mocked(useAuth).mockReturnValue({ user: { id: 'u', roles: [] } } as never);
+    const { rerender } = render(<GoogleTagManager />);
+    expect(document.getElementById('gtm-script')).toBeNull();
+
+    vi.mocked(useAuth).mockReturnValue({ user: { id: 'u', roles: ['viewer'] } } as never);
+    rerender(<GoogleTagManager />);
+
+    expect(document.getElementById('gtm-script')).not.toBeNull();
+    expect(document.getElementById('gtm-noscript')).not.toBeNull();
+  });
+
   it('installs GTM when container id is set and session is not view-only', () => {
     vi.mocked(useFlags).mockReturnValue({
       flags: { GOOGLE_TAG_MANAGER_CONTAINER_ID: 'GTM-TEST123' },

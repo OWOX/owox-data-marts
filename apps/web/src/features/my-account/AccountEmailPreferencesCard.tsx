@@ -15,6 +15,7 @@ import {
   getAccountEmailPreferences,
   updateAccountEmailPreference,
   type AccountEmailTopic,
+  type AccountSession,
 } from './account-profile.service';
 
 const topicText: Record<string, { label: string; description: string } | undefined> = {
@@ -34,25 +35,28 @@ const topicText: Record<string, { label: string; description: string } | undefin
 
 export function AccountEmailPreferencesCard({
   origin,
-  userId,
-  accessToken,
+  session,
   viewOnly,
 }: {
   origin: string;
-  userId: string;
-  accessToken: string;
+  session: AccountSession;
   viewOnly: boolean;
 }) {
   const queryClient = useQueryClient();
-  const queryKey = ['account-email-preferences', origin, userId, viewOnly];
+  const queryKey = [
+    'account-email-preferences',
+    origin,
+    session.userId,
+    session.projectId,
+    viewOnly,
+  ];
   const preferences = useQuery({
     queryKey,
-    queryFn: ({ signal }) => getAccountEmailPreferences(origin, accessToken, signal),
+    queryFn: ({ signal }) => getAccountEmailPreferences(origin, session, signal),
     gcTime: 0,
   });
   const change = useMutation({
-    mutationFn: (topic: AccountEmailTopic) =>
-      updateAccountEmailPreference(origin, accessToken, topic),
+    mutationFn: (topic: AccountEmailTopic) => updateAccountEmailPreference(origin, session, topic),
     onSuccess: () => queryClient.invalidateQueries({ queryKey }),
   });
 

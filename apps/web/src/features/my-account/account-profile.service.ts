@@ -1,4 +1,10 @@
 import { z } from 'zod';
+import apiClient, { type AxiosRequestConfig } from '../../app/api/apiClient';
+
+export interface AccountSession {
+  projectId: string;
+  userId: string;
+}
 
 const accountProfileSchema = z.object({
   fullName: z.string(),
@@ -30,91 +36,89 @@ export type AccountEmailTopic = z.infer<typeof emailTopicSchema>;
 
 async function accountRequest(
   origin: string,
-  accessToken: string,
+  session: AccountSession,
   path: string,
   method: 'GET' | 'PATCH' | 'POST' | 'DELETE',
   body?: AccountProfileFields | { subscribed: boolean },
   signal?: AbortSignal
 ) {
-  const response = await fetch(new URL(path, origin), {
+  const config: AxiosRequestConfig = {
+    url: path,
     method,
-    headers: {
-      'X-OWOX-Authorization': `Bearer ${accessToken}`,
-      ...(body ? { 'Content-Type': 'application/json' } : {}),
-    },
-    body: body ? JSON.stringify(body) : undefined,
-    credentials: 'omit',
-    cache: 'no-store',
-    redirect: 'error',
+    baseURL: origin,
+    headers: method === 'GET' ? { 'Content-Type': null } : undefined,
+    data: body,
+    withCredentials: false,
+    skipErrorToast: true,
+    skipLogoutOnUnauthorizedRetry: true,
+    expectedSession: session,
     signal,
-  });
-  if (response.status === 403) throw new Error('This session cannot make changes to the account.');
-  if (!response.ok) throw new Error('The account request failed. Try again.');
-  return response;
+  };
+  return apiClient.request<unknown>(config);
 }
 
 export async function getAccountProfile(
   origin: string,
-  accessToken: string,
+  session: AccountSession,
   signal: AbortSignal
 ): Promise<AccountProfile> {
   const response = await accountRequest(
     origin,
-    accessToken,
+    session,
     '/api/account/me',
     'GET',
     undefined,
     signal
   );
-  return accountProfileSchema.parse(await response.json());
+  return accountProfileSchema.parse(response.data);
 }
 
 export async function updateAccountProfile(
   origin: string,
-  accessToken: string,
+  session: AccountSession,
   fields: AccountProfileFields
 ): Promise<AccountProfile> {
-  const response = await accountRequest(origin, accessToken, '/api/account/me', 'PATCH', fields);
-  return accountProfileSchema.parse(await response.json());
+  const response = await accountRequest(origin, session, '/api/account/me', 'PATCH', fields);
+  return accountProfileSchema.parse(response.data);
 }
 
 export async function updateErasureRequest(
   origin: string,
-  accessToken: string,
+  session: AccountSession,
   requestId?: string
 ) {
   const path = '/api/account/me/erasure-request';
   if (requestId) {
-    await accountRequest(origin, accessToken, `${path}/${encodeURIComponent(requestId)}`, 'DELETE');
+    await accountRequest(origin, session, `${path}/${encodeURIComponent(requestId)}`, 'DELETE');
   } else {
-    await accountRequest(origin, accessToken, path, 'POST');
+    await accountRequest(origin, session, path, 'POST');
   }
 }
 
 export async function getAccountEmailPreferences(
   origin: string,
-  accessToken: string,
+  session: AccountSession,
   signal: AbortSignal
 ): Promise<AccountEmailTopic[]> {
   const response = await accountRequest(
     origin,
-    accessToken,
+    session,
     emailPreferencesPath,
     'GET',
     undefined,
     signal
   );
-  return emailPreferencesSchema.parse(await response.json()).topics;
+  return emailPreferencesSchema.parse(response.data).topics;
 }
 
 export async function updateAccountEmailPreference(
   origin: string,
-  accessToken: string,
+  session: AccountSession,
   { id, subscribed }: AccountEmailTopic
 ): Promise<void> {
   await accountRequest(
     origin,
-    accessToken,
+    session,
     `${emailPreferencesPath}/${encodeURIComponent(id)}`,
     'PATCH',
     {

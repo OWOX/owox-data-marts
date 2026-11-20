@@ -1,12 +1,14 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { MemoryRouter, Route, Routes } from 'react-router';
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { RequestStatus } from '../../shared/types/request-status';
 import { UserMenu } from '../../components/AppSidebar/UserMenu';
 import { MyAccountPage } from './MyAccountPage';
 
 const useFlags = vi.hoisted(() => vi.fn());
+const request = vi.hoisted(() => vi.fn());
+vi.mock('../../app/api/apiClient', () => ({ default: { request } }));
 const auth = vi.hoisted(() => ({ viewOnly: false }));
 
 vi.mock('../../app/store/hooks', () => ({ useFlags }));
@@ -74,13 +76,15 @@ describe('My profile', () => {
     });
   }
 
+  beforeEach(() => request.mockReset());
+
   afterEach(() => {
     vi.unstubAllGlobals();
     useFlags.mockReset();
     auth.viewOnly = false;
   });
 
-  it('reads and displays the personal profile with the current IB token and empty project roles', async () => {
+  it('reads and displays the personal profile through the shared client with empty project roles', async () => {
     useFlags.mockReturnValue({
       callState: RequestStatus.LOADED,
       flags: {
@@ -88,19 +92,7 @@ describe('My profile', () => {
         CLOUD_ACCOUNT_API_ORIGIN: 'https://ib.example.test',
       },
     });
-    const fetch = vi.fn().mockResolvedValue(
-      new Response(
-        JSON.stringify({
-          fullName: 'Anna Kowalska',
-          email: 'anna@example.test',
-          workEmail: 'anna@company.test',
-          phone: '',
-          companyName: 'Example Company',
-          companyWebsite: '',
-        })
-      )
-    );
-    vi.stubGlobal('fetch', fetch);
+    request.mockResolvedValue({ data: profile });
 
     renderProfile('/ui/project-1/request-access');
     fireEvent.keyDown(screen.getByRole('button', { name: /Anna/ }), { key: 'Enter' });
@@ -111,12 +103,14 @@ describe('My profile', () => {
       'href',
       '/ui/project-1/request-access'
     );
-    expect(fetch).toHaveBeenCalledWith(
-      new URL('https://ib.example.test/api/account/me'),
+    expect(request).toHaveBeenCalledWith(
       expect.objectContaining({
-        headers: { 'X-OWOX-Authorization': 'Bearer interactive-app-token' },
-        credentials: 'omit',
-        redirect: 'error',
+        url: '/api/account/me',
+        baseURL: 'https://ib.example.test',
+        expectedSession: { userId: 'account-1', projectId: 'project-1' },
+        withCredentials: false,
+        skipErrorToast: true,
+        skipLogoutOnUnauthorizedRetry: true,
       })
     );
   });
@@ -126,18 +120,16 @@ describe('My profile', () => {
       callState: RequestStatus.LOADED,
       flags: { IDP_PROVIDER: provider, CLOUD_ACCOUNT_API_ORIGIN: 'https://ib.example.test' },
     });
-    const fetch = vi.fn();
-    vi.stubGlobal('fetch', fetch);
 
     renderProfile();
 
     expect(await screen.findByRole('heading', { name: 'Home' })).toBeVisible();
-    expect(fetch).not.toHaveBeenCalled();
+    expect(request).not.toHaveBeenCalled();
   });
 
   it('shows roles from each project rather than the empty roles of the current project', async () => {
     enableCloud();
-    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(Response.json(profile)));
+    request.mockResolvedValue({ data: profile });
 
     renderProfile();
     fireEvent.click(screen.getByRole('link', { name: 'Projects' }));
@@ -156,12 +148,10 @@ describe('My profile', () => {
 
   it('saves a personal email preference without project roles', async () => {
     enableCloud();
-    const fetch = vi
-      .fn()
-      .mockResolvedValueOnce(Response.json({ topics: [{ id: 'Offers', subscribed: true }] }))
-      .mockResolvedValueOnce(new Response(null, { status: 204 }))
-      .mockResolvedValueOnce(Response.json({ topics: [{ id: 'Offers', subscribed: false }] }));
-    vi.stubGlobal('fetch', fetch);
+    request
+      .mockResolvedValueOnce({ data: { topics: [{ id: 'Offers', subscribed: true }] } })
+      .mockResolvedValueOnce({ status: 204, data: undefined })
+      .mockResolvedValueOnce({ data: { topics: [{ id: 'Offers', subscribed: false }] } });
     renderProfile('/ui/me/email-preferences');
 
     const offers = await screen.findByRole('switch', { name: 'Offers' });
@@ -170,35 +160,33 @@ describe('My profile', () => {
     await waitFor(() => {
       expect(screen.getByRole('switch', { name: 'Offers' })).not.toBeChecked();
     });
-    expect(fetch).toHaveBeenNthCalledWith(
+    expect(request).toHaveBeenNthCalledWith(
       2,
-      new URL('https://ib.example.test/api/account/me/email-preferences/Offers'),
-      expect.objectContaining({ method: 'PATCH', body: '{"subscribed":false}' })
+      expect.objectContaining({
+        url: '/api/account/me/email-preferences/Offers',
+        method: 'PATCH',
+        data: { subscribed: false },
+      })
     );
   });
 
   it('shows email preferences as read-only while viewing another account', async () => {
     enableCloud();
     auth.viewOnly = true;
-    const fetch = vi
-      .fn()
-      .mockResolvedValue(Response.json({ topics: [{ id: 'Offers', subscribed: false }] }));
-    vi.stubGlobal('fetch', fetch);
+    request.mockResolvedValue({ data: { topics: [{ id: 'Offers', subscribed: false }] } });
     renderProfile('/ui/me/email-preferences');
 
     const offers = await screen.findByRole('switch', { name: 'Offers' });
     expect(offers).toBeDisabled();
     fireEvent.click(offers);
-    expect(fetch).toHaveBeenCalledTimes(1);
+    expect(request).toHaveBeenCalledTimes(1);
   });
 
   it('lets an empty-role session edit its own profile without changing the sign-in email', async () => {
     enableCloud();
-    const fetch = vi
-      .fn()
-      .mockResolvedValueOnce(Response.json(profile))
-      .mockResolvedValueOnce(Response.json({ ...profile, fullName: 'Anna Nowak' }));
-    vi.stubGlobal('fetch', fetch);
+    request
+      .mockResolvedValueOnce({ data: profile })
+      .mockResolvedValueOnce({ data: { ...profile, fullName: 'Anna Nowak' } });
 
     renderProfile();
     fireEvent.click(await screen.findByRole('button', { name: 'Edit profile' }));
@@ -207,27 +195,28 @@ describe('My profile', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Save changes' }));
 
     expect(await screen.findByText('Anna Nowak')).toBeVisible();
-    expect(fetch).toHaveBeenLastCalledWith(
-      new URL('https://ib.example.test/api/account/me'),
-      expect.objectContaining({ method: 'PATCH', body: '{"fullName":"Anna Nowak"}' })
+    expect(request).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        url: '/api/account/me',
+        method: 'PATCH',
+        data: { fullName: 'Anna Nowak' },
+      })
     );
   });
 
   it('submits and cancels the pending erasure request using the displayed request ID', async () => {
     enableCloud();
-    const fetch = vi
-      .fn()
-      .mockResolvedValueOnce(Response.json(profile))
-      .mockResolvedValueOnce(new Response(null, { status: 204 }))
-      .mockResolvedValueOnce(
-        Response.json({
+    request
+      .mockResolvedValueOnce({ data: profile })
+      .mockResolvedValueOnce({ status: 204, data: undefined })
+      .mockResolvedValueOnce({
+        data: {
           ...profile,
           erasureRequest: { id: 'request-1', status: 'pending' },
-        })
-      )
-      .mockResolvedValueOnce(new Response(null, { status: 204 }))
-      .mockResolvedValueOnce(Response.json(profile));
-    vi.stubGlobal('fetch', fetch);
+        },
+      })
+      .mockResolvedValueOnce({ status: 204, data: undefined })
+      .mockResolvedValueOnce({ data: profile });
 
     renderProfile();
     fireEvent.click(await screen.findByRole('button', { name: 'Request account deletion' }));
@@ -237,13 +226,14 @@ describe('My profile', () => {
     await waitFor(() => {
       expect(screen.getByRole('button', { name: 'Request account deletion' })).toBeVisible();
     });
-    expect(fetch).toHaveBeenCalledWith(
-      new URL('https://ib.example.test/api/account/me/erasure-request'),
-      expect.objectContaining({ method: 'POST' })
+    expect(request).toHaveBeenCalledWith(
+      expect.objectContaining({ url: '/api/account/me/erasure-request', method: 'POST' })
     );
-    expect(fetch).toHaveBeenCalledWith(
-      new URL('https://ib.example.test/api/account/me/erasure-request/request-1'),
-      expect.objectContaining({ method: 'DELETE' })
+    expect(request).toHaveBeenCalledWith(
+      expect.objectContaining({
+        url: '/api/account/me/erasure-request/request-1',
+        method: 'DELETE',
+      })
     );
   });
 
@@ -252,8 +242,7 @@ describe('My profile', () => {
     async erasureRequest => {
       enableCloud();
       auth.viewOnly = true;
-      const fetch = vi.fn().mockResolvedValue(Response.json({ ...profile, erasureRequest }));
-      vi.stubGlobal('fetch', fetch);
+      request.mockResolvedValue({ data: { ...profile, erasureRequest } });
 
       renderProfile();
 
@@ -266,7 +255,7 @@ describe('My profile', () => {
       expect(
         screen.queryByRole('button', { name: 'Cancel deletion request' })
       ).not.toBeInTheDocument();
-      expect(fetch).toHaveBeenCalledTimes(1);
+      expect(request).toHaveBeenCalledTimes(1);
     }
   );
 });
