@@ -27,9 +27,9 @@ describe('UserSignalsService.collect', () => {
     const { service, store, res } = setup();
     await service.collect(
       req({
-        app_source: 'facebook-marketing',
-        app_storage: 'google-bigquery',
-        app_destination: 'slack',
+        app_source: 'alpha-source',
+        app_storage: 'beta-storage',
+        app_destination: 'gamma-destination',
       }),
       res,
       payload
@@ -38,21 +38,21 @@ describe('UserSignalsService.collect', () => {
       userId: 'u1',
       name: 'product_intent',
       origin: 'explicit_click',
-      value: '{"destination":"slack","source":"facebook-marketing","storage":"google-bigquery"}',
+      value: '{"destination":"gamma-destination","source":"alpha-source","storage":"beta-storage"}',
     });
   });
 
   it('records an intent with a single part', async () => {
     const { service, store, res } = setup();
-    await service.collect(req({ app_source: 'google-ads' }), res, payload);
+    await service.collect(req({ app_source: 'delta-source' }), res, payload);
     expect(store.recordUserSignal).toHaveBeenCalledWith(
-      expect.objectContaining({ value: '{"source":"google-ads"}' })
+      expect.objectContaining({ value: '{"source":"delta-source"}' })
     );
   });
 
   it('clears only the present cookies on the configured domain after recording', async () => {
     const { service, clear, res } = setup();
-    await service.collect(req({ app_source: 'google-ads' }), res, payload);
+    await service.collect(req({ app_source: 'delta-source' }), res, payload);
     expect(clear).toHaveBeenCalledTimes(1);
     expect(clear).toHaveBeenCalledWith('app_source', { domain: 'example.com', path: '/' });
   });
@@ -61,7 +61,7 @@ describe('UserSignalsService.collect', () => {
     'drops the intent and clears the cookies when a part is %p',
     async bad => {
       const { service, store, clear, res } = setup();
-      await service.collect(req({ app_source: bad, app_storage: 'google-bigquery' }), res, payload);
+      await service.collect(req({ app_source: bad, app_storage: 'beta-storage' }), res, payload);
       expect(store.recordUserSignal).not.toHaveBeenCalled();
       expect(clear).toHaveBeenCalledWith('app_source', { domain: 'example.com', path: '/' });
       expect(clear).toHaveBeenCalledWith('app_storage', { domain: 'example.com', path: '/' });
@@ -84,14 +84,14 @@ describe('UserSignalsService.collect', () => {
   it('does nothing when the feature is off', async () => {
     const { store, clear, res } = setup();
     const service = new UserSignalsService(undefined, store as unknown as DatabaseStore);
-    await service.collect(req({ app_source: 'google-ads' }), res, payload);
+    await service.collect(req({ app_source: 'delta-source' }), res, payload);
     expect(store.recordUserSignal).not.toHaveBeenCalled();
     expect(clear).not.toHaveBeenCalled();
   });
 
   it('does nothing in a view-only session', async () => {
     const { service, store, clear, res } = setup();
-    await service.collect(req({ app_source: 'google-ads' }), res, {
+    await service.collect(req({ app_source: 'delta-source' }), res, {
       userId: 'u1',
       viewOnly: true,
     } as unknown as Payload);
@@ -101,7 +101,7 @@ describe('UserSignalsService.collect', () => {
 
   it('does nothing without a user id', async () => {
     const { service, store, clear, res } = setup();
-    await service.collect(req({ app_source: 'google-ads' }), res, undefined);
+    await service.collect(req({ app_source: 'delta-source' }), res, undefined);
     expect(store.recordUserSignal).not.toHaveBeenCalled();
     expect(clear).not.toHaveBeenCalled();
   });
@@ -110,7 +110,7 @@ describe('UserSignalsService.collect', () => {
     const { service, store, clear, res } = setup();
     store.recordUserSignal.mockRejectedValue(new Error('db down'));
     await expect(
-      service.collect(req({ app_source: 'google-ads' }), res, payload)
+      service.collect(req({ app_source: 'delta-source' }), res, payload)
     ).resolves.toBeUndefined();
     expect(clear).not.toHaveBeenCalled();
   });
@@ -130,14 +130,14 @@ describe('UserSignalsService.list', () => {
   it('lists signals with the value parsed, skipping unparsable rows', async () => {
     const { service, store } = setup();
     store.getUserSignals.mockResolvedValue([
-      row('{"source":"google-ads"}'),
+      row('{"source":"delta-source"}'),
       row('nope'),
       row('[1]'),
     ]);
     expect(await service.list('u1')).toEqual([
       {
         name: 'product_intent',
-        value: { source: 'google-ads' },
+        value: { source: 'delta-source' },
         origin: 'explicit_click',
         firstSeenAt: '2026-01-01T00:00:00.000Z',
         lastSeenAt: '2026-01-02T00:00:00.000Z',

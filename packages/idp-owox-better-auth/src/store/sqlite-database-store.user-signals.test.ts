@@ -6,8 +6,8 @@ import { join } from 'node:path';
 import { SqliteDatabaseStore } from './sqlite-database-store.js';
 
 const intent = { userId: 'u1', name: 'product_intent', origin: 'explicit_click' };
-const a = '{"source":"facebook-marketing","storage":"google-bigquery"}';
-const b = '{"source":"google-ads"}';
+const a = '{"source":"alpha-source","storage":"beta-storage"}';
+const b = '{"source":"delta-source"}';
 
 describe('SqliteDatabaseStore user signals', () => {
   let file: string;

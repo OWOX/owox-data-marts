@@ -9,10 +9,10 @@ import type { DatabaseStore } from './store/database-store.js';
 type RouteHandler = (req: Request, res: Response) => Promise<void>;
 
 const PRODUCT_INTENT = { cookiePrefix: 'app_', cookieDomain: 'example.com' };
-const INTENT_COOKIES = 'app_destination=looker-studio; app_source=facebook-ads';
+const INTENT_COOKIES = 'app_destination=gamma-destination; app_source=alpha-source';
 const STORED_SIGNAL = {
   name: 'product_intent',
-  value: JSON.stringify({ destination: 'looker-studio', source: 'facebook-ads' }),
+  value: JSON.stringify({ destination: 'gamma-destination', source: 'alpha-source' }),
   origin: 'explicit_click',
   firstSeenAt: '2026-01-01T00:00:00.000Z',
   lastSeenAt: '2026-01-02T00:00:00.000Z',
@@ -124,7 +124,7 @@ describe('OwoxBetterAuthIdp user signals', () => {
     expect(body.signals).toEqual([
       {
         name: 'product_intent',
-        value: { destination: 'looker-studio', source: 'facebook-ads' },
+        value: { destination: 'gamma-destination', source: 'alpha-source' },
         origin: 'explicit_click',
         firstSeenAt: STORED_SIGNAL.firstSeenAt,
         lastSeenAt: STORED_SIGNAL.lastSeenAt,

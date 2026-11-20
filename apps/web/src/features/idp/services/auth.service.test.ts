@@ -30,7 +30,7 @@ describe('currentUserResponseToUser', () => {
     const signals = [
       {
         name: 'product_intent',
-        value: { source: 'google-ads' },
+        value: { source: 'delta-source' },
         origin: 'explicit_click',
         firstSeenAt: '2026-11-20T10:00:00Z',
         lastSeenAt: '2026-11-20T10:00:00Z',
