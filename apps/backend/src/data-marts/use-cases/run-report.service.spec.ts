@@ -335,6 +335,27 @@ describe('RunReportService', () => {
     expect(writer.finalize).toHaveBeenCalled();
   });
 
+  it('saves a run as Cancelled when the storage stops its query with its own error', async () => {
+    const { service, reportReaderResolver, reportWriterResolver, reportRunService } =
+      createService();
+    const report = createReport(DataDestinationType.GOOGLE_SHEETS);
+    const reportRun = ReportRun.create(report, createDataMartRun(report));
+    const controller = new AbortController();
+    const reader = createReader();
+    reader.readReportDataBatch.mockImplementation(async () => {
+      controller.abort();
+      throw new Error('INTERRUPT Error: Interrupted!');
+    });
+    reportReaderResolver.resolve.mockResolvedValue(reader);
+    reportWriterResolver.resolve.mockResolvedValue(createWriter(DataDestinationType.GOOGLE_SHEETS));
+    reportRunService.loadByDataMartRunId.mockResolvedValue(reportRun);
+
+    await service.executeExistingRun('data-mart-run-1', 'project-1', 'user-1', controller.signal);
+
+    expect(reportRun.getDataMartRun().status).toBe(DataMartRunStatus.CANCELLED);
+    expect(reportRunService.finish).toHaveBeenCalled();
+  });
+
   it('registers Google Sheets consumption only after final report success is persisted', async () => {
     const {
       service,

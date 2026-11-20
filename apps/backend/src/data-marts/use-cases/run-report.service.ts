@@ -515,7 +515,7 @@ export class RunReportService {
       await this.handleReportRunSuccess(reportRun, logs, errors, finalizeResult);
     } catch (error) {
       const { logs, errors } = reportRunLogger.asArrays();
-      await this.handleReportRunError(reportRun, error as Error, logs, errors);
+      await this.handleReportRunError(reportRun, error as Error, logs, errors, signal);
     } finally {
       this.gracefulShutdownService.unregisterActiveProcess(processId);
     }
@@ -731,14 +731,16 @@ export class RunReportService {
    * @param error - Error that occurred
    * @param logs - Structured logs collected before failure
    * @param errors - Structured errors including the failure reason
+   * @param signal - The run's signal; a storage stopped by it rejects with its own error, not AbortError
    */
   private async handleReportRunError(
     reportRun: ReportRun,
     error: Error,
     logs: string[] = [],
-    errors: string[] = []
+    errors: string[] = [],
+    signal?: AbortSignal
   ): Promise<void> {
-    if (error.name === ERROR_NAMES.ABORT) {
+    if (error.name === ERROR_NAMES.ABORT || signal?.aborted) {
       reportRun.markAsCancelled();
       this.logger.warn(`Report ${reportRun.getReportId()} was cancelled by user`);
     } else if (error instanceof BusinessViolationException) {
