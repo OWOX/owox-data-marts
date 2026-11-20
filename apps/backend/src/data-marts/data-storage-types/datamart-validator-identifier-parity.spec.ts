@@ -3,6 +3,7 @@ import { BigQueryDataMartValidator } from './bigquery/services/bigquery-datamart
 import { DatabricksDataMartValidator } from './databricks/services/databricks-datamart.validator';
 import { RedshiftDataMartValidator } from './redshift/services/redshift-datamart.validator';
 import { SnowflakeDataMartValidator } from './snowflake/services/snowflake-datamart.validator';
+import { DuckDbDataMartValidator } from './duckdb/services/duckdb-datamart.validator';
 import { LegacyBigQueryDataMartValidator } from './bigquery/services/legacy/legacy-bigquery-datamart.validator';
 import { validatorProviders } from './data-storage-providers';
 import {
@@ -30,6 +31,7 @@ describe('Data Mart validators — identifier failure parity', () => {
     ['databricks', new DatabricksDataMartValidator(null as never, null as never)],
     ['redshift', new RedshiftDataMartValidator(null as never, null as never)],
     ['snowflake', new SnowflakeDataMartValidator(null as never, null as never)],
+    ['duckdb', new DuckDbDataMartValidator()],
     ['legacy-bigquery', new LegacyBigQueryDataMartValidator(null as never, null as never)],
   ];
 

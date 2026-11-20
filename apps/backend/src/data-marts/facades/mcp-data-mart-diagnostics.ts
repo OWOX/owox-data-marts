@@ -35,6 +35,7 @@ const SAFE_MESSAGES = new Set<string>([
   DATA_MART_ERROR_MESSAGES.DATABRICKS_CONNECTOR_IDENTIFIER_INVALID,
   DATA_MART_ERROR_MESSAGES.SNOWFLAKE_IDENTIFIER_INVALID,
   DATA_MART_ERROR_MESSAGES.REDSHIFT_IDENTIFIER_INVALID,
+  DATA_MART_ERROR_MESSAGES.DUCKDB_IDENTIFIER_INVALID,
   // Fixed messages from the existing backfill parser; never include the supplied values.
   'StartDate is required in YYYY-MM-DD format',
   'EndDate must be in YYYY-MM-DD format',

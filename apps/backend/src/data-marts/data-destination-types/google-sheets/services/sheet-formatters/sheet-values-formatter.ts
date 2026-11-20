@@ -2,6 +2,8 @@ import { Injectable } from '@nestjs/common';
 import { DateTime } from 'luxon';
 import { AthenaFieldType } from '../../../../data-storage-types/athena/enums/athena-field-type.enum';
 import { BigQueryFieldType } from '../../../../data-storage-types/bigquery/enums/bigquery-field-type.enum';
+import { DuckdbFieldType } from '../../../../data-storage-types/duckdb/enums/duckdb-field-type.enum';
+import { DataStorageType } from '../../../../data-storage-types/enums/data-storage-type.enum';
 import { SnowflakeFieldType } from '../../../../data-storage-types/snowflake/enums/snowflake-field-type.enum';
 import { ReportDataHeader } from '../../../../dto/domain/report-data-header.dto';
 import { StorageFieldType } from '../../../../dto/domain/storage-field-type';
@@ -21,6 +23,13 @@ export class SheetValuesFormatter {
     [SnowflakeFieldType.TIMESTAMP, this.formatTimestamp],
   ]);
 
+  // For a type name that another storage shares with a different value format: Redshift
+  // also has 'TIMESTAMPTZ'.
+  private readonly storageFormatters = new Map<
+    DataStorageType,
+    Map<StorageFieldType, FormatterFunction>
+  >([[DataStorageType.DUCKDB, new Map([[DuckdbFieldType.TIMESTAMPTZ, this.formatTimestamp]])]]);
+
   /**
    * Formats values in rows based on field types, resolving the per-column
    * formatter by column **name**. Used by the diff-based writer where each
@@ -38,19 +47,24 @@ export class SheetValuesFormatter {
    * @param finalNames - Column names in the order they appear in the sheet
    * @param headersByName - SQL output schema indexed by column name
    * @param sheetTimeZone - Time zone of the sheet
+   * @param storageType - Storage of the report's Data Mart
    */
   public formatRowsValuesByName(
     orderedRows: unknown[][],
     finalNames: string[],
     headersByName: ReadonlyMap<string, ReportDataHeader>,
-    sheetTimeZone: string
+    sheetTimeZone: string,
+    storageType?: DataStorageType
   ): unknown[][] {
+    const storageFormatters = storageType ? this.storageFormatters.get(storageType) : undefined;
     const columnsToFormat = finalNames
       .map((name, index) => {
-        const header = headersByName.get(name);
+        const fieldType = headersByName.get(name)?.storageFieldType;
         return {
           index,
-          formatter: header ? this.formatters.get(header.storageFieldType!) : undefined,
+          formatter: fieldType
+            ? (storageFormatters?.get(fieldType) ?? this.formatters.get(fieldType))
+            : undefined,
         };
       })
       .filter(item => item.formatter);
@@ -90,9 +104,11 @@ export class SheetValuesFormatter {
   private formatTimestamp(value: unknown, sheetTimeZone: string): unknown {
     if (typeof value !== 'string' || !value) return value;
 
-    const dateTime = DateTime.fromISO(value).isValid
-      ? DateTime.fromISO(value)
-      : DateTime.fromSQL(value);
+    // A value without an offset is UTC, not the server's local time.
+    const zone = { zone: 'utc' };
+    const dateTime = DateTime.fromISO(value, zone).isValid
+      ? DateTime.fromISO(value, zone)
+      : DateTime.fromSQL(value, zone);
 
     return dateTime.isValid
       ? dateTime.setZone(sheetTimeZone).toFormat('yyyy-MM-dd HH:mm:ss')

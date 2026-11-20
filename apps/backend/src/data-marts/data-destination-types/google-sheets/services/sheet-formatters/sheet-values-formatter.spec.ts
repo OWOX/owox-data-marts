@@ -1,4 +1,8 @@
+import { Settings } from 'luxon';
 import { BigQueryFieldType } from '../../../../data-storage-types/bigquery/enums/bigquery-field-type.enum';
+import { DuckdbFieldType } from '../../../../data-storage-types/duckdb/enums/duckdb-field-type.enum';
+import { DataStorageType } from '../../../../data-storage-types/enums/data-storage-type.enum';
+import { RedshiftFieldType } from '../../../../data-storage-types/redshift/enums/redshift-field-type.enum';
 import { SnowflakeFieldType } from '../../../../data-storage-types/snowflake/enums/snowflake-field-type.enum';
 import { ReportDataHeader } from '../../../../dto/domain/report-data-header.dto';
 import { SheetValuesFormatter } from './sheet-values-formatter';
@@ -121,6 +125,49 @@ describe('SheetValuesFormatter', () => {
       const result = formatter.formatRowsValuesByName(rows, ['ts', 'id'], timestampHeaders, 'UTC');
 
       expect(result).toEqual([['2026-01-02 03:04:05', "'+abc"]]);
+    });
+
+    describe('DuckDB timestamps on a server outside UTC', () => {
+      const serverZone = Settings.defaultZone;
+      beforeEach(() => {
+        Settings.defaultZone = 'Europe/Kyiv';
+      });
+      afterEach(() => {
+        Settings.defaultZone = serverZone;
+      });
+
+      it.each([
+        ['TIMESTAMP', DuckdbFieldType.TIMESTAMP, '2024-03-01 12:00:00'],
+        ['TIMESTAMPTZ', DuckdbFieldType.TIMESTAMPTZ, '2024-03-01T12:00:00.000Z'],
+      ])('converts a %s from UTC to the sheet time zone', (_name, type, value) => {
+        const headers = new Map([['ts', new ReportDataHeader('ts', undefined, undefined, type)]]);
+
+        const result = formatter.formatRowsValuesByName(
+          [[value]],
+          ['ts'],
+          headers,
+          'America/New_York',
+          DataStorageType.DUCKDB
+        );
+
+        expect(result).toEqual([['2024-03-01 07:00:00']]);
+      });
+    });
+
+    it('leaves a Redshift TIMESTAMPTZ as Redshift sends it', () => {
+      const headers = new Map([
+        ['ts', new ReportDataHeader('ts', undefined, undefined, RedshiftFieldType.TIMESTAMPTZ)],
+      ]);
+
+      const result = formatter.formatRowsValuesByName(
+        [['2024-03-01 12:00:00+00']],
+        ['ts'],
+        headers,
+        'America/New_York',
+        DataStorageType.AWS_REDSHIFT
+      );
+
+      expect(result).toEqual([['2024-03-01 12:00:00+00']]);
     });
   });
 

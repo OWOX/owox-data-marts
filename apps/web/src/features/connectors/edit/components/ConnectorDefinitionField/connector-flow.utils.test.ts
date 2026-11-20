@@ -123,6 +123,19 @@ describe('getStorageFlowParams', () => {
     expect(result.secondary).toMatchObject([{ label: 'Catalog', value: 'main' }]);
   });
 
+  it('shows DuckDB schema and table, with or without a catalog', () => {
+    const duckdb = storage(DataStorageType.DUCKDB, {});
+
+    expect(getStorageFlowParams(duckdb, 'main.daily').primary).toEqual([
+      { label: 'Schema', value: 'main', copyValue: 'main' },
+      { label: 'Table', value: 'daily', copyValue: 'main.daily' },
+    ]);
+    expect(getStorageFlowParams(duckdb, 'odm.main.daily').primary).toEqual([
+      { label: 'Schema', value: 'main', copyValue: 'odm.main' },
+      { label: 'Table', value: 'daily', copyValue: 'odm.main.daily' },
+    ]);
+  });
+
   it('shows the whole name as the table for an unsupported storage type', () => {
     const result = getStorageFlowParams(storage(DataStorageType.AZURE_SYNAPSE, {}), 'dbo.events');
 

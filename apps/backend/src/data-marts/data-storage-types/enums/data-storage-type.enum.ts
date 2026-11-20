@@ -5,6 +5,7 @@ export enum DataStorageType {
   AWS_REDSHIFT = 'AWS_REDSHIFT',
   DATABRICKS = 'DATABRICKS',
   LEGACY_GOOGLE_BIGQUERY = 'LEGACY_GOOGLE_BIGQUERY',
+  DUCKDB = 'DUCKDB',
 }
 
 export function toHumanReadable(type: DataStorageType): string {
@@ -21,9 +22,24 @@ export function toHumanReadable(type: DataStorageType): string {
       return 'Databricks';
     case DataStorageType.LEGACY_GOOGLE_BIGQUERY:
       return 'Legacy Google BigQuery';
+    case DataStorageType.DUCKDB:
+      return 'DuckDB';
     default:
       return type;
   }
+}
+
+/** A DuckDB storage is a local file and takes no Credential; every other storage needs one. */
+export function usesStoredCredentials(type: DataStorageType): boolean {
+  return type !== DataStorageType.DUCKDB;
+}
+
+/**
+ * Whether this storage's report reader holds an open cursor and its file between reads. Requests
+ * then cannot share one reader, and the request that used it must finalize it.
+ */
+export function readerHoldsOpenCursor(type: DataStorageType): boolean {
+  return type === DataStorageType.DUCKDB;
 }
 
 /**
@@ -41,6 +57,7 @@ const INTEGER_DIVISION_TRUNCATES: Record<DataStorageType, boolean> = {
   [DataStorageType.DATABRICKS]: false,
   [DataStorageType.AWS_ATHENA]: true,
   [DataStorageType.AWS_REDSHIFT]: true,
+  [DataStorageType.DUCKDB]: false,
 };
 
 /** An unclassified or absent storage answers "truncates": the unsafe side is the silent one. */

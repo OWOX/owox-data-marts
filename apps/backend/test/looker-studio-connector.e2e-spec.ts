@@ -70,6 +70,7 @@ const mockReader = buildMockReader(MOCK_HEADERS, MOCK_ROWS);
 
 const mockCacheService = {
   invalidateByReportId: jest.fn().mockResolvedValue(undefined),
+  releaseReader: jest.fn().mockResolvedValue(undefined),
   getOrCreateCachedReader: jest
     .fn()
     .mockResolvedValue(buildMockCachedReader(mockReader, MOCK_HEADERS, MOCK_ROWS)),

@@ -381,7 +381,8 @@ export class GoogleSheetsReportWriter implements DataDestinationReportWriter {
         orderedRows,
         this.columnPlan.finalImportedNames,
         this.headersByName,
-        this.spreadsheetTimeZone
+        this.spreadsheetTimeZone,
+        this.report.dataMart.storage?.type
       );
 
       const rowFrom = this.writtenRowsCount + 1;

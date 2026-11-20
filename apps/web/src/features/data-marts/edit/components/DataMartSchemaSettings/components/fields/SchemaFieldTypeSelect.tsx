@@ -10,6 +10,7 @@ import {
   AthenaFieldType,
   BigQueryFieldType,
   DatabricksFieldType,
+  DuckDbFieldType,
   RedshiftFieldType,
   SnowflakeFieldType,
 } from '../../../../../shared/types/data-mart-schema.types';
@@ -24,7 +25,8 @@ export type SchemaCapableStorageType =
   | DataStorageType.AWS_ATHENA
   | DataStorageType.SNOWFLAKE
   | DataStorageType.AWS_REDSHIFT
-  | DataStorageType.DATABRICKS;
+  | DataStorageType.DATABRICKS
+  | DataStorageType.DUCKDB;
 
 /**
  * Props for the SchemaFieldTypeSelect component
@@ -58,6 +60,8 @@ function fieldTypesFor(storageType: SchemaCapableStorageType): readonly string[]
       return Object.values(RedshiftFieldType);
     case DataStorageType.DATABRICKS:
       return Object.values(DatabricksFieldType);
+    case DataStorageType.DUCKDB:
+      return Object.values(DuckDbFieldType);
     default: {
       const exhaustive: never = storageType;
       throw new Error(

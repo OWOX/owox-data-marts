@@ -13,6 +13,7 @@ describe('MCP Data Mart diagnostics', () => {
   const connectorTablePathMessages = [
     DATA_MART_ERROR_MESSAGES.BIGQUERY_CONNECTOR_IDENTIFIER_INVALID,
     DATA_MART_ERROR_MESSAGES.ATHENA_CONNECTOR_IDENTIFIER_INVALID,
+    DATA_MART_ERROR_MESSAGES.DUCKDB_IDENTIFIER_INVALID,
   ];
 
   it.each(connectorTablePathMessages)('gives the expected format on validate: %s', message => {

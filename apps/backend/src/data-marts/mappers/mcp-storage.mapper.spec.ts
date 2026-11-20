@@ -43,6 +43,12 @@ describe('McpStorageMapper', () => {
     ).toBeNull();
   });
 
+  it('maps a DuckDB Storage with no configuration', () => {
+    expect(
+      mapper.toStorage({ ...base, type: DataStorageType.DUCKDB, config: {} } as never).configuration
+    ).toBeNull();
+  });
+
   it('keeps validation results free of provider messages and reasons', () => {
     expect(
       mapper.toValidation(ValidationResult.failure('Bearer secret', { token: 'secret' }))

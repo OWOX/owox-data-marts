@@ -28,5 +28,12 @@ export function isDataQualityFreshnessTypeSupported(
       return nativeType.trim().toUpperCase() === 'TIMESTAMP';
     case DataStorageType.SNOWFLAKE:
       return false;
+    // Only DuckDB's instant type qualifies: a bare TIMESTAMP carries no zone, so
+    // comparing it against current_timestamp would silently mix wall clocks (same
+    // rule as Redshift TIMESTAMPTZ vs TIMESTAMP).
+    case DataStorageType.DUCKDB:
+      return ['TIMESTAMPTZ', 'TIMESTAMP WITH TIME ZONE'].includes(
+        nativeType.trim().toUpperCase().replace(/\s+/g, ' ')
+      );
   }
 }

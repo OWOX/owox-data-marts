@@ -8,6 +8,7 @@ import { AthenaConfigSchema } from './athena/schemas/athena-config.schema';
 import { BigQueryConfigSchema } from './bigquery/schemas/bigquery-config.schema';
 import type { DataStorageConfig } from './data-storage-config.type';
 import { DatabricksWorkspaceConfigSchema } from './databricks/schemas/databricks-config.schema';
+import { DuckDbConfigSchema } from './duckdb/schemas/duckdb-config.schema';
 import { RedshiftConfigSchema } from './redshift/schemas/redshift-config.schema';
 import { SnowflakeConfigSchema } from './snowflake/schemas/snowflake-config.schema';
 import { DataStorageType } from './enums/data-storage-type.enum';
@@ -26,6 +27,8 @@ export const STORAGE_CREDENTIAL_DEFINITION_IDS: Readonly<
   [DataStorageType.AWS_REDSHIFT]: ['aws-access-key'],
   [DataStorageType.SNOWFLAKE]: ['snowflake-password', 'snowflake-key-pair'],
   [DataStorageType.DATABRICKS]: ['databricks-token'],
+  // A DuckDB Storage is a local file and takes no Credential.
+  [DataStorageType.DUCKDB]: [],
 };
 
 /** Fields that set where a Storage's key is sent, or the project or account it acts in. */
@@ -41,6 +44,7 @@ const CONNECTION_TARGET_FIELDS: Readonly<Record<DataStorageType, readonly string
   ],
   [DataStorageType.SNOWFLAKE]: ['account'],
   [DataStorageType.DATABRICKS]: ['host'],
+  [DataStorageType.DUCKDB]: [],
 };
 
 const CONFIG_SCHEMAS: Readonly<Record<DataStorageType, ZodTypeAny>> = {
@@ -50,6 +54,7 @@ const CONFIG_SCHEMAS: Readonly<Record<DataStorageType, ZodTypeAny>> = {
   [DataStorageType.AWS_REDSHIFT]: RedshiftConfigSchema,
   [DataStorageType.SNOWFLAKE]: SnowflakeConfigSchema,
   [DataStorageType.DATABRICKS]: DatabricksWorkspaceConfigSchema,
+  [DataStorageType.DUCKDB]: DuckDbConfigSchema,
 };
 
 type MaybeConfig = DataStorageConfig | null | undefined;

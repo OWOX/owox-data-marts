@@ -124,6 +124,18 @@ describe('Data Marts API', () => {
     ]);
   });
 
+  it('parses a data mart whose storage type is DUCKDB', async () => {
+    const duckDbDataMart = { ...dataMart, storage: { type: 'DUCKDB', title: 'DuckDB' } };
+    const fetchImpl = createFetchMock(request =>
+      request.method === 'POST'
+        ? createJsonResponse(200, { accessToken: 'access-token-1' })
+        : createJsonResponse(200, { items: [duckDbDataMart], total: 1, nextOffset: null })
+    );
+    const client = new OWOXApiClient({ apiKey, fetchImpl });
+
+    await expect(client.dataMarts.list()).resolves.toEqual([duckDbDataMart]);
+  });
+
   it('starts at the requested offset and preserves the owner filter across pages', async () => {
     const requests: string[] = [];
     const fetchImpl = createFetchMock(request => {

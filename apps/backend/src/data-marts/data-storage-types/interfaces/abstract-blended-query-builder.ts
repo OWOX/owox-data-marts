@@ -1194,6 +1194,8 @@ export abstract class AbstractBlendedQueryBuilder implements BlendedQueryBuilder
         return `JSON_SERIALIZE(${fieldName})`;
       case DataStorageType.DATABRICKS:
         return `to_json(${fieldName})`;
+      case DataStorageType.DUCKDB:
+        return `CAST(to_json(${fieldName}) AS VARCHAR)`;
     }
   }
 

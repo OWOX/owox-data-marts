@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { DataStorageTypeModel } from './data-storage-type.model';
-import { DataStorageType } from '../model/types';
+import { DataStorageType, DataStorageStatus } from '../model/types';
 
 describe('DataStorageTypeModel', () => {
   it('should return correct info for Google BigQuery', () => {
@@ -15,9 +15,16 @@ describe('DataStorageTypeModel', () => {
     expect(info.type).toBe(DataStorageType.AWS_ATHENA);
   });
 
+  it('should return correct info for DuckDB', () => {
+    const info = DataStorageTypeModel.getInfo(DataStorageType.DUCKDB);
+    expect(info.displayName).toBe('DuckDB');
+    expect(info.type).toBe(DataStorageType.DUCKDB);
+    expect(info.status).toBe(DataStorageStatus.ACTIVE);
+  });
+
   it('should return all types', () => {
     const types = DataStorageTypeModel.getAllTypes();
-    expect(types).toHaveLength(7);
+    expect(types).toHaveLength(8);
     expect(types.map(t => t.type)).toContain(DataStorageType.GOOGLE_BIGQUERY);
     expect(types.map(t => t.type)).toContain(DataStorageType.LEGACY_GOOGLE_BIGQUERY);
     expect(types.map(t => t.type)).toContain(DataStorageType.AWS_ATHENA);
@@ -25,5 +32,31 @@ describe('DataStorageTypeModel', () => {
     expect(types.map(t => t.type)).toContain(DataStorageType.DATABRICKS);
     expect(types.map(t => t.type)).toContain(DataStorageType.AWS_REDSHIFT);
     expect(types.map(t => t.type)).toContain(DataStorageType.AZURE_SYNAPSE);
+    expect(types.map(t => t.type)).toContain(DataStorageType.DUCKDB);
+  });
+
+  it('omits DUCKDB when disabled', () => {
+    expect(DataStorageTypeModel.getOfferedTypes(false).map(t => t.type)).not.toContain(
+      DataStorageType.DUCKDB
+    );
+  });
+
+  it('includes DUCKDB when enabled', () => {
+    expect(DataStorageTypeModel.getOfferedTypes(true).map(t => t.type)).toContain(
+      DataStorageType.DUCKDB
+    );
+  });
+
+  it('offers DUCKDB before the coming-soon Azure Synapse', () => {
+    const types = DataStorageTypeModel.getOfferedTypes(true).map(t => t.type);
+    expect(types.indexOf(DataStorageType.DUCKDB)).toBeLessThan(
+      types.indexOf(DataStorageType.AZURE_SYNAPSE)
+    );
+  });
+
+  it('keeps DUCKDB for an existing DuckDB storage', () => {
+    expect(
+      DataStorageTypeModel.getOfferedTypes(false, DataStorageType.DUCKDB).map(t => t.type)
+    ).toContain(DataStorageType.DUCKDB);
   });
 });

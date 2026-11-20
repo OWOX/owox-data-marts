@@ -30,12 +30,16 @@ export interface DatabricksConfigDto {
   httpPath: string;
 }
 
+// Wire-format mirror of the empty DuckDbDataStorageConfig.
+export type DuckDbConfigDto = Record<string, never>;
+
 export type DataStorageConfigDto =
   | GoogleBigQueryConfigDto
   | AwsAthenaConfigDto
   | SnowflakeConfigDto
   | RedshiftConfigDto
-  | DatabricksConfigDto;
+  | DatabricksConfigDto
+  | DuckDbConfigDto;
 
 export interface DataStorageResponseDto {
   id: string;
@@ -53,4 +57,6 @@ export interface DataStorageResponseDto {
   availableForUse?: boolean;
   availableForMaintenance?: boolean;
   contexts?: ContextSummary[];
+  /** DuckDB only: server-managed absolute path of the .duckdb file (read-only). */
+  databasePath?: string;
 }

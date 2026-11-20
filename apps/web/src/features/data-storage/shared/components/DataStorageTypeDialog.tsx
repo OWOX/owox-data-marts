@@ -9,6 +9,7 @@ import { Button } from '@owox/ui/components/button';
 import { DataStorageTypeModel } from '../types/data-storage-type.model';
 import { DataStorageStatus, DataStorageType } from '../model/types';
 import { Badge } from '@owox/ui/components/badge';
+import { useDuckDbStorageEnabled } from '../hooks/useDuckDbStorageEnabled';
 import { useActionLock } from '../../../../shared/hooks';
 
 interface DataStorageTypeDialogProps {
@@ -24,6 +25,7 @@ export const DataStorageTypeDialog = ({
   onSelect,
   isCreatingDataStorage,
 }: DataStorageTypeDialogProps) => {
+  const duckDbEnabled = useDuckDbStorageEnabled();
   const { trigger, isLocked } = useActionLock(onSelect, 1000);
 
   return (
@@ -34,7 +36,7 @@ export const DataStorageTypeDialog = ({
           <DialogDescription>Choose the type of storage you want to create</DialogDescription>
         </DialogHeader>
         <div className='flex flex-col gap-4 py-4'>
-          {DataStorageTypeModel.getAllTypes()
+          {DataStorageTypeModel.getOfferedTypes(duckDbEnabled)
             .filter(typeInfo => typeInfo.status !== DataStorageStatus.LEGACY)
             .map(typeInfo => {
               const Icon = typeInfo.icon;

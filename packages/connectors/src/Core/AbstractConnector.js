@@ -827,7 +827,7 @@ export class AbstractConnector {
    * otherwise read whichever node's field list was written last.
    *
    * storage.init() is NOT called here: that is what actually creates the
-   * destination table (BigQuery/Redshift/...), so it stays deferred until a
+   * destination table (DuckDB/BigQuery/...), so it stays deferred until a
    * write is actually wanted (matches main, where `data.length ||
    * CreateEmptyTables` gated the whole write, table creation included).
    *

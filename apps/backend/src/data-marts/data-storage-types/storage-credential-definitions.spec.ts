@@ -1,6 +1,6 @@
 import type { StoredStorageCredentials } from '../entities/stored-storage-credentials.type';
 import { BUILTIN_CREDENTIAL_DEFINITIONS } from '../credentials/services/builtin-credential-definitions';
-import { DataStorageType } from './enums/data-storage-type.enum';
+import { DataStorageType, usesStoredCredentials } from './enums/data-storage-type.enum';
 import {
   STORAGE_CREDENTIAL_DEFINITION_IDS,
   changesConnectionTarget,
@@ -239,13 +239,17 @@ describe('sameStorageConfig', () => {
 });
 
 describe('storage credential definitions', () => {
-  it('maps every DataStorageType to defined built-in definitions', () => {
+  it('maps every DataStorageType that uses a key to defined built-in definitions', () => {
     const ids = new Set(BUILTIN_CREDENTIAL_DEFINITIONS.map(d => d.id));
-    for (const type of Object.values(DataStorageType)) {
+    for (const type of Object.values(DataStorageType).filter(usesStoredCredentials)) {
       const mapped = STORAGE_CREDENTIAL_DEFINITION_IDS[type];
       expect(mapped.length).toBeGreaterThan(0);
       for (const id of mapped) expect(ids.has(id)).toBe(true);
     }
+  });
+
+  it('fits no Credential to a DuckDB Storage', () => {
+    expect(STORAGE_CREDENTIAL_DEFINITION_IDS[DataStorageType.DUCKDB]).toEqual([]);
   });
 
   it('pins the field keys and secret flags of every Storage definition', () => {

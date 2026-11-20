@@ -25,6 +25,14 @@ export class DataStorageResponseApiDto {
   })
   config: DataStorageConfig | undefined;
 
+  @ApiProperty({
+    required: false,
+    description:
+      'DuckDB only: absolute path of the server-managed .duckdb file (read-only, computed).',
+    example: '/data/owox-duckdb/abc123.duckdb',
+  })
+  databasePath?: string;
+
   @ApiProperty({ example: '2024-01-01T12:00:00.000Z' })
   createdAt: Date;
 

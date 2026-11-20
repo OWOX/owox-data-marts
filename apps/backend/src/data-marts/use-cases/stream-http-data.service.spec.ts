@@ -1428,6 +1428,23 @@ describe('StreamHttpDataService', () => {
     );
   });
 
+  it('hands the decision, the rows and the totals one table-reference memo, so a SQL view is created once', async () => {
+    requestValidator.validate.mockReturnValueOnce({
+      columnSelector: { mode: 'explicit' as const, explicit: ['date', 'revenue'] },
+      filter: undefined,
+      sort: undefined,
+      aggregation: undefined,
+      dateTrunc: undefined,
+      limit: 5,
+    });
+    await service.stream(fakeCommand(), mockResponse());
+
+    const memo = (blended.resolveBlendingDecision as jest.Mock).mock.calls[0][3];
+    expect(memo).toBeInstanceOf(Map);
+    expect((sqlComposer.compose as jest.Mock).mock.calls[0][4]).toBe(memo);
+    expect((reportTotals.computeTotals as jest.Mock).mock.calls[0][5]).toBe(memo);
+  });
+
   it('does not compose SQL when no filter/sort/limit is requested', async () => {
     await service.stream(fakeCommand(), mockResponse());
     expect(sqlComposer.compose).not.toHaveBeenCalled();

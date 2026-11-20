@@ -3,10 +3,12 @@ import { AthenaCredentials } from './athena/schemas/athena-credentials.schema';
 import { SnowflakeCredentials } from './snowflake/schemas/snowflake-credentials.schema';
 import { RedshiftCredentials } from './redshift/schemas/redshift-credentials.schema';
 import { DatabricksCredentials } from './databricks/schemas/databricks-credentials.schema';
+import { DuckDbCredentials } from './duckdb/schemas/duckdb-credentials.schema';
 
 export type DataStorageCredentials =
   | BigQueryCredentials
   | AthenaCredentials
   | SnowflakeCredentials
   | RedshiftCredentials
-  | DatabricksCredentials;
+  | DatabricksCredentials
+  | DuckDbCredentials;

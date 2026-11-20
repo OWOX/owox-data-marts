@@ -6,7 +6,10 @@ import { FindOptionsWhere, Repository, MoreThan, LessThan } from 'typeorm';
 import { Transactional } from 'typeorm-transactional';
 import { TypeResolver } from '../../common/resolver/type-resolver';
 import { DATA_STORAGE_REPORT_READER_RESOLVER } from '../data-storage-types/data-storage-providers';
-import { DataStorageType } from '../data-storage-types/enums/data-storage-type.enum';
+import {
+  DataStorageType,
+  readerHoldsOpenCursor,
+} from '../data-storage-types/enums/data-storage-type.enum';
 import {
   DataStorageReportReader,
   PrepareReportDataOptions,
@@ -112,7 +115,9 @@ export class ReportDataCacheService {
     const existingOperation = this.pendingOperations.get(operationKey);
     if (existingOperation) {
       this.logger.debug(`Waiting for existing operation for report ${report.id}`);
-      return existingOperation;
+      if (!readerHoldsOpenCursor(report.dataMart.storage.type)) return existingOperation;
+      await existingOperation;
+      return this.executeGetOrCreateOperation(report, accessor);
     }
 
     const operationPromise = this.executeGetOrCreateOperation(report, accessor);
@@ -184,6 +189,20 @@ export class ReportDataCacheService {
     this.logger.debug(`Cache miss for report ${report.id}, creating new reader`);
 
     const reader = await this.readerResolver.resolve(report.dataMart.storage.type);
+    try {
+      return await this.fillCacheFromNewReader(report, options, decision, reader);
+    } catch (error) {
+      await this.releaseReader(reader);
+      throw error;
+    }
+  }
+
+  private async fillCacheFromNewReader(
+    report: Report,
+    options: PrepareReportDataOptions,
+    decision: BlendingDecision,
+    reader: DataStorageReportReader
+  ): Promise<CachedReaderData> {
     let dataDescription: CachedReaderData['dataDescription'];
     try {
       dataDescription = await reader.prepareReportData(report, options);
@@ -225,6 +244,18 @@ export class ReportDataCacheService {
       fromCache: false,
       blendingDecision: decision,
     };
+  }
+
+  /** Ends a request's use of a reader that holds a cursor; other readers stay with the cache. */
+  async releaseReader(reader: DataStorageReportReader): Promise<void> {
+    if (!readerHoldsOpenCursor(reader.type)) return;
+    try {
+      await reader.finalize();
+    } catch (error) {
+      this.logger.warn(
+        `Failed to finalize a ${reader.type} report reader: ${castError(error).message}`
+      );
+    }
   }
 
   @Transactional()
