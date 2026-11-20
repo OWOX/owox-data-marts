@@ -20,6 +20,7 @@ import { createRateLimiter } from './rateLimiter.js';
 import { RecordFilter } from './RecordFilter.js';
 import { ManifestParser } from './ManifestParser.js';
 import { setPathSafe } from './pathUtils.js';
+import { finishSliceScope, readSliceCheckpoint, sliceCheckpointHash } from './sliceCheckpoint.js';
 import { isTimeSeriesManifestNode, nodeDateStrategy } from './timeSeries.js';
 import { PARAMETER_OWNER, DATE_STRATEGY, LOG_LEVEL } from '../../Constants/CommonConstants.js';
 import { SampleEvent } from '../Events/SampleEvent.js';
@@ -122,6 +123,11 @@ export class DeclarativeSource extends AbstractSource {
     this._tokenCache = new Map();
     // nodeName -> { tag, count } of raw records over the run, for onImportComplete.
     this._extractedByNode = new Map();
+    // Nodes whose rows an earlier attempt of this run loaded in part or in full.
+    this._checkpointSkippedNodes = new Set();
+    this._sliceCheckpoint = null;
+    this._resumeFrom = null;
+    this._now = () => Date.now();
   }
 
   _compileNodes(nodes = {}) {
@@ -186,7 +192,7 @@ export class DeclarativeSource extends AbstractSource {
     return node.incremental.endLagDays ?? 0;
   }
 
-  async fetchData({ nodeName, fields, accountId, startDate, endDate }) {
+  async fetchData({ nodeName, fields, accountId, startDate, endDate, onBatch, batch }) {
     const node = this.model.nodes[nodeName];
     if (!node) throw new Error(`DeclarativeSource: unknown node "${nodeName}"`);
     this._refuseKeyParameterMisuse(nodeName);
@@ -268,15 +274,130 @@ export class DeclarativeSource extends AbstractSource {
       this.runLimits
     );
 
-    const rawRecords = await retriever.run(scope);
-    const nodeTag = this.context.getParameter('DestinationTableName')?.value ?? nodeName;
-    this._extractedByNode.set(nodeName, {
-      tag: nodeTag,
-      count: (this._extractedByNode.get(nodeName)?.count ?? 0) + rawRecords.length,
-    });
-    if (rawRecords.length > 0) {
-      this.context.emitAnalytics('rows_extracted', rawRecords.length, { node: nodeTag });
+    if (node.partitionRouter && onBatch && !this.emitSample && this.context.env?.runId) {
+      return this._fetchSliceBatches(retriever, scope, node, {
+        nodeName,
+        fields,
+        accountId,
+        startDate,
+        endDate,
+        onBatch,
+        batch,
+      });
     }
+    const rawRecords = await retriever.run(scope);
+    this._countExtracted(nodeName, rawRecords.length);
+    return this._processRecords(rawRecords, node, scope, fields);
+  }
+
+  /** Writes the node in batches and checkpoints each, so a resumed run skips what it wrote. */
+  async _fetchSliceBatches(
+    retriever,
+    scope,
+    node,
+    { nodeName, fields, accountId, startDate, endDate, onBatch, batch }
+  ) {
+    // Same values as AbstractStorage.RESUME_BATCH; the engine passes the storage's own value.
+    batch = { rows: 2500, ms: 120000, ...batch };
+    const account = accountId == null ? '' : ` (account ${accountId})`;
+    const fingerprint = this._nodeFingerprint(node, fields, scope);
+    const scopeKey = [nodeName, accountId, startDate, endDate, fingerprint].join('|');
+    if (!this._sliceCheckpoint) {
+      this._sliceCheckpoint = readSliceCheckpoint(
+        this.context.runConfig?.state?.sliceCheckpoint,
+        this.context.env.runId
+      );
+      // Resume decisions read only what an earlier attempt saved, never this attempt's writes.
+      this._resumeFrom = {
+        done: new Set(this._sliceCheckpoint.done),
+        current: this._sliceCheckpoint.current,
+      };
+    }
+    if (this._resumeFrom.done.has(scopeKey)) {
+      this._checkpointSkippedNodes.add(nodeName);
+      this.context.log(
+        LOG_LEVEL.INFO,
+        `Node "${nodeName}"${account}: an earlier attempt of this run already loaded it. Skipped.`
+      );
+      return [];
+    }
+
+    let slices = 0;
+    let hash = '';
+    let parts = [];
+    let buffered = 0;
+    let extracted = 0;
+    let checkpointedAt = this._now();
+    const write = async () => {
+      const count = extracted;
+      const rows = parts.flat();
+      parts = [];
+      buffered = 0;
+      extracted = 0;
+      if (rows.length > 0) await onBatch(rows);
+      this._countExtracted(nodeName, count);
+    };
+    const checkpoint = sliceCheckpoint => {
+      this._sliceCheckpoint = sliceCheckpoint;
+      this.context.updateState({ sliceCheckpoint });
+      checkpointedAt = this._now();
+    };
+
+    await retriever.run(scope, {
+      onSliceList: sliceValues => {
+        slices = sliceValues.length;
+        hash = sliceCheckpointHash(JSON.stringify(sliceValues));
+        const current = this._resumeFrom.current;
+        if (current?.scope !== scopeKey || current.slices !== slices || current.hash !== hash) {
+          return 0;
+        }
+        this._resumeFrom.current = null;
+        this._checkpointSkippedNodes.add(nodeName);
+        this.context.log(
+          LOG_LEVEL.INFO,
+          `Node "${nodeName}"${account}: resuming at slice ${current.next + 1} of ${slices}. ` +
+            `An earlier attempt of this run loaded the slices before it.`
+        );
+        return current.next;
+      },
+      onSlice: async (records, index) => {
+        extracted += records.length;
+        const rows = this._processRecords(records, node, scope, fields);
+        parts.push(rows);
+        buffered += rows.length;
+        if (buffered < batch.rows && this._now() - checkpointedAt < batch.ms) return;
+        await write();
+        const current = { scope: scopeKey, slices, hash, next: index + 1 };
+        checkpoint({ ...this._sliceCheckpoint, current });
+      },
+    });
+    await write();
+    checkpoint(finishSliceScope(this._sliceCheckpoint, scopeKey));
+    return [];
+  }
+
+  /** Changes with an edit of the node or manifest, its fields, a parameter value or the destination table. */
+  _nodeFingerprint(node, fields, scope) {
+    const parameters = { ...this._dataScope(scope).parameters };
+    // A rotated refresh token is the same grant, and the next attempt gets the rotated one.
+    delete parameters[GENERATED_REFRESH_TOKEN_CONFIG_FIELD];
+    const destination = this.context.getParameter('DestinationTableName')?.value ?? null;
+    const manifest = { ...this.model, nodes: undefined };
+    return sliceCheckpointHash(
+      JSON.stringify([node, fields ?? null, parameters, destination, manifest])
+    );
+  }
+
+  _countExtracted(nodeName, count) {
+    const tag = this.context.getParameter('DestinationTableName')?.value ?? nodeName;
+    this._extractedByNode.set(nodeName, {
+      tag,
+      count: (this._extractedByNode.get(nodeName)?.count ?? 0) + count,
+    });
+    if (count > 0) this.context.emitAnalytics('rows_extracted', count, { node: tag });
+  }
+
+  _processRecords(rawRecords, node, scope, fields) {
     const dataScope = this._dataScope(scope);
     const recordFilter = node.recordFilter ? new RecordFilter(node.recordFilter) : null;
     const filtered = recordFilter
@@ -301,7 +422,7 @@ export class DeclarativeSource extends AbstractSource {
    */
   onImportComplete() {
     for (const [nodeName, { tag, count }] of this._extractedByNode) {
-      if (count > 0) continue;
+      if (count > 0 || this._checkpointSkippedNodes.has(nodeName)) continue;
       this.context.emitAnalytics('rows_extracted', 0, { node: tag });
       this.context.log(
         LOG_LEVEL.INFO,
@@ -466,7 +587,8 @@ export class DeclarativeSource extends AbstractSource {
       const p = this.context.sourceConfig[name];
       // The context turns a `date` parameter into a Date at UTC midnight, which a template
       // would render as "Mon Jan 15 2024 00:00:00 GMT…"; the request gets the date entered.
-      if (p) parameters[name] = p.value instanceof Date ? p.value.toISOString().slice(0, 10) : p.value;
+      if (p)
+        parameters[name] = p.value instanceof Date ? p.value.toISOString().slice(0, 10) : p.value;
     }
     return { parameters };
   }

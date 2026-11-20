@@ -88,6 +88,9 @@ function splitSnapshotRowsByQuerySize(rows, maxRows, maxBytes, buildSingleRowQue
 }
 
 var DatabricksStorage = class DatabricksStorage extends AbstractStorage {
+  // A write costs several queries here, so it runs on larger batches.
+  static RESUME_BATCH = { rows: 25000, ms: 600000 };
+
   static parameters = {
     DatabricksHost: {
       isRequired: true,

@@ -1052,7 +1052,7 @@ export class DataMartMapper {
  * They mean nothing to API clients and would bloat every Data Mart response and the Run sheet's
  * State Info block, so they stay out of the wire format.
  */
-const CONNECTOR_OWNED_STATE_KEYS: readonly string[] = ['shortLinks'];
+const CONNECTOR_OWNED_STATE_KEYS: readonly string[] = ['shortLinks', 'sliceCheckpoint'];
 
 function omitConnectorOwnedState(
   connectorState?: ConnectorStateData

@@ -20,6 +20,9 @@ import { LOG_LEVEL, PARAMETER_OWNER } from '../Constants/CommonConstants.js';
  * so storage-side config defaults land in `context.storageConfig`.
  */
 export class AbstractStorage {
+  /** Rows or milliseconds a resumable node buffers before it writes and checkpoints. */
+  static RESUME_BATCH = { rows: 2500, ms: 120000 };
+
   //---- constructor -------------------------------------------------
   /**
    * Abstract class for storage operations providing common methods for data persistence

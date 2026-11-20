@@ -54,6 +54,74 @@ describe('Declarative connector through the built bundle', () => {
       `expected a DNS error carrying a code, got: ${err.message}`
     );
   });
+
+  // The checkpoint helpers live in their own Core file; the bundle must still reach them.
+  it('writes a partitioned node in batches and checkpoints it', async () => {
+    const { AbstractContext, DeclarativeSource, ManifestParser } = owox.Core;
+    const originalFetch = globalThis.fetch;
+    globalThis.fetch = async url => {
+      const id = String(url).match(/\/stats\/(\w+)/)[1];
+      return {
+        ok: true,
+        status: 200,
+        headers: { get: () => null },
+        json: async () => ({ rows: [{ id }] }),
+      };
+    };
+    try {
+      const context = new AbstractContext({
+        source: { name: 'Sliced', config: {} },
+        storage: { name: 'Mock', config: {} },
+        runConfig: { type: 'INCREMENTAL', data: [], state: {} },
+        env: { datamartId: 'dm', runId: 'run-1' },
+      });
+      const checkpoints = [];
+      context.emit = e => {
+        const event = e.toJSON();
+        if (event.type === 'STATE') checkpoints.push(event.state.sliceCheckpoint);
+      };
+      const model = new ManifestParser().parse(
+        JSON.stringify({
+          version: '1.0',
+          name: 'Sliced',
+          baseUrl: 'https://api.example.com',
+          authentication: { type: 'apiKey', inject: { into: 'query', name: 'k', format: 'x' } },
+          parameters: {},
+          nodes: {
+            stats: {
+              destinationName: 'stats',
+              uniqueKeys: ['id'],
+              fields: { id: { dataPath: 'id', type: 'string' } },
+              partitionRouter: { type: 'list', values: ['a', 'b'], partitionField: 'slice' },
+              request: { method: 'GET', path: '/stats/{{ stream_slice.slice }}' },
+              recordSelector: { recordPath: ['rows'] },
+            },
+          },
+        })
+      );
+      const batches = [];
+
+      const rows = await new DeclarativeSource(context, model).fetchData({
+        nodeName: 'stats',
+        fields: ['id'],
+        accountId: null,
+        startDate: null,
+        endDate: null,
+        batch: { rows: 1, ms: 60000 },
+        onBatch: async batch => batches.push(batch.map(r => r.id)),
+      });
+
+      assert.deepStrictEqual(rows, []);
+      assert.deepStrictEqual(batches, [['a'], ['b']]);
+      assert.deepStrictEqual(
+        checkpoints.map(c => c.current?.next ?? null),
+        [1, 2, null]
+      );
+      assert.match(checkpoints.at(-1).done[0], /^stats\|\|\|\|[0-9a-f]{8}$/);
+    } finally {
+      globalThis.fetch = originalFetch;
+    }
+  });
 });
 
 // No connector in src/Sources/ is a manifest alone, so the build's path for one runs against

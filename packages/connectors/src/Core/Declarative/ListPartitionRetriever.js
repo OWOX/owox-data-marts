@@ -37,7 +37,7 @@ export class ListPartitionRetriever {
     this.context = context;
   }
 
-  async run(scope) {
+  async run(scope, options = {}) {
     const resolved = resolveValueList(this.partitionRouter, scope);
     const seen = new Set();
     const sliceValues = [];
@@ -47,6 +47,7 @@ export class ListPartitionRetriever {
       sliceValues.push(value);
       if (sliceValues.length >= this.maxSlices) break;
     }
+    const startAt = (await options.onSliceList?.(sliceValues)) ?? 0;
     return runChildSlices(
       {
         requester: this.requester,
@@ -59,7 +60,8 @@ export class ListPartitionRetriever {
         maxRows: this.maxRows,
         context: this.context,
       },
-      scope
+      scope,
+      { startAt, onSlice: options.onSlice }
     );
   }
 }

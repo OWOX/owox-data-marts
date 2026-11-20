@@ -134,6 +134,9 @@ function normalizeRedshiftType(type) {
 }
 
 var AwsRedshiftStorage = class AwsRedshiftStorage extends AbstractStorage {
+  // A write costs several queries here, so it runs on larger batches.
+  static RESUME_BATCH = { rows: 25000, ms: 600000 };
+
   static parameters = {
     AWSRegion: {
       isRequired: true,
