@@ -67,6 +67,7 @@ import { AuthFlowMiddleware } from './services/middleware/auth-flow-middleware.j
 import { BetterAuthProxyHandler } from './services/middleware/better-auth-proxy-handler.js';
 import { OnboardingService } from './services/onboarding/onboarding-service.js';
 import { OnboardingController } from './controllers/onboarding-controller.js';
+import { UserSignalsService } from './services/signals/user-signals-service.js';
 import { createDatabaseStore } from './store/database-store-factory.js';
 import type { DatabaseStore } from './store/database-store.js';
 import { clearCookie } from './utils/cookie-policy.js';
@@ -121,6 +122,7 @@ export class OwoxBetterAuthIdp implements IdpProvider {
   private readonly onboardingService: OnboardingService;
   private readonly onboardingController: OnboardingController;
   private readonly serverEvents: ServerEventsService;
+  private readonly userSignals: UserSignalsService;
 
   private constructor(
     auth: Awaited<ReturnType<typeof createBetterAuthConfig>>,
@@ -200,6 +202,7 @@ export class OwoxBetterAuthIdp implements IdpProvider {
     this.betterAuthProxyHandler = new BetterAuthProxyHandler(this.auth, this.pkceFlowOrchestrator);
     this.authErrorController = new AuthErrorController(this.config.gtmContainerId);
     this.serverEvents = new ServerEventsService(this.config.serverEvents);
+    this.userSignals = new UserSignalsService(this.config.productIntent, this.store);
     this.pageController = new PageController(
       this.config.uiProviders,
       this.config.gtmContainerId,
@@ -458,6 +461,7 @@ export class OwoxBetterAuthIdp implements IdpProvider {
         const callbackAuthFlowParams = response.authFlowParams ?? extractAuthFlowParams(req);
         const payload = await this.tokenFacade.parseToken(response.accessToken);
         this.serverEvents.login(req, payload?.userId);
+        await this.userSignals.collect(req, res, payload);
         const resolvedAuthFlowParams = this.resolveUserBoundProjectRedirect(
           callbackAuthFlowParams,
           payload?.userId
@@ -661,6 +665,15 @@ export class OwoxBetterAuthIdp implements IdpProvider {
       if (auth.refreshToken && auth.refreshTokenExpiresIn !== undefined) {
         this.tokenFacade.setTokenToCookie(res, req, auth.refreshToken, auth.refreshTokenExpiresIn);
       }
+      try {
+        await this.userSignals.collect(
+          req,
+          res,
+          await this.tokenFacade.parseToken(auth.accessToken)
+        );
+      } catch {
+        this.logger.warn('Silent sign-in signals skipped', { path: req.path });
+      }
       const redirectTarget = this.resolveExistingRefreshRedirect(extractAuthFlowParams(req));
       this.logger.info('Completed silent sign-in refresh', {
         path: req.path,
@@ -811,7 +824,15 @@ export class OwoxBetterAuthIdp implements IdpProvider {
     );
     const mcpServerUrl = this.resolveMcpServerUrl(payload.projectId);
 
-    return res.json({ ...payload, onboarding, ...(mcpServerUrl ? { mcpServerUrl } : {}) });
+    await this.userSignals.collect(req, res, payload);
+    const signals = await this.userSignals.list(payload.userId);
+
+    return res.json({
+      ...payload,
+      onboarding,
+      ...(mcpServerUrl ? { mcpServerUrl } : {}),
+      ...(signals ? { signals } : {}),
+    });
   }
 
   async projectsApiMiddleware(

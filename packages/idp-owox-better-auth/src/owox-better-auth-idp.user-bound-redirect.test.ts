@@ -40,6 +40,7 @@ function createCallbackProvider(params: {
   };
   const provider = Object.assign(Object.create(OwoxBetterAuthIdp.prototype), {
     serverEvents: new ServerEventsService(undefined),
+    userSignals: { collect: jest.fn(), list: jest.fn() },
     betterAuthProxyHandler: { setupBetterAuthHandler: jest.fn() },
     authErrorController: { registerRoutes: jest.fn() },
     onboardingController: { registerRoutes: jest.fn() },
@@ -102,6 +103,8 @@ describe('OwoxBetterAuthIdp user-bound project redirects', () => {
     };
     const provider = Object.assign(Object.create(OwoxBetterAuthIdp.prototype), {
       serverEvents: new ServerEventsService(undefined),
+      userSignals: { collect: jest.fn(), list: jest.fn() },
+      userSignals: { collect: jest.fn(), list: jest.fn() },
       tokenFacade,
       config: {
         idpOwox: {
@@ -152,6 +155,8 @@ describe('OwoxBetterAuthIdp user-bound project redirects', () => {
     };
     const provider = Object.assign(Object.create(OwoxBetterAuthIdp.prototype), {
       serverEvents: new ServerEventsService(undefined),
+      userSignals: { collect: jest.fn(), list: jest.fn() },
+      userSignals: { collect: jest.fn(), list: jest.fn() },
       tokenFacade,
       config: {
         idpOwox: {
@@ -198,6 +203,8 @@ describe('OwoxBetterAuthIdp user-bound project redirects', () => {
     };
     const provider = Object.assign(Object.create(OwoxBetterAuthIdp.prototype), {
       serverEvents: new ServerEventsService(undefined),
+      userSignals: { collect: jest.fn(), list: jest.fn() },
+      userSignals: { collect: jest.fn(), list: jest.fn() },
       tokenFacade,
       config: {
         idpOwox: {
