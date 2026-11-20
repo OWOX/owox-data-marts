@@ -1,4 +1,4 @@
-import type { OnboardingAnswer, Role } from './user.types.js';
+import type { OnboardingAnswer, Role, UserSignal } from './user.types.js';
 
 /**
  * Access token response
@@ -22,6 +22,7 @@ export interface CurrentUserResponse {
   roles?: Role[];
   projectTitle?: string;
   onboarding?: OnboardingAnswer[];
+  signals?: UserSignal[];
   mcpServerUrl?: string;
   /** True when the session is in view-only mode. */
   viewOnly?: boolean;

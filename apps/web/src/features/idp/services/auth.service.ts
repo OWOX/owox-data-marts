@@ -14,6 +14,7 @@ export function currentUserResponseToUser(payload: CurrentUserResponse): User {
     mcpServerUrl: payload.mcpServerUrl,
     avatar: payload.avatar,
     onboarding: payload.onboarding,
+    signals: payload.signals,
     // Only surface when true so normal sessions stay free of the flag.
     viewOnly: payload.viewOnly === true ? true : undefined,
   };

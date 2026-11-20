@@ -25,6 +25,25 @@ describe('currentUserResponseToUser', () => {
     expect(currentUserResponseToUser(baseResponse({ viewOnly: false })).viewOnly).toBeUndefined();
     expect(currentUserResponseToUser(baseResponse()).viewOnly).toBeUndefined();
   });
+
+  it('carries signals from the current user response', () => {
+    const signals = [
+      {
+        name: 'product_intent',
+        value: { source: 'google-ads' },
+        origin: 'explicit_click',
+        firstSeenAt: '2026-11-20T10:00:00Z',
+        lastSeenAt: '2026-11-20T10:00:00Z',
+        seenCount: 1,
+      },
+    ];
+
+    expect(currentUserResponseToUser(baseResponse({ signals })).signals).toEqual(signals);
+  });
+
+  it('leaves signals undefined when the response has none', () => {
+    expect(currentUserResponseToUser(baseResponse()).signals).toBeUndefined();
+  });
 });
 
 describe('isViewOnlySession', () => {

@@ -9,6 +9,18 @@ export interface OnboardingAnswer {
 }
 
 /**
+ * Signal recorded for the user
+ */
+export interface UserSignal {
+  name: string;
+  value: Record<string, string>;
+  origin: string;
+  firstSeenAt: string;
+  lastSeenAt: string;
+  seenCount: number;
+}
+
+/**
  * User information
  */
 export interface User {
@@ -21,6 +33,7 @@ export interface User {
   projectTitle?: string;
   mcpServerUrl?: string;
   onboarding?: OnboardingAnswer[];
+  signals?: UserSignal[];
   /**
    * True when the session is in view-only mode.
    * Server rejects mutating API methods; client uses this to suppress analytics.
