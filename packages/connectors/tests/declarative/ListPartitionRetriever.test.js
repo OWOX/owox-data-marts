@@ -195,4 +195,86 @@ describe('ListPartitionRetriever children and the page budget', () => {
 
     assert.strictEqual(traces.length, 2);
   });
+
+  describe('per-slice mode', () => {
+    const pr = { type: 'list', values: ['A', 'A', 'B', 'C'], partitionField: 'country' };
+    const make = (calls, extra = {}) =>
+      new ListPartitionRetriever({
+        requester: {
+          async send(_spec, scope) {
+            calls.push(scope.stream_slice.country);
+            // fresh rows per call: a shared body would alias records across slices
+            return {
+              rows: [{ who: scope.stream_slice.country }, { who: scope.stream_slice.country }],
+            };
+          },
+        },
+        partitionRouter: pr,
+        childRequestSpec,
+        childRecordSelector,
+        ...extra,
+      });
+
+    it('hands each slice to onSlice in order and returns []', async () => {
+      const calls = [];
+      const got = [];
+      const out = await make(calls).run(
+        { parameters: {} },
+        { onSlice: async (records, i) => got.push([i, records.map(r => r.who)]) }
+      );
+      assert.deepStrictEqual(out, []);
+      assert.deepStrictEqual(got, [
+        [0, ['A', 'A']],
+        [1, ['B', 'B']],
+        [2, ['C', 'C']],
+      ]);
+    });
+
+    it('passes deduped values to onSliceList and skips slices before startAt', async () => {
+      const calls = [];
+      let listed;
+      const got = [];
+      await make(calls).run(
+        { parameters: {} },
+        {
+          onSliceList: v => ((listed = v), 2),
+          onSlice: async (_r, i) => got.push(i),
+        }
+      );
+      assert.deepStrictEqual(listed, ['A', 'B', 'C']);
+      assert.deepStrictEqual(calls, ['C']);
+      assert.deepStrictEqual(got, [2]);
+    });
+
+    it('stops between slices at maxRows', async () => {
+      const calls = [];
+      const got = [];
+      await make(calls, { maxRows: 3 }).run(
+        { parameters: {} },
+        { onSlice: async (_r, i) => got.push(i) }
+      );
+      assert.deepStrictEqual(got, [0, 1]);
+    });
+
+    it('stops on an onSlice rejection and rethrows it', async () => {
+      const calls = [];
+      await assert.rejects(
+        make(calls).run(
+          { parameters: {} },
+          {
+            onSlice: async (_r, i) => {
+              if (i === 1) throw new Error('boom');
+            },
+          }
+        ),
+        /boom/
+      );
+      assert.deepStrictEqual(calls, ['A', 'B']);
+    });
+
+    it('is unchanged without options', async () => {
+      const out = await make([]).run({ parameters: {} });
+      assert.strictEqual(out.length, 6);
+    });
+  });
 });

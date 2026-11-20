@@ -306,7 +306,7 @@ describe('DataMartMapper', () => {
     expect(response).not.toHaveProperty('qualitySummary');
   });
 
-  it('keeps the connector short link cache out of the Data Mart response', async () => {
+  it('keeps the connector short link cache and slice checkpoint out of the Data Mart response', async () => {
     const response = await mapper.toResponse({
       id: 'data-mart-1',
       title: 'Orders',
@@ -331,6 +331,7 @@ describe('DataMartMapper', () => {
             state: {
               date: '2026-09-23',
               shortLinks: { 'https://s.example/a': ['https://e.example', 1] },
+              sliceCheckpoint: { runId: 'run-1', done: ['stats|||x'], current: null },
             },
           },
         ],

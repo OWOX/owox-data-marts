@@ -3402,6 +3402,160 @@ describe('AbstractConnector', () => {
     });
   });
 
+  describe('node reads that checkpoint their batches', () => {
+    const rangeContext = () => {
+      const ctx = createTestContext(
+        {},
+        {
+          type: 'MANUAL_BACKFILL',
+          data: [
+            { configField: 'StartDate', value: '2024-01-01' },
+            { configField: 'EndDate', value: '2024-01-02' },
+          ],
+        }
+      );
+      ctx.registerParameters({
+        StartDate: { type: 'date', attributes: ['MANUAL_BACKFILL'] },
+        EndDate: { type: 'date', attributes: ['MANUAL_BACKFILL'] },
+      });
+      return ctx;
+    };
+    const BATCH = { rows: 7, ms: 9 };
+
+    it('hands a range node onBatch and the storage batch, and keeps the cursor for the run end', async () => {
+      const cap = captureEvents();
+      try {
+        const StorageClass = createMockStorageClass();
+        StorageClass.RESUME_BATCH = BATCH;
+        const requests = [];
+        const cursorsAtBatch = [];
+        const source = createMockSource({
+          parseFields: () => ({ stats: ['id', 'date'] }),
+          getDateStrategy: () => 'range',
+          fetchData: async req => {
+            requests.push(req);
+            await req.onBatch([{ id: 1, date: '2024-01-01' }]);
+            cursorsAtBatch.push(cap.events.filter(e => e.state?.lastRequestedDate).length);
+            return [{ id: 2, date: '2024-01-02' }];
+          },
+        });
+        await new AbstractConnector(rangeContext(), source, StorageClass).run();
+        assert.strictEqual(requests.length, 1);
+        assert.strictEqual(typeof requests[0].onBatch, 'function');
+        assert.deepStrictEqual(requests[0].batch, BATCH);
+        assert.deepStrictEqual(
+          StorageClass.instances[0].savedData.map(row => row.id),
+          [1, 2]
+        );
+        assert.deepStrictEqual(cursorsAtBatch, [0], 'a batch does not claim the window');
+        assert.deepStrictEqual(
+          cap.events.filter(e => e.state?.lastRequestedDate).map(e => e.state.lastRequestedDate),
+          ['2024-01-02']
+        );
+      } finally {
+        cap.restore();
+      }
+    });
+
+    it('keeps the written batches and claims no window when a range node fails after a batch', async () => {
+      const cap = captureEvents();
+      try {
+        const StorageClass = createMockStorageClass();
+        const source = createMockSource({
+          parseFields: () => ({ stats: ['id', 'date'] }),
+          getDateStrategy: () => 'range',
+          fetchData: async req => {
+            await req.onBatch([{ id: 1, date: '2024-01-01' }]);
+            throw new Error('HTTP 500 on slice 2');
+          },
+        });
+        await assert.rejects(
+          () => new AbstractConnector(rangeContext(), source, StorageClass).run(),
+          /HTTP 500 on slice 2/
+        );
+        assert.deepStrictEqual(
+          StorageClass.instances[0].savedData.map(row => row.id),
+          [1]
+        );
+        assert.deepStrictEqual(
+          cap.events.filter(e => e.state?.lastRequestedDate),
+          []
+        );
+      } finally {
+        cap.restore();
+      }
+    });
+
+    it('hands a catalog node the storage batch', async () => {
+      const restore = suppressStdout();
+      try {
+        const StorageClass = createMockStorageClass();
+        StorageClass.RESUME_BATCH = BATCH;
+        const requests = [];
+        const source = createMockSource({
+          fetchData: async req => {
+            requests.push(req);
+            return [];
+          },
+        });
+        await new AbstractConnector(createTestContext(), source, StorageClass).run();
+        assert.deepStrictEqual(requests[0].batch, BATCH);
+      } finally {
+        restore();
+      }
+    });
+
+    it('hands a day-by-day node neither onBatch nor batch', async () => {
+      const cap = captureEvents();
+      try {
+        const requests = [];
+        const source = createMockSource({
+          parseFields: () => ({ stats: ['id', 'date'] }),
+          fetchData: async req => {
+            requests.push(req);
+            return [{ id: 1 }];
+          },
+        });
+        await new AbstractConnector(rangeContext(), source, createMockStorageClass()).run();
+        assert.ok(requests.length > 0);
+        for (const req of requests) {
+          assert.ok(!('onBatch' in req) && !('batch' in req));
+        }
+      } finally {
+        cap.restore();
+      }
+    });
+
+    it('hands a full-refresh node neither onBatch nor batch', async () => {
+      const restore = suppressStdout();
+      try {
+        const requests = [];
+        const source = createMockSource({
+          fieldsSchema: {
+            people: {
+              fields: {},
+              uniqueKeys: ['id'],
+              isFullRefresh: true,
+              destinationName: 'people',
+            },
+          },
+          parseFields: () => ({ people: ['id'] }),
+          fetchData: async req => {
+            requests.push(req);
+            return [{ id: 1 }];
+          },
+        });
+        await new AbstractConnector(createTestContext(), source, createMockStorageClass()).run();
+        assert.ok(requests.length > 0);
+        for (const req of requests) {
+          assert.ok(!('onBatch' in req) && !('batch' in req));
+        }
+      } finally {
+        restore();
+      }
+    });
+  });
+
   describe('storage failures', () => {
     const runError = connector =>
       connector.run().then(

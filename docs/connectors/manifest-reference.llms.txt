@@ -365,6 +365,10 @@ Fans out over a static or parameter-supplied list of values instead of a parent 
 
 Exactly one of `values` (a non-empty array of strings) or `valuesFromParameter` (a parameter holding a comma-separated string) must be present.
 
+### Resuming an interrupted run
+
+A substream or list node without a date window, or with a `range` window, writes its rows in batches. When ODM resumes an interrupted run, the node reads its parent list again and skips what the run already loaded. Usually it reads at most one batch again. It reads everything again when its parent list, its definition, its parameters, its destination table or its date window changed after the stop. A node with `isFullRefresh` reads everything again.
+
 ## 11. `accounts` — multi-account fan-out
 
 Optional, top-level; runs every node once per account ID instead of once per connector run:

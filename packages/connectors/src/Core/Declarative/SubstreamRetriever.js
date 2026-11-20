@@ -40,7 +40,7 @@ export class SubstreamRetriever {
     this.context = context;
   }
 
-  async run(scope) {
+  async run(scope, options = {}) {
     const parent = this.partitionRouter.parent;
     const sliceProducer = new SyncRetriever({
       requester: this.requester,
@@ -64,6 +64,7 @@ export class SubstreamRetriever {
       if (sliceValues.length >= this.maxSlices) break;
     }
 
+    const startAt = (await options.onSliceList?.(sliceValues)) ?? 0;
     return runChildSlices(
       {
         requester: this.requester,
@@ -76,7 +77,8 @@ export class SubstreamRetriever {
         maxRows: this.maxRows,
         context: this.context,
       },
-      scope
+      scope,
+      { startAt, onSlice: options.onSlice }
     );
   }
 }

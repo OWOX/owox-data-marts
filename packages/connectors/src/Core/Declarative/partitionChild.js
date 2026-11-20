@@ -13,6 +13,8 @@ import { Paginator } from './Paginator.js';
  * scope.stream_slice[partitionField], concatenating all child records. A fresh
  * Paginator is built per slice (Paginator is stateful). Stops once total records
  * reach maxRows. Shared by SubstreamRetriever and ListPartitionRetriever.
+ * With onSlice, slices startAt.. are handed to `await onSlice(records, index)`
+ * one by one instead of being collected, and the result is [].
  */
 export async function runChildSlices(
   {
@@ -26,7 +28,8 @@ export async function runChildSlices(
     maxRows = Infinity,
     context = null,
   },
-  scope
+  scope,
+  { startAt = 0, onSlice } = {}
 ) {
   // Collected per slice and flattened once, never `all.push(...records)`: a
   // single slice can return a bulk page (csv/jsonl decode a whole file into one
@@ -35,7 +38,8 @@ export async function runChildSlices(
   // and AbstractConnector.processFullRefreshNode.
   const batches = [];
   let total = 0;
-  for (const value of sliceValues) {
+  for (let i = startAt; i < sliceValues.length; i++) {
+    const value = sliceValues[i];
     if (total >= maxRows) break;
     const childScope = { ...scope, stream_slice: { [partitionField]: value } };
     const child = new SyncRetriever({
@@ -48,10 +52,14 @@ export async function runChildSlices(
       context,
     });
     const records = await child.run(childScope);
-    if (records.length > 0) {
+    if (onSlice) {
+      await onSlice(records, i);
+      total += records.length;
+    } else if (records.length > 0) {
       batches.push(records);
       total += records.length;
     }
   }
+  if (onSlice) return [];
   return batches.length === 1 ? batches[0] : batches.flat();
 }

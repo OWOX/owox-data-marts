@@ -994,6 +994,7 @@ export class AbstractConnector {
           // main's Microsoft Ads and Facebook did: a large catalog does not fit in memory,
           // and a page that fails must not cost the pages before it.
           onBatch: batch => this._writeBatch(writer, batch, fields),
+          batch: writer.storage.constructor.RESUME_BATCH,
         });
         await this._writeBatch(writer, data, fields);
       }, nodeName);
@@ -1108,6 +1109,9 @@ export class AbstractConnector {
           accountId: account?.id ?? null,
           startDate: dateRange.startDate,
           endDate,
+          // The window is still claimed only at the end of the pass, not per batch.
+          onBatch: batch => this._writeBatch(writer, batch, node.fields),
+          batch: writer.storage.constructor.RESUME_BATCH,
         });
         await this._writeBatch(writer, data, node.fields);
       }, node.name);

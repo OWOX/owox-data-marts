@@ -909,3 +909,13 @@ test('Redshift leaves a failed statement to its caller rather than logging an er
     []
   );
 });
+
+test('a storage sets the batch a resumable node writes and checkpoints', () => {
+  assert.deepEqual(AbstractStorage.RESUME_BATCH, { rows: 2500, ms: 120000 });
+  assert.deepEqual(GoogleBigQueryStorage.RESUME_BATCH, { rows: 2500, ms: 120000 });
+  assert.deepEqual(SnowflakeStorage.RESUME_BATCH, { rows: 2500, ms: 120000 });
+  for (const storage of [AwsAthenaStorage, AwsRedshiftStorage, DatabricksStorage]) {
+    // Another vm realm: compare the values, not the prototypes.
+    assert.equal(JSON.stringify(storage.RESUME_BATCH), '{"rows":25000,"ms":600000}');
+  }
+});
