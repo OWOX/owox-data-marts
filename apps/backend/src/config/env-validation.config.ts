@@ -94,8 +94,6 @@ const configSchema = z
       .default(8_000),
     // OWOX Storage is read as a whole by readOwoxStorageSettings; these keys only validate types.
     OWOX_STORAGE_ENGINE: blankAsUnset(z.enum(['bigquery']).optional()),
-    OWOX_STORAGE_GCP_PROJECT_ID: blankAsUnset(z.string().optional()),
-    OWOX_STORAGE_SERVICE_ACCOUNT_PROJECT_ID: blankAsUnset(z.string().optional()),
     OWOX_STORAGE_FREE_QUERY_LIMIT_GIB_PER_DAY: blankAsUnset(
       z.coerce.number().positive().optional()
     ),

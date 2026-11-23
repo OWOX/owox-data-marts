@@ -73,7 +73,8 @@ export class RestoreOwoxStorageService {
     let restored: boolean;
     try {
       try {
-        await this.engine.restore(record, command.projectId);
+        // Loaded before the flag was cleared above: true only when the last deletion did not finish.
+        await this.engine.restore(record, command.projectId, record.deprovisionPending);
       } catch {
         // The engine has logged the failed step.
         throw new OwoxStorageRestoreException();

@@ -10,7 +10,9 @@ describe('OwoxStorageConfigService', () => {
     const service = new OwoxStorageConfigService(
       fakeConfig({
         OWOX_STORAGE_ENGINE: 'bigquery',
-        OWOX_STORAGE_GCP_PROJECT_ID: 'owox-storage',
+        BALANCE_ENDPOINT_BASE_URL: 'https://ib.example/internal-api/bi-project/',
+        BALANCE_ENDPOINT_AUTH_SERVICE_ACCOUNT: 'c2c@secure.iam.gserviceaccount.com',
+        BALANCE_ENDPOINT_TARGET_AUDIENCE: 'integrated-backend/api',
         OWOX_STORAGE_FREE_QUERY_LIMIT_GIB_PER_DAY: 10,
         OWOX_STORAGE_PAID_QUERY_LIMIT_GIB_PER_DAY: 100,
       })
@@ -27,7 +29,9 @@ describe('OwoxStorageConfigService', () => {
     const service = new OwoxStorageConfigService(
       fakeConfig({
         OWOX_STORAGE_ENGINE: 'bigquery',
-        OWOX_STORAGE_GCP_PROJECT_ID: 'owox-storage',
+        BALANCE_ENDPOINT_BASE_URL: 'https://ib.example/internal-api/bi-project/',
+        BALANCE_ENDPOINT_AUTH_SERVICE_ACCOUNT: 'c2c@secure.iam.gserviceaccount.com',
+        BALANCE_ENDPOINT_TARGET_AUDIENCE: 'integrated-backend/api',
         OWOX_STORAGE_NOT_PAID_DELETION_DAYS: '14',
         OWOX_STORAGE_INACTIVITY_DELETION_DAYS: '7',
       })

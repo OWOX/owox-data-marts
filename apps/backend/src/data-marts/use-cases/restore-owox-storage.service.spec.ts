@@ -148,7 +148,7 @@ describe('RestoreOwoxStorageService', () => {
 
     await s.service.run(command);
 
-    expect(s.engine.restore).toHaveBeenCalledWith(record, 'proj-1');
+    expect(s.engine.restore).toHaveBeenCalledWith(record, 'proj-1', false);
     expect(s.dataMartService.findByStorage).toHaveBeenCalledWith(storage);
     expect(s.managedStorages.markRestored).toHaveBeenCalledWith('storage-1', NOW);
     expect(s.connectorStates.deleteByDataMartIds).toHaveBeenCalledWith(['dm-1', 'dm-2']);
@@ -168,7 +168,7 @@ describe('RestoreOwoxStorageService', () => {
     expect(s.managedStorages.setDeprovisionPending.mock.invocationCallOrder[0]).toBeLessThan(
       s.engine.restore.mock.invocationCallOrder[0]
     );
-    expect(s.engine.restore).toHaveBeenCalledWith(record, 'proj-1');
+    expect(s.engine.restore).toHaveBeenCalledWith(record, 'proj-1', true);
     expect(s.managedStorages.markRestored).toHaveBeenCalledWith('storage-1', NOW);
   });
 

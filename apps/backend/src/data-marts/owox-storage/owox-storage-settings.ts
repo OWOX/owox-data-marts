@@ -3,8 +3,6 @@ export const OWOX_STORAGE_LOCATIONS: readonly OwoxStorageLocation[] = ['US', 'EU
 
 export interface OwoxStorageSettings {
   engine: 'bigquery';
-  gcpProjectId: string;
-  serviceAccountProjectId: string;
   freeQueryLimitBytesPerDay: number;
   paidQueryLimitBytesPerDay: number;
   freeStorageLimitBytes: number;
@@ -14,6 +12,12 @@ export interface OwoxStorageSettings {
 }
 
 const GIB = 2 ** 30;
+
+export const IB_ENDPOINT_ENV_NAMES = [
+  'BALANCE_ENDPOINT_BASE_URL',
+  'BALANCE_ENDPOINT_AUTH_SERVICE_ACCOUNT',
+  'BALANCE_ENDPOINT_TARGET_AUDIENCE',
+] as const;
 
 /** True when OWOX Storage is configured; a partial configuration throws. */
 export function isOwoxStorageEnabled(env: Record<string, unknown>): boolean {
@@ -34,10 +38,11 @@ export function readOwoxStorageSettings(env: Record<string, unknown>): OwoxStora
     throw new Error(`OWOX_STORAGE_ENGINE supports only "bigquery", got "${engine}".`);
   }
 
-  const gcpProjectId = read('OWOX_STORAGE_GCP_PROJECT_ID');
-  if (!gcpProjectId) {
+  // Integrated Backend creates the datasets and grants; ODM reaches it through the balance endpoint.
+  const missing = IB_ENDPOINT_ENV_NAMES.filter(name => !read(name));
+  if (missing.length > 0) {
     throw new Error(
-      'OWOX Storage is partially configured. OWOX_STORAGE_GCP_PROJECT_ID is required when OWOX_STORAGE_ENGINE is set.'
+      `OWOX Storage is partially configured. ${missing.join(', ')} required when OWOX_STORAGE_ENGINE is set.`
     );
   }
 
@@ -59,8 +64,6 @@ export function readOwoxStorageSettings(env: Record<string, unknown>): OwoxStora
 
   return {
     engine,
-    gcpProjectId,
-    serviceAccountProjectId: read('OWOX_STORAGE_SERVICE_ACCOUNT_PROJECT_ID') ?? gcpProjectId,
     freeQueryLimitBytesPerDay: limitGib('OWOX_STORAGE_FREE_QUERY_LIMIT_GIB_PER_DAY', 10) * GIB,
     paidQueryLimitBytesPerDay: limitGib('OWOX_STORAGE_PAID_QUERY_LIMIT_GIB_PER_DAY', 100) * GIB,
     freeStorageLimitBytes: limitGib('OWOX_STORAGE_FREE_STORAGE_LIMIT_GIB', 1) * GIB,

@@ -4,6 +4,8 @@ export const MANAGED_STORAGE_ENGINE = Symbol('MANAGED_STORAGE_ENGINE');
 
 export interface ProvisionedManagedStorage {
   engine: 'bigquery';
+  /** The OWOX project that owns the storage. */
+  projectId: string;
   gcpProjectId: string;
   location: OwoxStorageLocation;
   datasetId: string;
@@ -22,8 +24,11 @@ export interface ManagedStorageEngine {
     projectId: string;
     location: OwoxStorageLocation;
   }): Promise<ProvisionedManagedStorage>;
-  /** Makes sure the target's datasets, account and grants exist again; never undoes. */
-  restore(target: ProvisionedManagedStorage, projectId: string): Promise<void>;
+  /**
+   * Creates the target's datasets, account and grants again; never undoes. With `leftovers` (the last deletion did
+   * not finish), it first deletes what that deletion left.
+   */
+  restore(target: ProvisionedManagedStorage, projectId: string, leftovers: boolean): Promise<void>;
   deprovision(target: ProvisionedManagedStorage): Promise<void>;
   listTables(target: ProvisionedManagedStorage): Promise<ManagedTable[]>;
   /** Newest job per service account since `since`, keyed by email; accounts with no job are absent. */

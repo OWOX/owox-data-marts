@@ -1,24 +1,26 @@
 import { Injectable, Logger, NotFoundException } from '@nestjs/common';
+import type { TableMetadata } from '@google-cloud/bigquery';
+import { castError, runWithConcurrency } from '@owox/internal-helpers';
 import { randomBytes } from 'crypto';
-import { OwoxStorageConfigService } from '../owox-storage-config.service';
 import { OwoxStorageIdentity } from '../owox-storage-identity.service';
 import { OwoxStorageProvisioningException } from '../owox-storage.exceptions';
 import type { OwoxStorageLocation } from '../owox-storage-settings';
 import { ACCESS_CHECK_QUERY } from '../../data-storage-types/bigquery/adapters/bigquery-api.adapter';
-import { GcpProvisioningClient } from './gcp-provisioning.client';
+import {
+  type IbProvisionedStorage,
+  OwoxStorageProvisioningClient,
+} from './owox-storage-provisioning.client';
 import type {
   ManagedStorageEngine,
   ManagedTable,
   ProvisionedManagedStorage,
 } from './managed-storage-engine';
 
-const JOB_USER_ROLE = 'roles/bigquery.jobUser';
-// IAM needs a moment to see a new service account.
-const GRANT_DELAYS_MS = [2000, 4000, 8000, 16000];
-
-type UndoStep = { name: string; run: () => Promise<void> };
-// Provision registers undo steps here; restore accepts resources that already exist.
-type Step = <T>(name: string, fn: () => Promise<T>, undo?: UndoStep) => Promise<T | undefined>;
+// IAM applies a new token creator grant in seconds to minutes; runs do not retry impersonation.
+// 40 s of waits, about 45 s with token calls: the load balancer allows 180 s, IB uses up to 85 s.
+const USABLE_WAITS_MS = [1_000, 2_000, 4_000, 8_000, 10_000, 15_000];
+// A storage usually holds a handful of tables; this caps the metadata reads in flight.
+const TABLE_METADATA_CONCURRENCY = 8;
 
 type GoogleError = {
   code?: number | string;
@@ -33,6 +35,10 @@ export function describeGoogleError(error: unknown): string {
   return ` (code ${e.code ?? 'unknown'}${status ? `, ${status}` : ''})`;
 }
 
+/**
+ * Integrated Backend creates and deletes the datasets and the storage's own service account;
+ * ODM reads the datasets and runs the customer's work as that account.
+ */
 @Injectable()
 export class BigQueryManagedStorageEngine implements ManagedStorageEngine {
   private readonly logger = new Logger(BigQueryManagedStorageEngine.name);
@@ -42,8 +48,7 @@ export class BigQueryManagedStorageEngine implements ManagedStorageEngine {
   sleep = (ms: number) => new Promise<void>(resolve => setTimeout(resolve, ms));
 
   constructor(
-    private readonly config: OwoxStorageConfigService,
-    private readonly client: GcpProvisioningClient,
+    private readonly client: OwoxStorageProvisioningClient,
     private readonly identity: OwoxStorageIdentity
   ) {}
 
@@ -51,109 +56,75 @@ export class BigQueryManagedStorageEngine implements ManagedStorageEngine {
     projectId: string;
     location: OwoxStorageLocation;
   }): Promise<ProvisionedManagedStorage> {
-    const { gcpProjectId, serviceAccountProjectId } = this.config.getSettings();
-    const shortId = this.newShortId();
-    const datasetId = `owox_${shortId}`;
-    const target: ProvisionedManagedStorage = {
-      engine: 'bigquery',
-      gcpProjectId,
-      location: input.location,
-      datasetId,
-      internalDatasetId: `${datasetId}_internal`,
-      serviceAccountEmail: `owox-st-${shortId}@${serviceAccountProjectId}.iam.gserviceaccount.com`,
-    };
-    const undo: UndoStep[] = [];
-    let step = '';
-
+    const datasetId = `owox_${this.newShortId()}`;
+    let created: IbProvisionedStorage;
     try {
-      // Registered before each create: a create that commits but errors must still be rolled back.
-      const created = await this.createAndGrant(target, input.projectId, (name, fn, undoStep) => {
-        step = name;
-        if (undoStep) undo.push(undoStep);
-        return fn();
-      });
-      return { ...target, serviceAccountEmail: created };
+      created = await this.client.provision(input.projectId, datasetId, input.location);
     } catch (error) {
       this.logger.error(
-        `OWOX Storage ${shortId} provisioning failed at ${step}${describeGoogleError(error)}`
+        `OWOX Storage ${datasetId} provisioning failed (${castError(error).message})`
       );
-      for (const undoStep of undo.reverse()) {
-        try {
-          await undoStep.run();
-        } catch (undoError) {
-          this.logger.error(
-            `OWOX Storage ${shortId} undo failed at ${undoStep.name}${describeGoogleError(undoError)}`
-          );
-        }
+      // The call may have created a dataset before it failed.
+      try {
+        await this.client.deprovision(input.projectId, datasetId);
+      } catch (undoError) {
+        this.logger.error(
+          `OWOX Storage ${datasetId} undo failed (${castError(undoError).message})`
+        );
       }
       const exception = new OwoxStorageProvisioningException();
       exception.cause = error;
       throw exception;
     }
+    await this.waitUntilUsable(created.serviceAccountEmail, datasetId);
+    return { engine: 'bigquery', projectId: input.projectId, ...created };
   }
 
-  async restore(target: ProvisionedManagedStorage, projectId: string): Promise<void> {
-    this.identity.forget(target.serviceAccountEmail);
-    let step = '';
+  async restore(
+    target: ProvisionedManagedStorage,
+    projectId: string,
+    leftovers: boolean
+  ): Promise<void> {
+    const { datasetId, serviceAccountEmail } = target;
+    // A recreated account keeps its email but rejects the old account's token.
+    this.identity.forget(serviceAccountEmail);
     try {
-      // No undo: what this call finds may belong to a concurrent or earlier restore.
-      await this.createAndGrant(target, projectId, async (name, fn) => {
-        step = name;
-        try {
-          return await fn();
-        } catch (error) {
-          const e = error as { code?: unknown; status?: unknown };
-          // An existing dataset or account counts as created, so a retry ends in the same state.
-          if (name.startsWith('create') && (e?.code === 409 || e?.status === 409)) return undefined;
-          throw error;
-        }
-      });
+      // A deletion that failed half-way can leave a dataset without its account: start clean.
+      if (leftovers) await this.client.deprovision(projectId, datasetId);
+      const restored = await this.client.provision(projectId, datasetId, target.location);
+      if (restored.serviceAccountEmail !== serviceAccountEmail) {
+        // Every run impersonates the stored account; a different one would fail them all.
+        throw new Error(`OWOX Storage ${datasetId} restore returned another service account`);
+      }
     } catch (error) {
-      this.logger.error(
-        `OWOX Storage ${target.datasetId} restore failed at ${step}${describeGoogleError(error)}`
-      );
+      this.logger.error(`OWOX Storage ${datasetId} restore failed (${castError(error).message})`);
       throw error;
     }
+    await this.waitUntilUsable(serviceAccountEmail, datasetId);
   }
 
   async deprovision(target: ProvisionedManagedStorage): Promise<void> {
-    const { gcpProjectId, serviceAccountEmail: email } = target;
-    this.identity.forget(email);
-    const steps: [string, () => Promise<void>][] = [
-      [
-        'revokeProjectRole',
-        () => this.client.revokeProjectRole(gcpProjectId, JOB_USER_ROLE, email),
-      ],
-      ['deleteServiceAccount', () => this.client.deleteServiceAccount(email)],
-      ['deleteDataset', () => this.client.deleteDataset(gcpProjectId, target.datasetId)],
-      ['deleteDataset', () => this.client.deleteDataset(gcpProjectId, target.internalDatasetId)],
-    ];
-    // Every step runs: one failure must not leave the rest behind.
-    const failures: unknown[] = [];
-    for (const [name, run] of steps) {
-      try {
-        await run();
-      } catch (error) {
-        failures.push(error);
-        this.logger.error(
-          `OWOX Storage ${target.datasetId} deprovision failed at ${name}${describeGoogleError(error)}`
-        );
-      }
-    }
-    if (failures.length > 0) throw failures[0];
+    this.identity.forget(target.serviceAccountEmail);
+    await this.client.deprovision(target.projectId, target.datasetId);
   }
 
   async listTables(target: ProvisionedManagedStorage): Promise<ManagedTable[]> {
-    const { gcpProjectId, datasetId, location } = target;
-    // ODM's own identity: the storage account's job history must stay the customer's.
-    const [rows] = await this.identity.bigQuery(gcpProjectId, location).query({
-      query: `SELECT table_id, size_bytes, row_count FROM \`${gcpProjectId}.${datasetId}.__TABLES__\` ORDER BY table_id`,
+    // ODM's own identity, metadata calls only: it may not read table data, and no job runs.
+    const [tables] = await this.identity
+      .bigQuery(target.gcpProjectId, target.location)
+      .dataset(target.datasetId)
+      .getTables();
+    const listed = await runWithConcurrency(tables, TABLE_METADATA_CONCURRENCY, async table => {
+      // The list carries no size; a view has none.
+      const [metadata] = await table.getMetadata();
+      const { numBytes, numRows } = metadata as TableMetadata;
+      return {
+        name: table.id ?? '',
+        sizeBytes: Number(numBytes ?? 0),
+        rowCount: Number(numRows ?? 0),
+      };
     });
-    return (rows as { table_id: string; size_bytes: string; row_count: string }[]).map(row => ({
-      name: row.table_id,
-      sizeBytes: Number(row.size_bytes),
-      rowCount: Number(row.row_count),
-    }));
+    return listed.sort((a, b) => (a.name < b.name ? -1 : 1));
   }
 
   async lastJobTimes(
@@ -202,58 +173,23 @@ export class BigQueryManagedStorageEngine implements ManagedStorageEngine {
     await bigQuery.dataset(target.datasetId).table(tableName).delete();
   }
 
-  private async createAndGrant(
-    target: ProvisionedManagedStorage,
-    projectId: string,
-    step: Step
-  ): Promise<string> {
-    const { gcpProjectId, location, serviceAccountEmail: email } = target;
-    const [accountId, accountDomain] = email.split('@');
-    const datasets = [target.datasetId, target.internalDatasetId];
-    for (const id of datasets) {
-      await step('createDataset', () => this.client.createDataset(gcpProjectId, id, location), {
-        name: 'deleteDataset',
-        run: () => this.client.deleteDataset(gcpProjectId, id),
-      });
-    }
-    const created =
-      (await step(
-        'createServiceAccount',
-        () =>
-          this.client.createServiceAccount(
-            accountDomain.split('.')[0],
-            accountId,
-            `OWOX Storage for project ${projectId}`
-          ),
-        { name: 'deleteServiceAccount', run: () => this.client.deleteServiceAccount(email) }
-      )) ?? email;
-
-    for (const id of datasets) {
-      await step('grantDatasetWriter', () =>
-        this.withGrantRetry(() => this.client.grantDatasetWriter(gcpProjectId, id, created))
-      );
-    }
-    await step(
-      'grantProjectRole',
-      () =>
-        this.withGrantRetry(() =>
-          this.client.grantProjectRole(gcpProjectId, JOB_USER_ROLE, created)
-        ),
-      {
-        name: 'revokeProjectRole',
-        run: () => this.client.revokeProjectRole(gcpProjectId, JOB_USER_ROLE, email),
-      }
-    );
-    return created;
-  }
-
-  private async withGrantRetry(grant: () => Promise<void>): Promise<void> {
+  /** Waits until ODM can impersonate the new account; one still refused is logged, not thrown. */
+  private async waitUntilUsable(serviceAccountEmail: string, datasetId: string): Promise<void> {
     for (let attempt = 0; ; attempt++) {
       try {
-        return await grant();
+        const client = await this.identity.impersonate(serviceAccountEmail);
+        await client.getAccessToken();
+        return;
       } catch (error) {
-        if (attempt >= GRANT_DELAYS_MS.length) throw error;
-        await this.sleep(GRANT_DELAYS_MS[attempt]);
+        const status = (error as { status?: unknown } | null)?.status;
+        // 403: the token creator grant is not applied yet; 404: IAM does not see the account yet.
+        if ((status !== 403 && status !== 404) || attempt >= USABLE_WAITS_MS.length) {
+          this.logger.warn(
+            `OWOX Storage ${datasetId}: ODM cannot use its service account yet${describeGoogleError(error)}; its first load can fail`
+          );
+          return;
+        }
+        await this.sleep(USABLE_WAITS_MS[attempt]);
       }
     }
   }

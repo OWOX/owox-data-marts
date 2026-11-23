@@ -1,386 +1,248 @@
 import { Logger, NotFoundException } from '@nestjs/common';
 import { OwoxStorageProvisioningException } from '../owox-storage.exceptions';
 import { BigQueryManagedStorageEngine } from './bigquery-managed-storage.engine';
-import type { GcpProvisioningClient } from './gcp-provisioning.client';
+import type { OwoxStorageProvisioningClient } from './owox-storage-provisioning.client';
 
-const EMAIL = 'owox-st-abcdef012345@sa-project.iam.gserviceaccount.com';
+const EMAIL = 'owox-st-abcdef012345@owox-storage-sa.iam.gserviceaccount.com';
+const CREATED = {
+  gcpProjectId: 'owox-gcp',
+  datasetId: 'owox_abcdef012345',
+  internalDatasetId: 'owox_abcdef012345_internal',
+  location: 'EU' as const,
+  serviceAccountEmail: EMAIL,
+};
+
+/** What google-auth-library throws when IAM refuses the token; its message names the account. */
+const googleError = (status: number) =>
+  Object.assign(new Error(`unable to impersonate ${EMAIL}`), { status, code: status });
+
+const listedTable = (id: string, metadata: object) => ({
+  id,
+  getMetadata: jest.fn().mockResolvedValue([metadata]),
+});
 
 function setup() {
-  const calls: string[] = [];
-  const record =
-    (name: string, result?: unknown) =>
-    (...args: unknown[]) => {
-      calls.push(name);
-      void args;
-      return Promise.resolve(result);
-    };
   const client = {
-    createDataset: jest.fn(record('createDataset')),
-    deleteDataset: jest.fn(record('deleteDataset')),
-    createServiceAccount: jest.fn(record('createServiceAccount', EMAIL)),
-    deleteServiceAccount: jest.fn(record('deleteServiceAccount')),
-    grantDatasetWriter: jest.fn(record('grantDatasetWriter')),
-    grantProjectRole: jest.fn(record('grantProjectRole')),
-    revokeProjectRole: jest.fn(record('revokeProjectRole')),
-  };
-  const config = {
-    getSettings: () => ({ gcpProjectId: 'data-project', serviceAccountProjectId: 'sa-project' }),
+    provision: jest.fn().mockResolvedValue(CREATED),
+    deprovision: jest.fn().mockResolvedValue(undefined),
   };
   const del = jest.fn().mockResolvedValue(undefined);
   const table = jest.fn(() => ({ delete: del }));
   const dataset = jest.fn(() => ({ table }));
-  const query = jest.fn().mockResolvedValue([
-    [
-      { table_id: 'holidays', size_bytes: '225', row_count: '8' },
-      { table_id: 'sales', size_bytes: '0', row_count: '0' },
-    ],
-  ]);
+  const query = jest.fn();
+  const getTables = jest
+    .fn()
+    .mockResolvedValue([
+      [
+        listedTable('sales', { type: 'TABLE', numBytes: '0', numRows: '0' }),
+        listedTable('daily_view', { type: 'VIEW' }),
+        listedTable('holidays', { type: 'TABLE', numBytes: '225', numRows: '8' }),
+      ],
+    ]);
+  const ownDataset = jest.fn(() => ({ getTables }));
+  const getAccessToken = jest.fn().mockResolvedValue({ token: 'token' });
   const identity = {
-    bigQuery: jest.fn(() => ({ query })),
+    bigQuery: jest.fn(() => ({ query, dataset: ownDataset })),
     bigQueryAs: jest.fn(() => Promise.resolve({ dataset })),
-    forget: jest.fn(() => void calls.push('forget')),
+    impersonate: jest.fn(() => Promise.resolve({ getAccessToken })),
+    forget: jest.fn(),
   };
   const engine = new BigQueryManagedStorageEngine(
-    config as never,
-    client as unknown as GcpProvisioningClient,
+    client as unknown as OwoxStorageProvisioningClient,
     identity as never
   );
-  const sleeps: number[] = [];
-  engine.sleep = ms => {
-    sleeps.push(ms);
-    return Promise.resolve();
-  };
   engine.newShortId = () => 'abcdef012345';
-  return { engine, client, calls, sleeps, identity, query, dataset, table, del };
+  const sleep = jest.fn((_ms: number) => Promise.resolve());
+  engine.sleep = sleep;
+  return {
+    engine,
+    client,
+    identity,
+    query,
+    getTables,
+    ownDataset,
+    getAccessToken,
+    sleep,
+    dataset,
+    table,
+    del,
+  };
 }
 
 describe('BigQueryManagedStorageEngine', () => {
-  it('provisions datasets, account and grants with the derived names', async () => {
-    const { engine, client } = setup();
+  afterEach(() => jest.restoreAllMocks());
+
+  it('asks Integrated Backend for the datasets with a new dataset id', async () => {
+    const { engine, client, identity, getAccessToken, sleep } = setup();
     const result = await engine.provision({ projectId: 'p1', location: 'EU' });
 
-    expect(result).toEqual({
-      engine: 'bigquery',
-      gcpProjectId: 'data-project',
-      location: 'EU',
-      datasetId: 'owox_abcdef012345',
-      internalDatasetId: 'owox_abcdef012345_internal',
-      serviceAccountEmail: EMAIL,
+    expect(client.provision).toHaveBeenCalledWith('p1', 'owox_abcdef012345', 'EU');
+    expect(result).toEqual({ engine: 'bigquery', projectId: 'p1', ...CREATED });
+    expect(identity.impersonate).toHaveBeenCalledWith(EMAIL);
+    expect(getAccessToken).toHaveBeenCalledTimes(1);
+    expect(sleep).not.toHaveBeenCalled();
+  });
+
+  describe('waiting until ODM can use the new account', () => {
+    it.each([403, 404])('waits while the token call answers %s, then returns', async status => {
+      const { engine, getAccessToken, sleep } = setup();
+      getAccessToken
+        .mockRejectedValueOnce(googleError(status))
+        .mockRejectedValueOnce(googleError(status))
+        .mockRejectedValueOnce(googleError(status));
+      const warn = jest.spyOn(Logger.prototype, 'warn').mockImplementation(() => undefined);
+
+      const result = await engine.provision({ projectId: 'p1', location: 'EU' });
+
+      expect(result.serviceAccountEmail).toBe(EMAIL);
+      expect(getAccessToken).toHaveBeenCalledTimes(4);
+      expect(sleep.mock.calls.map(([ms]) => ms)).toEqual([1000, 2000, 4000]);
+      expect(warn).not.toHaveBeenCalled();
     });
-    expect(client.createDataset).toHaveBeenNthCalledWith(
-      1,
-      'data-project',
-      'owox_abcdef012345',
-      'EU'
-    );
-    expect(client.createDataset).toHaveBeenNthCalledWith(
-      2,
-      'data-project',
-      'owox_abcdef012345_internal',
-      'EU'
-    );
-    expect(client.createServiceAccount).toHaveBeenCalledWith(
-      'sa-project',
-      'owox-st-abcdef012345',
-      'OWOX Storage for project p1'
-    );
-    expect(client.grantDatasetWriter).toHaveBeenCalledWith(
-      'data-project',
-      'owox_abcdef012345',
-      EMAIL
-    );
-    expect(client.grantDatasetWriter).toHaveBeenCalledWith(
-      'data-project',
-      'owox_abcdef012345_internal',
-      EMAIL
-    );
-    expect(client.grantProjectRole).toHaveBeenCalledWith(
-      'data-project',
-      'roles/bigquery.jobUser',
-      EMAIL
-    );
+
+    it('gives up after about 45 s, logs without the email and still returns', async () => {
+      const { engine, client, getAccessToken, sleep } = setup();
+      getAccessToken.mockRejectedValue(googleError(403));
+      const warn = jest.spyOn(Logger.prototype, 'warn').mockImplementation(() => undefined);
+
+      const result = await engine.provision({ projectId: 'p1', location: 'EU' });
+
+      expect(result).toEqual({ engine: 'bigquery', projectId: 'p1', ...CREATED });
+      const waited = sleep.mock.calls.reduce((sum, [ms]) => sum + ms, 0);
+      expect(waited).toBeLessThanOrEqual(45_000);
+      expect(waited).toBeGreaterThanOrEqual(30_000);
+      expect(getAccessToken).toHaveBeenCalledTimes(sleep.mock.calls.length + 1);
+      expect(warn).toHaveBeenCalledTimes(1);
+      expect(warn.mock.calls.flat().join(' ')).toContain('owox_abcdef012345');
+      expect(warn.mock.calls.flat().join(' ')).not.toContain(EMAIL);
+      expect(client.deprovision).not.toHaveBeenCalled();
+    });
+
+    it.each([
+      ['a server error', googleError(500)],
+      ['a bad request', googleError(400)],
+      ["a failure of ODM's own credentials", new Error('metadata server not ready')],
+    ])('does not wait after %s', async (_name, error) => {
+      const { engine, getAccessToken, sleep } = setup();
+      getAccessToken.mockRejectedValue(error);
+      const warn = jest.spyOn(Logger.prototype, 'warn').mockImplementation(() => undefined);
+
+      await expect(engine.provision({ projectId: 'p1', location: 'EU' })).resolves.toBeDefined();
+
+      expect(getAccessToken).toHaveBeenCalledTimes(1);
+      expect(sleep).not.toHaveBeenCalled();
+      expect(warn).toHaveBeenCalledTimes(1);
+    });
   });
 
   it('generates a 12-character hex short id by default', () => {
-    expect(
-      new BigQueryManagedStorageEngine({} as never, {} as never, {} as never).newShortId()
-    ).toMatch(/^[0-9a-f]{12}$/);
-  });
-
-  const DS = ['deleteDataset:owox_abcdef012345_internal', 'deleteDataset:owox_abcdef012345'];
-  const failures: [string, (c: ReturnType<typeof setup>['client']) => void, string[]][] = [
-    [
-      'the second dataset',
-      c =>
-        c.createDataset
-          .mockImplementationOnce(() => Promise.resolve())
-          .mockRejectedValueOnce(new Error('x')),
-      DS,
-    ],
-    [
-      'the service account',
-      c => c.createServiceAccount.mockRejectedValue(new Error('x')),
-      ['deleteServiceAccount', ...DS],
-    ],
-    [
-      'the dataset grant',
-      c => c.grantDatasetWriter.mockRejectedValue(new Error('x')),
-      ['deleteServiceAccount', ...DS],
-    ],
-    [
-      'the project role grant',
-      c => c.grantProjectRole.mockRejectedValue(new Error('x')),
-      ['revokeProjectRole', 'deleteServiceAccount', ...DS],
-    ],
-  ];
-
-  it.each(failures)('undoes the steps in reverse when %s fails', async (_n, fail, undone) => {
-    const { engine, client } = setup();
-    fail(client);
-    const log: string[] = [];
-    client.deleteDataset.mockImplementation((_p: unknown, id: unknown) => {
-      log.push(`deleteDataset:${String(id)}`);
-      return Promise.resolve();
-    });
-    client.deleteServiceAccount.mockImplementation(() => {
-      log.push('deleteServiceAccount');
-      return Promise.resolve();
-    });
-    client.revokeProjectRole.mockImplementation(() => {
-      log.push('revokeProjectRole');
-      return Promise.resolve();
-    });
-
-    await expect(engine.provision({ projectId: 'p1', location: 'US' })).rejects.toBeInstanceOf(
-      OwoxStorageProvisioningException
+    expect(new BigQueryManagedStorageEngine({} as never, {} as never).newShortId()).toMatch(
+      /^[0-9a-f]{12}$/
     );
-    expect(log).toEqual(undone);
   });
 
-  it('rolls back an account whose create errored, by its derived email', async () => {
+  it('deletes what a failed provision may have created and keeps the cause', async () => {
     const { engine, client } = setup();
-    client.createServiceAccount.mockRejectedValue(new Error('timeout'));
-    await expect(engine.provision({ projectId: 'p1', location: 'US' })).rejects.toBeInstanceOf(
-      OwoxStorageProvisioningException
-    );
-    expect(client.deleteServiceAccount).toHaveBeenCalledWith(EMAIL);
-  });
+    const cause = new Error('Integrated Backend answered 502 to OWOX Storage PUT');
+    client.provision.mockRejectedValueOnce(cause);
+    const logged = jest.spyOn(Logger.prototype, 'error').mockImplementation(() => undefined);
 
-  it('logs the failed step and the code, not the email or project ids, and keeps the cause', async () => {
-    const { engine, client } = setup();
-    const cause = Object.assign(new Error(`denied for ${EMAIL} in data-project`), {
-      code: 403,
-      response: { data: { error: { status: 'PERMISSION_DENIED' } } },
-    });
-    client.grantProjectRole.mockRejectedValue(cause);
-    const logged: string[] = [];
-    const spy = jest
-      .spyOn(Logger.prototype, 'error')
-      .mockImplementation((m: unknown) => void logged.push(String(m)));
-
-    const error = await engine
-      .provision({ projectId: 'p1', location: 'US' })
-      .catch((e: unknown) => e);
-    spy.mockRestore();
+    const error = await engine.provision({ projectId: 'p1', location: 'EU' }).catch(e => e);
 
     expect(error).toBeInstanceOf(OwoxStorageProvisioningException);
     expect((error as Error).cause).toBe(cause);
-    const line = logged.find(l => l.includes('provisioning failed')) ?? '';
-    expect(line).toContain('grantProjectRole');
-    expect(line).toContain('403');
-    expect(line).toContain('PERMISSION_DENIED');
-    expect(line).toContain('abcdef012345');
-    for (const l of logged) {
-      expect(l).not.toContain(EMAIL);
-      expect(l).not.toContain('data-project');
-      expect(l).not.toContain('sa-project');
-    }
+    expect(client.deprovision).toHaveBeenCalledWith('p1', 'owox_abcdef012345');
+    expect(logged.mock.calls.flat().join(' ')).not.toContain(EMAIL);
   });
 
-  it('keeps undoing when an undo step fails', async () => {
+  it('still throws the provisioning error when the undo fails', async () => {
     const { engine, client } = setup();
-    client.createServiceAccount.mockRejectedValue(new Error('x'));
-    client.deleteServiceAccount.mockResolvedValue(undefined);
-    client.deleteDataset.mockRejectedValueOnce(new Error('y')).mockResolvedValue(undefined);
+    client.provision.mockRejectedValueOnce(new Error('timeout'));
+    client.deprovision.mockRejectedValueOnce(new Error('timeout'));
+    jest.spyOn(Logger.prototype, 'error').mockImplementation(() => undefined);
 
-    await expect(engine.provision({ projectId: 'p1', location: 'US' })).rejects.toBeInstanceOf(
+    await expect(engine.provision({ projectId: 'p1', location: 'EU' })).rejects.toBeInstanceOf(
       OwoxStorageProvisioningException
     );
-    expect(client.deleteDataset).toHaveBeenCalledTimes(2);
   });
 
-  it('retries a grant until IAM sees the new account', async () => {
-    const { engine, client, sleeps } = setup();
-    client.grantProjectRole
-      .mockRejectedValueOnce(new Error('not found'))
-      .mockRejectedValueOnce(new Error('not found'))
-      .mockResolvedValue(undefined);
+  const stored = { engine: 'bigquery' as const, projectId: 'p1', ...CREATED };
 
-    await engine.provision({ projectId: 'p1', location: 'US' });
-    expect(sleeps).toEqual([2000, 4000]);
-    expect(client.grantProjectRole).toHaveBeenCalledTimes(3);
-  });
-
-  it('gives up after 5 attempts', async () => {
-    const { engine, client, sleeps } = setup();
-    client.grantProjectRole.mockRejectedValue(new Error('nope'));
-
-    await expect(engine.provision({ projectId: 'p1', location: 'US' })).rejects.toBeInstanceOf(
-      OwoxStorageProvisioningException
-    );
-    expect(client.grantProjectRole).toHaveBeenCalledTimes(5);
-    expect(sleeps).toEqual([2000, 4000, 8000, 16000]);
-  });
-
-  describe('restore', () => {
-    const OLD_EMAIL = 'owox-st-old123@old-sa.iam.gserviceaccount.com';
-    const deleted = {
-      engine: 'bigquery' as const,
-      gcpProjectId: 'old-data',
-      location: 'EU' as const,
-      datasetId: 'owox_old123',
-      internalDatasetId: 'owox_old123_internal',
-      serviceAccountEmail: OLD_EMAIL,
-    };
-
-    it("restore recreates the record's datasets, account and grants", async () => {
-      const { engine, client, identity, calls } = setup();
-      client.createServiceAccount.mockResolvedValue(OLD_EMAIL);
-      engine.newShortId = jest.fn(() => 'unused');
-
-      await engine.restore(deleted, 'p1');
-
-      expect(identity.forget).toHaveBeenCalledWith(OLD_EMAIL);
-      expect(calls[0]).toBe('forget');
-      expect(engine.newShortId).not.toHaveBeenCalled();
-      expect(client.createDataset).toHaveBeenCalledTimes(2);
-      expect(client.createServiceAccount).toHaveBeenCalledTimes(1);
-      expect(client.createDataset).toHaveBeenCalledWith('old-data', 'owox_old123', 'EU');
-      expect(client.createDataset).toHaveBeenCalledWith('old-data', 'owox_old123_internal', 'EU');
-      expect(client.createServiceAccount).toHaveBeenCalledWith(
-        'old-sa',
-        'owox-st-old123',
-        'OWOX Storage for project p1'
-      );
-      expect(client.grantDatasetWriter).toHaveBeenCalledWith('old-data', 'owox_old123', OLD_EMAIL);
-      expect(client.grantDatasetWriter).toHaveBeenCalledWith(
-        'old-data',
-        'owox_old123_internal',
-        OLD_EMAIL
-      );
-      expect(client.grantProjectRole).toHaveBeenCalledWith(
-        'old-data',
-        'roles/bigquery.jobUser',
-        OLD_EMAIL
-      );
-    });
-
-    // BigQuery reports a conflict in `code`; IAM through gaxios in `status`.
-    it.each([{ code: 409 }, { status: 409 }])(
-      'restore treats an existing dataset or account as created: %o',
-      async conflict => {
-        const { engine, client } = setup();
-        client.createDataset.mockRejectedValue(conflict);
-        client.createServiceAccount.mockRejectedValue(conflict);
-
-        await expect(engine.restore(deleted, 'p1')).resolves.toBeUndefined();
-
-        expect(client.grantDatasetWriter).toHaveBeenCalledTimes(2);
-        expect(client.grantDatasetWriter).toHaveBeenCalledWith(
-          'old-data',
-          'owox_old123',
-          OLD_EMAIL
-        );
-        expect(client.grantProjectRole).toHaveBeenCalledWith(
-          'old-data',
-          'roles/bigquery.jobUser',
-          OLD_EMAIL
-        );
-      }
-    );
-
-    it('restore fails on any other create error', async () => {
-      const { engine, client } = setup();
-      const denied = { code: 403 };
-      client.createServiceAccount.mockRejectedValue(denied);
-
-      await expect(engine.restore(deleted, 'p1')).rejects.toBe(denied);
-      expect(client.grantDatasetWriter).not.toHaveBeenCalled();
-    });
-
-    it('restore does not roll back and logs the failed step without the email', async () => {
-      const { engine, client, sleeps } = setup();
-      const boom = Object.assign(new Error(`denied for ${OLD_EMAIL}`), { code: 403 });
-      client.grantProjectRole.mockRejectedValue(boom);
-      const logged: string[] = [];
-      const spy = jest
-        .spyOn(Logger.prototype, 'error')
-        .mockImplementation((m: unknown) => void logged.push(String(m)));
-
-      await expect(engine.restore(deleted, 'p1')).rejects.toBe(boom);
-      spy.mockRestore();
-
-      expect(logged).toEqual([
-        'OWOX Storage owox_old123 restore failed at grantProjectRole (code 403)',
-      ]);
-      expect(client.grantProjectRole).toHaveBeenCalledTimes(5);
-      expect(sleeps).toEqual([2000, 4000, 8000, 16000]);
-      expect(client.deleteDataset).not.toHaveBeenCalled();
-      expect(client.deleteServiceAccount).not.toHaveBeenCalled();
-      expect(client.revokeProjectRole).not.toHaveBeenCalled();
-    });
-  });
-
-  it('deprovision forgets the identity, then revokes the role and deletes the account and both datasets', async () => {
-    const { engine, client, calls, identity } = setup();
-    await engine.deprovision({
-      engine: 'bigquery',
-      gcpProjectId: 'data-project',
-      location: 'US',
-      datasetId: 'owox_abcdef012345',
-      internalDatasetId: 'owox_abcdef012345_internal',
-      serviceAccountEmail: EMAIL,
-    });
+  it('restore drops the cached token, deletes leftovers, recreates the storage and waits for it', async () => {
+    const { engine, client, identity, getAccessToken } = setup();
+    await engine.restore(stored, 'p1', true);
 
     expect(identity.forget).toHaveBeenCalledWith(EMAIL);
-    expect(calls).toEqual([
-      'forget',
-      'revokeProjectRole',
-      'deleteServiceAccount',
-      'deleteDataset',
-      'deleteDataset',
-    ]);
-    expect(client.revokeProjectRole).toHaveBeenCalledWith(
-      'data-project',
-      'roles/bigquery.jobUser',
-      EMAIL
-    );
+    expect(client.deprovision).toHaveBeenCalledWith('p1', 'owox_abcdef012345');
+    expect(client.provision).toHaveBeenCalledWith('p1', 'owox_abcdef012345', 'EU');
+    expect(identity.impersonate).toHaveBeenCalledWith(EMAIL);
+    const order = [
+      identity.forget,
+      client.deprovision,
+      client.provision,
+      identity.impersonate,
+      getAccessToken,
+    ].map(fn => fn.mock.invocationCallOrder[0]);
+    expect(order).toEqual([...order].sort((a, b) => a - b));
   });
 
-  it('deprovision attempts every step when one fails, then rejects', async () => {
+  it('restore deletes nothing when the last deletion finished', async () => {
     const { engine, client } = setup();
-    const log = jest.spyOn(Logger.prototype, 'error').mockImplementation();
-    const boom = Object.assign(new Error('iam down'), { code: 500 });
-    client.revokeProjectRole.mockRejectedValue(boom);
-    await expect(
-      engine.deprovision({
-        engine: 'bigquery',
-        gcpProjectId: 'data-project',
-        location: 'US',
-        datasetId: 'owox_abcdef012345',
-        internalDatasetId: 'owox_abcdef012345_internal',
-        serviceAccountEmail: EMAIL,
-      })
-    ).rejects.toBe(boom);
-    expect(client.deleteServiceAccount).toHaveBeenCalledWith(EMAIL);
-    expect(client.deleteDataset).toHaveBeenCalledTimes(2);
-    expect(String(log.mock.calls[0][0])).toContain('revokeProjectRole');
-    log.mockRestore();
+    await engine.restore(stored, 'p1', false);
+
+    expect(client.deprovision).not.toHaveBeenCalled();
+    expect(client.provision).toHaveBeenCalledWith('p1', 'owox_abcdef012345', 'EU');
+  });
+
+  it('restore waits until ODM can use the recreated account', async () => {
+    const { engine, getAccessToken, sleep } = setup();
+    getAccessToken.mockRejectedValueOnce(googleError(403));
+
+    await engine.restore(stored, 'p1', true);
+
+    expect(getAccessToken).toHaveBeenCalledTimes(2);
+    expect(sleep).toHaveBeenCalledTimes(1);
+  });
+
+  it('restore does not recreate the storage when deleting the leftovers fails', async () => {
+    const { engine, client, identity } = setup();
+    client.deprovision.mockRejectedValueOnce(new Error('Integrated Backend answered 503'));
+    const logged = jest.spyOn(Logger.prototype, 'error').mockImplementation(() => undefined);
+
+    await expect(engine.restore(stored, 'p1', true)).rejects.toThrow('503');
+    expect(client.provision).not.toHaveBeenCalled();
+    expect(identity.impersonate).not.toHaveBeenCalled();
+    expect(logged.mock.calls.flat().join(' ')).toContain('owox_abcdef012345 restore failed');
+  });
+
+  it('restore refuses another service account than the stored one', async () => {
+    const { engine, client, identity } = setup();
+    client.provision.mockResolvedValueOnce({ ...CREATED, serviceAccountEmail: 'other@x.iam' });
+    jest.spyOn(Logger.prototype, 'error').mockImplementation(() => undefined);
+
+    await expect(engine.restore(stored, 'p1', true)).rejects.toThrow('another service account');
+    expect(identity.impersonate).not.toHaveBeenCalled();
+  });
+
+  it('deprovision drops the cached token and asks Integrated Backend to delete the storage', async () => {
+    const { engine, client, identity } = setup();
+    await engine.deprovision(stored);
+
+    expect(identity.forget).toHaveBeenCalledWith(EMAIL);
+    expect(client.deprovision).toHaveBeenCalledWith('p1', 'owox_abcdef012345');
+  });
+
+  it('deprovision rejects when Integrated Backend fails', async () => {
+    const { engine, client } = setup();
+    client.deprovision.mockRejectedValueOnce(new Error('503'));
+
+    await expect(engine.deprovision(stored)).rejects.toThrow('503');
   });
 
   describe('tables', () => {
     const target = {
       engine: 'bigquery' as const,
+      projectId: 'p1',
       gcpProjectId: 'owox-gcp',
       location: 'US' as const,
       datasetId: 'owox_abc',
@@ -429,19 +291,41 @@ describe('BigQueryManagedStorageEngine', () => {
       expect(identity.bigQuery).not.toHaveBeenCalled();
     });
 
-    it("lists tables as ODM's identity", async () => {
-      const { engine, identity, query } = setup();
+    it("lists tables with their metadata as ODM's identity, without a query job", async () => {
+      const { engine, identity, query, ownDataset, getTables } = setup();
       const tables = await engine.listTables(target);
 
       expect(identity.bigQuery).toHaveBeenCalledWith('owox-gcp', 'US');
-      expect(query).toHaveBeenCalledWith({
-        query: expect.stringContaining('`owox-gcp.owox_abc.__TABLES__`'),
-      });
+      expect(ownDataset).toHaveBeenCalledWith('owox_abc');
+      expect(getTables).toHaveBeenCalledTimes(1);
+      expect(query).not.toHaveBeenCalled();
       expect(identity.bigQueryAs).not.toHaveBeenCalled();
       expect(tables).toEqual([
+        { name: 'daily_view', sizeBytes: 0, rowCount: 0 },
         { name: 'holidays', sizeBytes: 225, rowCount: 8 },
         { name: 'sales', sizeBytes: 0, rowCount: 0 },
       ]);
+    });
+
+    it('reads the metadata of every table of a large dataset', async () => {
+      const { engine, getTables } = setup();
+      const ids = Array.from({ length: 20 }, (_, i) => `t${String(i).padStart(2, '0')}`);
+      const listed = ids.map(id => listedTable(id, { numBytes: '1', numRows: '1' }));
+      getTables.mockResolvedValueOnce([[...listed].reverse()]);
+
+      const tables = await engine.listTables(target);
+
+      expect(tables.map(t => t.name)).toEqual(ids);
+      for (const t of listed) expect(t.getMetadata).toHaveBeenCalledTimes(1);
+    });
+
+    it('fails the listing when a table cannot be read', async () => {
+      const { engine, getTables } = setup();
+      const broken = listedTable('t', {});
+      broken.getMetadata.mockRejectedValueOnce(googleError(403));
+      getTables.mockResolvedValueOnce([[broken]]);
+
+      await expect(engine.listTables(target)).rejects.toMatchObject({ status: 403 });
     });
 
     it("drops a listed table as the storage's account", async () => {

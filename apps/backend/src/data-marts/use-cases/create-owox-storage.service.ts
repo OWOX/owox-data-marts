@@ -108,9 +108,9 @@ export class CreateOwoxStorageService {
     const config = { projectId: provisioned.gcpProjectId, location: provisioned.location };
     await this.dataStorageRepository.update(created.id, { title: command.title, config });
     await this.managedStorageService.create({
+      ...provisioned,
       storageId: created.id,
       projectId: command.projectId,
-      ...provisioned,
       storageLimitBytes: null,
       queryLimitBytesPerDay: null,
       notPaidSince: null,

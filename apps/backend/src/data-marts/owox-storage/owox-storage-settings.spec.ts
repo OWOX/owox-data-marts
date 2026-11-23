@@ -1,20 +1,20 @@
 import { isOwoxStorageEnabled, readOwoxStorageSettings } from './owox-storage-settings';
 
+const ENABLED = {
+  OWOX_STORAGE_ENGINE: 'bigquery',
+  BALANCE_ENDPOINT_BASE_URL: 'https://ib.example/internal-api/bi-project/',
+  BALANCE_ENDPOINT_AUTH_SERVICE_ACCOUNT: 'c2c@secure.iam.gserviceaccount.com',
+  BALANCE_ENDPOINT_TARGET_AUDIENCE: 'integrated-backend/api',
+};
+
 describe('readOwoxStorageSettings', () => {
   it('returns null when OWOX_STORAGE_ENGINE is unset', () => {
     expect(readOwoxStorageSettings({})).toBeNull();
   });
 
   it('reads a full configuration with defaults', () => {
-    expect(
-      readOwoxStorageSettings({
-        OWOX_STORAGE_ENGINE: 'bigquery',
-        OWOX_STORAGE_GCP_PROJECT_ID: 'owox-storage',
-      })
-    ).toEqual({
+    expect(readOwoxStorageSettings(ENABLED)).toEqual({
       engine: 'bigquery',
-      gcpProjectId: 'owox-storage',
-      serviceAccountProjectId: 'owox-storage',
       freeQueryLimitBytesPerDay: 10 * 2 ** 30,
       paidQueryLimitBytesPerDay: 100 * 2 ** 30,
       freeStorageLimitBytes: 2 ** 30,
@@ -25,7 +25,7 @@ describe('readOwoxStorageSettings', () => {
   });
 
   describe('size limits', () => {
-    const base = { OWOX_STORAGE_ENGINE: 'bigquery', OWOX_STORAGE_GCP_PROJECT_ID: 'owox-storage' };
+    const base = ENABLED;
 
     it('reads OWOX_STORAGE_FREE_STORAGE_LIMIT_GIB', () => {
       expect(
@@ -52,7 +52,7 @@ describe('readOwoxStorageSettings', () => {
   });
 
   describe('deletion periods', () => {
-    const base = { OWOX_STORAGE_ENGINE: 'bigquery', OWOX_STORAGE_GCP_PROJECT_ID: 'owox-storage' };
+    const base = ENABLED;
 
     it('defaults both to 30 days', () => {
       const settings = readOwoxStorageSettings(base);
@@ -80,10 +80,13 @@ describe('readOwoxStorageSettings', () => {
     });
   });
 
-  it('throws on a partial configuration', () => {
+  it('throws on a partial configuration and names what is missing', () => {
     expect(() => readOwoxStorageSettings({ OWOX_STORAGE_ENGINE: 'bigquery' })).toThrow(
-      /OWOX_STORAGE_GCP_PROJECT_ID/
+      'BALANCE_ENDPOINT_BASE_URL, BALANCE_ENDPOINT_AUTH_SERVICE_ACCOUNT, BALANCE_ENDPOINT_TARGET_AUDIENCE required'
     );
+    expect(() =>
+      readOwoxStorageSettings({ ...ENABLED, BALANCE_ENDPOINT_TARGET_AUDIENCE: ' ' })
+    ).toThrow(/^OWOX Storage is partially configured\. BALANCE_ENDPOINT_TARGET_AUDIENCE required/);
   });
 
   it('throws on an unknown engine', () => {
@@ -98,16 +101,11 @@ describe('isOwoxStorageEnabled', () => {
     expect(isOwoxStorageEnabled({})).toBe(false);
   });
 
-  it('is true with the engine and the project id', () => {
-    expect(
-      isOwoxStorageEnabled({
-        OWOX_STORAGE_ENGINE: 'bigquery',
-        OWOX_STORAGE_GCP_PROJECT_ID: 'owox-storage',
-      })
-    ).toBe(true);
+  it('is true with the engine and the Integrated Backend endpoint', () => {
+    expect(isOwoxStorageEnabled(ENABLED)).toBe(true);
   });
 
-  it('throws on the engine without the project id', () => {
+  it('throws on the engine without the Integrated Backend endpoint', () => {
     expect(() => isOwoxStorageEnabled({ OWOX_STORAGE_ENGINE: 'bigquery' })).toThrow(
       'partially configured'
     );

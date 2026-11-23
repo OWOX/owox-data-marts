@@ -1,12 +1,15 @@
 import { Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { BusinessViolationException } from '../../common/exceptions/business-violation.exception';
-import { OwoxStorageSettings, readOwoxStorageSettings } from './owox-storage-settings';
+import {
+  IB_ENDPOINT_ENV_NAMES,
+  OwoxStorageSettings,
+  readOwoxStorageSettings,
+} from './owox-storage-settings';
 
 const ENV_NAMES = [
   'OWOX_STORAGE_ENGINE',
-  'OWOX_STORAGE_GCP_PROJECT_ID',
-  'OWOX_STORAGE_SERVICE_ACCOUNT_PROJECT_ID',
+  ...IB_ENDPOINT_ENV_NAMES,
   'OWOX_STORAGE_FREE_QUERY_LIMIT_GIB_PER_DAY',
   'OWOX_STORAGE_PAID_QUERY_LIMIT_GIB_PER_DAY',
   'OWOX_STORAGE_FREE_STORAGE_LIMIT_GIB',

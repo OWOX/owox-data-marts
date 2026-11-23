@@ -66,7 +66,6 @@ describe('DataStorageCredentialsResolver', () => {
       {} as never,
       { findByStorageId: jest.fn().mockResolvedValue(null) } as never,
       {} as never,
-      {} as never,
       {} as never
     );
   });
