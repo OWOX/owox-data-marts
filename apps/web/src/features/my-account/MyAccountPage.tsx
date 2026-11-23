@@ -23,6 +23,7 @@ import {
 } from './account-profile.service';
 import { AccountProfileCard } from './AccountProfileCard';
 import { AccountErasureCard } from './AccountErasureCard';
+import { AccountDataExportCard } from './AccountDataExportCard';
 import { AccountProjectsCard } from './AccountProjectsCard';
 import { AccountEmailPreferencesCard } from './AccountEmailPreferencesCard';
 import { useAccountApiOrigin } from './use-account-api-origin';
@@ -104,7 +105,7 @@ export function MyAccountPage({
         {viewOnly && (
           <Alert role='status'>
             <Eye aria-hidden='true' />
-            <AlertDescription>You are viewing this account in read-only mode.</AlertDescription>
+            <AlertDescription>You are viewing this profile in read-only mode.</AlertDescription>
           </Alert>
         )}
         {section === 'profile' && <AccountDetails key={user.id} {...account} />}
@@ -185,6 +186,7 @@ function AccountDetails({
           if (!viewOnly) save.mutate(fields);
         }}
       />
+      <AccountDataExportCard origin={origin} session={session} />
       <AccountErasureCard
         request={profile.data.erasureRequest}
         viewOnly={viewOnly}

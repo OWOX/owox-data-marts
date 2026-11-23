@@ -8,6 +8,7 @@ import { GoogleTagManager as GTM } from '../src/app/gtm/GoogleTagManager.tsx';
 import { IntercomChat } from './app/intercom/IntercomChat';
 import { AppStoreProvider, AppBootstrap } from './app/store';
 import { ContentPopovers } from './components/ContentPopovers';
+import { isAccountLinkPath } from './features/my-account/account-link-paths';
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -33,7 +34,9 @@ function isOAuthCallbackWindow(): boolean {
 function App() {
   const router = createBrowserRouter(routes);
 
-  if (isOAuthCallbackWindow()) {
+  // Signed email links do not need a session and must not rotate the existing refresh cookie
+  // or expose their capability query parameters to GTM/Intercom.
+  if (isOAuthCallbackWindow() || isAccountLinkPath(window.location.pathname)) {
     return (
       <QueryClientProvider client={queryClient}>
         <RouterProvider router={router} />
