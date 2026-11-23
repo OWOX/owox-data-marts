@@ -1,12 +1,8 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { Link } from 'react-router';
 import {
   BookOpenIcon,
-  Check,
   ChartNoAxesColumn,
-  CircleAlert,
-  CircleHelp,
-  CircleMinus,
   ExternalLink,
   FileText,
   Plug,
@@ -39,6 +35,11 @@ import { useIsAdmin } from '../../features/idp/hooks/useRole';
 import { useProjectSettings } from '../../features/project-settings/overview';
 import { InlineEditDescription } from '../../shared/components/InlineEditDescription';
 import { Skeleton } from '@owox/ui/components/skeleton';
+import { ProjectNameEditor } from '../../features/project-settings/management/ProjectNameEditor';
+import { ProjectDeletionCard } from '../../features/project-settings/management/ProjectDeletionCard';
+import { ProjectDeleted } from '../../features/project-settings/management/ProjectDeleted';
+import { getCloudProjectApiOrigin } from '../../features/project-settings/management/project-management.service';
+import { StatusLabel, StatusTypeEnum } from '../../shared/components/StatusLabel';
 
 interface Stats {
   dataMarts: number | null;
@@ -153,13 +154,26 @@ export function OverviewTab() {
     error: projectSettingsError,
     updateDescription,
   } = useProjectSettings(projectId);
-  const projectStatus = useMemo<ProjectStatus | undefined>(() => {
-    if (!projectId) {
-      return undefined;
-    }
+  const currentProject = projects.find(project => project.id === projectId);
+  const projectTitle = currentProject?.title ?? user?.projectTitle ?? '—';
+  const origin = getCloudProjectApiOrigin(flags);
+  const projectSession = user?.id && projectId ? { userId: user.id, projectId } : null;
+  const sessionKey = projectSession ? `${projectSession.userId}:${projectSession.projectId}` : '';
+  const [deletion, setDeletion] = useState<{
+    sessionKey: string;
+    status: 'removed' | 'removing';
+  }>();
+  const deletionStatus = deletion?.sessionKey === sessionKey ? deletion.status : undefined;
+  const projectStatus =
+    currentProject?.status === 'removed'
+      ? 'removed'
+      : (deletionStatus ?? (currentProject?.removalPending ? 'removing' : currentProject?.status));
+  const canManage = Boolean(origin && projectSession && isAdmin && !user?.viewOnly);
 
-    return projects.find(project => project.id === projectId)?.status;
-  }, [projectId, projects]);
+  function onProjectDeletion(status: 'removed' | 'removing') {
+    setDeletion({ sessionKey, status });
+    void loadProjects({ force: true });
+  }
 
   const adminCount = members.filter(m => m.role === 'admin').length;
   const editorCount = members.filter(m => m.role === 'editor').length;
@@ -173,6 +187,8 @@ export function OverviewTab() {
     .join(' · ');
   const mcpServerUrl = user?.mcpServerUrl ?? '';
 
+  if (origin && projectStatus === 'removed') return <ProjectDeleted projectId={projectId} />;
+
   return (
     <div className='flex flex-col gap-4'>
       <CollapsibleCard collapsible name='project-overview'>
@@ -183,7 +199,22 @@ export function OverviewTab() {
         </CollapsibleCardHeader>
         <CollapsibleCardContent>
           <div className='grid grid-cols-1 gap-3 sm:grid-cols-3'>
-            <DescriptionCard label='Project name' value={user?.projectTitle ?? '—'} />
+            <DescriptionCard
+              label='Project name'
+              value={
+                canManage && origin && projectSession ? (
+                  <ProjectNameEditor
+                    key={sessionKey}
+                    origin={origin}
+                    session={projectSession}
+                    title={projectTitle}
+                    readOnly={projectStatus === 'removing'}
+                  />
+                ) : (
+                  projectTitle
+                )
+              }
+            />
             <DescriptionCard
               label='Project ID'
               value={
@@ -205,7 +236,7 @@ export function OverviewTab() {
             <DescriptionCard
               label='Status'
               value={
-                callState === RequestStatus.LOADED ? (
+                deletionStatus || callState === RequestStatus.LOADED ? (
                   <ProjectStatusBadge status={projectStatus} />
                 ) : (
                   '—'
@@ -348,7 +379,18 @@ export function OverviewTab() {
         </CollapsibleCard>
       )}
 
-      {isOwoxIdpProvider && (
+      {canManage && origin && projectSession && (
+        <ProjectDeletionCard
+          key={sessionKey}
+          origin={origin}
+          session={projectSession}
+          title={projectTitle}
+          removing={projectStatus === 'removing'}
+          onResult={onProjectDeletion}
+        />
+      )}
+
+      {isOwoxIdpProvider && !origin && (
         <CollapsibleCard collapsible name='project-legacy-platform'>
           <CollapsibleCardHeader>
             <CollapsibleCardHeaderTitle
@@ -383,54 +425,18 @@ export function OverviewTab() {
   );
 }
 
-function ProjectStatusBadge({ status }: { status?: ProjectStatus }) {
-  const config = getProjectStatusConfig(status);
-  const Icon = config.icon;
-
-  return (
-    <span
-      className={`inline-flex items-center gap-1 rounded-full border px-2.5 py-0.5 text-xs font-medium ${config.className}`}
-    >
-      <Icon className='h-3 w-3' />
-      {config.label}
-    </span>
-  );
-}
-
-function getProjectStatusConfig(status?: ProjectStatus): {
-  label: string;
-  icon: React.ComponentType<{ className?: string }>;
-  className: string;
-} {
+function ProjectStatusBadge({ status }: { status?: ProjectStatus | 'removing' }) {
   switch (status) {
     case 'active':
-      return {
-        label: 'Active',
-        icon: Check,
-        className:
-          'border-green-200 bg-green-50 text-green-700 dark:border-green-900 dark:bg-green-950 dark:text-green-300',
-      };
+      return <StatusLabel type={StatusTypeEnum.SUCCESS}>Active</StatusLabel>;
     case 'blocked':
-      return {
-        label: 'Blocked',
-        icon: CircleAlert,
-        className:
-          'border-red-200 bg-red-50 text-red-700 dark:border-red-900 dark:bg-red-950 dark:text-red-300',
-      };
+      return <StatusLabel type={StatusTypeEnum.ERROR}>Blocked</StatusLabel>;
     case 'removed':
-      return {
-        label: 'Removed',
-        icon: CircleMinus,
-        className:
-          'border-gray-200 bg-gray-50 text-gray-700 dark:border-gray-800 dark:bg-gray-950 dark:text-gray-300',
-      };
+      return <StatusLabel type={StatusTypeEnum.NEUTRAL}>Removed</StatusLabel>;
+    case 'removing':
+      return <StatusLabel type={StatusTypeEnum.WARNING}>Removing</StatusLabel>;
     default:
-      return {
-        label: 'Unknown',
-        icon: CircleHelp,
-        className:
-          'border-gray-200 bg-gray-50 text-gray-700 dark:border-gray-800 dark:bg-gray-950 dark:text-gray-300',
-      };
+      return <StatusLabel type={StatusTypeEnum.NEUTRAL}>Unknown</StatusLabel>;
   }
 }
 
@@ -440,7 +446,7 @@ function DescriptionCard({ label, value }: { label: string; value: React.ReactNo
       <span className='text-muted-foreground text-xs font-medium tracking-wide uppercase'>
         {label}
       </span>
-      <span className='text-foreground text-sm font-medium'>{value}</span>
+      <div className='text-foreground text-sm font-medium'>{value}</div>
     </div>
   );
 }

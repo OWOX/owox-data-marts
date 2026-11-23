@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { MemoryRouter } from 'react-router';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
@@ -8,28 +8,55 @@ import { RequestStatus } from '../../shared/types/request-status';
 import { dataStorageApiService } from '../../features/data-storage/shared/api/data-storage-api.service';
 import { OverviewTab } from './OverviewTab';
 
-const currentUser = vi.hoisted(() => ({
+const currentUser = vi.hoisted<{ value: User }>(() => ({
   value: {
     id: 'user-1',
     email: 'user@example.com',
     roles: ['admin'],
     projectId: 'blocked-project',
     projectTitle: 'Blocked Project',
-  } as User | null,
+  },
 }));
 
 const projectsContext = vi.hoisted(() => ({
   value: {} as ProjectsContextType,
 }));
 
+const projectManagement = vi.hoisted(() => ({
+  rename: vi.fn(),
+  delete: vi.fn(),
+  dispatch: vi.fn(),
+  signIn: vi.fn(),
+}));
+
+vi.mock(
+  '../../features/project-settings/management/project-management.service',
+  async original => ({
+    ...(await original<
+      typeof import('../../features/project-settings/management/project-management.service')
+    >()),
+    renameCloudProject: projectManagement.rename,
+    deleteCloudProject: projectManagement.delete,
+    isCurrentProjectSession: () => true,
+  })
+);
+
+vi.mock('../../app/store/core/store-hooks', () => ({
+  useAppDispatch: () => projectManagement.dispatch,
+}));
+vi.mock('../../features/idp/services', async original => ({
+  ...(await original<typeof import('../../features/idp/services')>()),
+  signIn: projectManagement.signIn,
+}));
+
 const clipboard = vi.hoisted(() => ({
   handleCopy: vi.fn(),
 }));
 
-const settingsFlags = vi.hoisted(() => ({
+const settingsFlags = vi.hoisted<{ value: Record<string, unknown> }>(() => ({
   value: {
     IDP_PROVIDER: 'owox-better-auth',
-  } as Record<string, unknown>,
+  },
 }));
 
 const projectSettings = vi.hoisted(() => ({
@@ -64,7 +91,7 @@ vi.mock('../../features/idp/hooks/useProjects', () => ({
 }));
 
 vi.mock('../../features/idp/hooks/useRole', () => ({
-  useIsAdmin: () => currentUser.value?.roles?.includes('admin') ?? false,
+  useIsAdmin: () => currentUser.value.roles?.includes('admin') ?? false,
 }));
 
 vi.mock('../../features/project-settings/overview', () => ({
@@ -117,6 +144,10 @@ describe('OverviewTab project status', () => {
     };
     projectsContext.value = projectContext();
     clipboard.handleCopy.mockClear();
+    projectManagement.rename.mockReset();
+    projectManagement.delete.mockReset();
+    projectManagement.dispatch.mockReset();
+    projectManagement.signIn.mockReset();
     settingsFlags.value = {
       IDP_PROVIDER: 'owox-better-auth',
     };
@@ -162,7 +193,7 @@ describe('OverviewTab project status', () => {
   it('renders and copies the project-specific MCP server URL from auth context', () => {
     const mcpServerUrl = 'https://blocked-project.mcp.owox.com/mcp';
     currentUser.value = {
-      ...currentUser.value!,
+      ...currentUser.value,
       mcpServerUrl,
     };
 
@@ -191,7 +222,7 @@ describe('OverviewTab project status', () => {
 
   it('renders MCP server settings before legacy platform settings', () => {
     currentUser.value = {
-      ...currentUser.value!,
+      ...currentUser.value,
       mcpServerUrl: 'https://blocked-project.mcp.owox.com/mcp',
     };
 
@@ -205,9 +236,105 @@ describe('OverviewTab project status', () => {
     ).toBe(true);
   });
 
+  it('saves and displays the new name and reloads the shared project list', async () => {
+    enableCloudManagement();
+    projectManagement.rename.mockResolvedValue({
+      projectId: 'blocked-project',
+      projectTitle: 'Revenue',
+    });
+    renderOverview();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Edit project name' }));
+    fireEvent.change(screen.getByRole('textbox', { name: 'Project name' }), {
+      target: { value: ' Revenue ' },
+    });
+    fireEvent.click(screen.getByRole('button', { name: 'Save' }));
+
+    expect(await screen.findByText('Revenue')).toBeVisible();
+    expect(projectManagement.rename).toHaveBeenCalledWith(
+      'https://ib.example.test',
+      { userId: 'user-1', projectId: 'blocked-project' },
+      'Revenue'
+    );
+    expect(projectsContext.value.loadProjects).toHaveBeenCalledWith({ force: true });
+  });
+
+  it.each(['no-origin', 'self-hosted', 'viewer', 'view-only'])(
+    'hides project name and deletion controls in the %s case',
+    scenario => {
+      if (scenario !== 'no-origin') enableCloudManagement();
+      if (scenario === 'self-hosted') settingsFlags.value.IDP_PROVIDER = 'better-auth';
+      if (scenario === 'viewer') currentUser.value = { ...currentUser.value, roles: ['viewer'] };
+      if (scenario === 'view-only') currentUser.value = { ...currentUser.value, viewOnly: true };
+      renderOverview();
+      expect(screen.queryByRole('button', { name: 'Edit project name' })).not.toBeInTheDocument();
+      expect(screen.queryByRole('button', { name: 'Delete project' })).not.toBeInTheDocument();
+    }
+  );
+
+  it('keeps a project with pending deletion on Overview', async () => {
+    enableCloudManagement();
+    projectManagement.delete.mockResolvedValue('removing');
+    renderOverview();
+    confirmDeletion();
+
+    expect(await screen.findByText('Removing')).toBeVisible();
+    expect(screen.queryByRole('button', { name: 'Delete project' })).not.toBeInTheDocument();
+    expect(projectManagement.signIn).not.toHaveBeenCalled();
+  });
+
+  it('shows Removing after reload from the project list', () => {
+    enableCloudManagement();
+    projectsContext.value = projectContext({
+      projects: [
+        {
+          id: 'blocked-project',
+          title: 'Blocked Project',
+          status: 'blocked',
+          removalPending: true,
+        },
+      ],
+    });
+    renderOverview();
+    expect(screen.getByText('Removing')).toBeVisible();
+    expect(screen.queryByRole('button', { name: 'Delete project' })).not.toBeInTheDocument();
+  });
+
+  it('opens the chosen remaining project through the existing sign-in flow', async () => {
+    enableCloudManagement();
+    const context = projectContext();
+    context.projects.push(
+      { id: 'next-project', title: 'Analytics', status: 'active', roles: ['viewer'] },
+      { id: 'old-project', title: 'Removed project', status: 'removed', roles: ['admin'] }
+    );
+    projectsContext.value = context;
+    projectManagement.delete.mockResolvedValue('removed');
+    renderOverview();
+    confirmDeletion();
+
+    expect(await screen.findByText('Project deleted')).toBeVisible();
+    expect(screen.queryByRole('button', { name: 'Removed project' })).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Analytics' }));
+
+    expect(projectManagement.signIn).toHaveBeenCalledWith({
+      projectId: 'next-project',
+      redirect: '/ui/next-project/data-marts',
+    });
+  });
+
+  it('continues without a target project when the last project is deleted', async () => {
+    enableCloudManagement();
+    projectManagement.delete.mockResolvedValue('removed');
+    renderOverview();
+    confirmDeletion();
+
+    fireEvent.click(await screen.findByRole('button', { name: 'Continue' }));
+    expect(projectManagement.signIn).toHaveBeenCalledWith({ redirect: '/' });
+  });
+
   it('does not render a client-built MCP server URL when auth context has no URL', () => {
     currentUser.value = {
-      ...currentUser.value!,
+      ...currentUser.value,
       mcpServerUrl: undefined,
     };
 
@@ -260,6 +387,16 @@ describe('OverviewTab project status', () => {
     expect(screen.queryByRole('textbox')).not.toBeInTheDocument();
   });
 });
+
+function enableCloudManagement() {
+  settingsFlags.value.CLOUD_PROJECT_API_ORIGIN = 'https://ib.example.test';
+}
+
+function confirmDeletion() {
+  fireEvent.click(screen.getByRole('button', { name: 'Delete project' }));
+  const dialog = screen.getByRole('dialog', { name: 'Delete project?' });
+  fireEvent.click(within(dialog).getByRole('button', { name: 'Delete project' }));
+}
 
 function projectContext(overrides: Partial<ProjectsContextType> = {}): ProjectsContextType {
   return {

@@ -174,67 +174,66 @@ describe('registerPublicFlagsRoute', () => {
     expect(body?.PUBLIC_ORIGIN).to.equal('https://public.example.test');
   });
 
-  describe('Cloud account configuration', () => {
-    const keys = ['IDP_PROVIDER', 'CLOUD_ACCOUNT_API_ORIGIN'] as const;
-    const previous = keys.map(key => process.env[key]);
-    const app = {
-      get(path: string, handler: (req: Request, res: Response) => void) {
-        routes.push({ handler, path });
-      },
-    } as unknown as Express;
+  for (const originKey of ['CLOUD_ACCOUNT_API_ORIGIN', 'CLOUD_PROJECT_API_ORIGIN'] as const) {
+    describe(`Cloud API configuration (${originKey})`, () => {
+      const keys = ['IDP_PROVIDER', originKey] as const;
+      const previous = keys.map(key => process.env[key]);
+      const app = {
+        get(path: string, handler: (req: Request, res: Response) => void) {
+          routes.push({ handler, path });
+        },
+      } as unknown as Express;
 
-    beforeEach(() => {
-      process.env.IDP_PROVIDER = 'owox-better-auth';
-      delete process.env.CLOUD_ACCOUNT_API_ORIGIN;
-    });
+      beforeEach(() => {
+        process.env.IDP_PROVIDER = 'owox-better-auth';
+        delete process.env[originKey];
+      });
 
-    afterEach(() => {
-      for (const [index, key] of keys.entries()) {
-        const value = previous[index];
-        if (value === undefined) delete process.env[key];
-        else process.env[key] = value;
+      afterEach(() => {
+        for (const [index, key] of keys.entries()) {
+          const value = previous[index];
+          if (value === undefined) delete process.env[key];
+          else process.env[key] = value;
+        }
+      });
+
+      it('keeps the Cloud API disabled until an API origin is configured', () => {
+        registerPublicFlagsRoute(app);
+        expect(readFlags()).not.to.have.property(originKey);
+      });
+
+      it('exposes a normalized API origin for the Cloud provider', () => {
+        process.env[originKey] = 'https://account.example.test/';
+        registerPublicFlagsRoute(app);
+        expect(readFlags()).to.have.property(originKey, 'https://account.example.test');
+      });
+
+      for (const provider of ['better-auth', 'none']) {
+        it(`does not expose the Cloud API under ${provider}`, () => {
+          process.env.IDP_PROVIDER = provider;
+          process.env[originKey] = 'https://account.example.test';
+          registerPublicFlagsRoute(app);
+          expect(readFlags()).not.to.have.property(originKey);
+        });
+      }
+
+      for (const invalidOrigin of [
+        'invalid',
+        'http://account.example.test',
+        'https:/account.example.test',
+        'https://user:password@account.example.test',
+        'https://account.example.test/api',
+        'https://account.example.test?foo=bar',
+        'https://account.example.test#fragment',
+      ]) {
+        it(`rejects an invalid Cloud API origin at startup (${invalidOrigin})`, () => {
+          process.env[originKey] = invalidOrigin;
+          expect(() => registerPublicFlagsRoute(app)).to.throw(originKey);
+          expect(routes).to.be.empty;
+        });
       }
     });
-
-    it('keeps the account page disabled until an API origin is configured', () => {
-      registerPublicFlagsRoute(app);
-      expect(readFlags()).not.to.have.property('CLOUD_ACCOUNT_API_ORIGIN');
-    });
-
-    it('exposes a normalized API origin for the Cloud provider', () => {
-      process.env.CLOUD_ACCOUNT_API_ORIGIN = 'https://account.example.test/';
-      registerPublicFlagsRoute(app);
-      expect(readFlags()).to.have.property(
-        'CLOUD_ACCOUNT_API_ORIGIN',
-        'https://account.example.test'
-      );
-    });
-
-    for (const provider of ['better-auth', 'none']) {
-      it(`does not expose the Cloud account API under ${provider}`, () => {
-        process.env.IDP_PROVIDER = provider;
-        process.env.CLOUD_ACCOUNT_API_ORIGIN = 'https://account.example.test';
-        registerPublicFlagsRoute(app);
-        expect(readFlags()).not.to.have.property('CLOUD_ACCOUNT_API_ORIGIN');
-      });
-    }
-
-    for (const invalidOrigin of [
-      'invalid',
-      'http://account.example.test',
-      'https:/account.example.test',
-      'https://user:password@account.example.test',
-      'https://account.example.test/api',
-      'https://account.example.test?foo=bar',
-      'https://account.example.test#fragment',
-    ]) {
-      it(`rejects an invalid account origin at startup (${invalidOrigin})`, () => {
-        process.env.CLOUD_ACCOUNT_API_ORIGIN = invalidOrigin;
-        expect(() => registerPublicFlagsRoute(app)).to.throw('CLOUD_ACCOUNT_API_ORIGIN');
-        expect(routes).to.be.empty;
-      });
-    }
-  });
+  }
 
   describe('Cloud billing configuration', () => {
     const keys = [

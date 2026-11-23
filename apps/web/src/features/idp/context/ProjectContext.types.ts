@@ -9,7 +9,7 @@ export interface ProjectsState {
 }
 
 export interface ProjectsActions {
-  loadProjects: () => Promise<void>;
+  loadProjects: (options?: { force?: boolean }) => Promise<void>;
   reset: () => void;
 }
 
