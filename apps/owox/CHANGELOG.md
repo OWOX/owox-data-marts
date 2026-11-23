@@ -2,7 +2,7 @@
 
 ## 0.45.0
 
-### Minor Changes
+### Minor Changes 0.45.0
 
 - 8d63743: **Easier start on a self-managed deployment: load data without a warehouse**
 
@@ -299,7 +299,7 @@
 
   <!-- markdownlint-disable-file MD041 MD036 -->
 
-### Patch Changes
+### Patch Changes 0.45.0
 
 - @owox/internal-helpers@0.45.0
 - @owox/idp-protocol@0.45.0
