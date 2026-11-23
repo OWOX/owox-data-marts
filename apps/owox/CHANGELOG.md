@@ -1,5 +1,313 @@
 # owox
 
+## 0.45.0
+
+### Minor Changes 0.45.0
+
+- 8d63743: **Easier start on a self-managed deployment: load data without a warehouse**
+
+  Self-managed OWOX Data Marts used to need a cloud warehouse before the first connector run could load anything: an account, credentials and permissions to set up first. Now a self-managed deployment can keep its data in DuckDB, one file on the same machine: create a DuckDB Storage, fill in nothing, and connectors load into it.
+
+  The file sits next to the SQLite database or in `DUCKDB_DATA_DIR`, and the Storage's **Configuration** section shows its path for DBeaver or another client on DuckDB 2.0 or later. `DUCKDB_STORAGE_ENABLED` is `true` by default only when `DB_TYPE` is `sqlite` or not set; `false` stops new DuckDB Storages, and existing ones keep working. OWOX Data Marts Cloud does not offer DuckDB. See [DuckDB](../../docs/storages/supported-storages/duckdb.md) and [Environment Variables](../../docs/getting-started/deployment-guide/environment-variables.md#duckdb-storage).
+
+  ![The DuckDB Storage settings: access validated, Storage Type DuckDB, and the database file path under Configuration](https://imagedelivery.net/zKr-4bdC5CBGL2DuuEmvYw/0f41b151-c0d3-47e0-5bb9-81a632ed4600/w=800)
+
+  DuckDB Data Marts support preview, SQL editing, calculated fields, joined Data Marts, data quality checks, and report filters, sorting, aggregations and date buckets with a time zone. Preview, Report Runs to any Destination, HTTP Data and MCP need a license key, as on any Storage. Data Studio needs one to read data.
+
+  The video creates a DuckDB Storage, loads public holidays into it, queries them in a SQL Data Mart, sends them to Google Sheets with a report, and shows where the file is:
+
+  <https://customer-4geatlj66rtkaxtz.cloudflarestream.com/eb5fcc808d63880d0241090956618083/iframe>
+  - One load at a time per Storage: a second connector run into the same Storage waits for the first to end.
+  - A Report Run or data quality run that starts during a load, or while an earlier load waits for the Storage, stays **Pending** until that load ends. A load waits for the Report Runs and data quality runs that are running.
+  - A preview, SQL run, HTTP Data, MCP or Data Studio request waits while a load holds the file: from each configuration's first write until that configuration ends. It fails as busy only if the file stays busy for about 30 seconds. An external tool that keeps the file open blocks loads the same way: open it read-only and close it before loads run.
+  - **Data Last Updated** shows **Unknown** for DuckDB Data Marts.
+
+  <!-- markdownlint-disable-file MD041 MD036 -->
+
+- 6fb7505: **Transformations and GA4 Streaming now live next to your Data Marts: install them as plugins**
+
+  An analyst whose Data Marts read tables that scheduled SQL prepares in Google BigQuery had to leave OWOX Data Marts for `bi.owox.com` every time they wanted to check a run, start one or change the SQL. Now **Transformations** is a plugin in the same project: install it from the Plugins Gallery, and the tables your Data Marts read and the SQL that builds them are in one place. **GA4 Streaming**, which sends Google Analytics 4 events to Google BigQuery, is available as a plugin in the same way.
+
+  Watch how to install Transformations from the Gallery, read a transformation's operations, variables and triggers, and follow a run step by step in its history.
+
+  <https://customer-4geatlj66rtkaxtz.cloudflarestream.com/70e17ec1ab7f0b4f47796ddca86b7eff/iframe>
+
+  Nothing has to be moved. The plugin opens the transformations your project already has, with their latest runs, schedules and dependencies.
+
+  **Where to find the plugins**
+  - Projects that already used Transformations or GA4 Streaming on `bi.owox.com` have both plugins in the Gallery, marked **Verified**.
+  - In any other project, add a plugin yourself: open **Plugins**, select **Publish Plugin** and enter `OWOX/transformations-plugin` or `OWOX/streaming-plugin`. Both repositories are public: [OWOX/transformations-plugin](https://github.com/OWOX/transformations-plugin) and [OWOX/streaming-plugin](https://github.com/OWOX/streaming-plugin). A Project Admin can make the plugin findable for everyone in the project; see [Publish and install](../../docs/plugins/authoring-guide.md#publish-and-install).
+
+- 9ff778c: **Tell custom connectors apart: set their icon in the Connector Builder**
+
+  A custom connector without an icon looks like every other such connector in the connector list, in the connector picker and on a Data Mart. Before, you could set an icon only through the API or an AI assistant, because the Connector Builder had no field for it. Now **General** has an **Icon** field: upload an SVG, PNG, JPEG or WebP file and click **Save draft**.
+
+  ![The General section of the Connector Builder for an npm downloads connector, with a blue package icon in the Icon field and the Replace and Remove buttons beside it](https://imagedelivery.net/zKr-4bdC5CBGL2DuuEmvYw/432166b0-ccb3-4de8-4b1a-70ea985c9f00/w=800)
+  - The builder scales a PNG, JPEG or WebP image down to 128 × 128 px. An SVG file must be smaller than 48 KB.
+  - The icon is not part of a connector version. It changes when you save and does not wait for **Publish**.
+  - The **Input Source** card of a Data Mart now shows the icon of its custom connector.
+
+  See [Connector Builder](../../docs/connectors/connector-builder.md#step-1-describe-the-connector).
+
+  <!-- markdownlint-disable-file MD041 MD036 -->
+
+- d3775db: **View project credits and subscription details in OWOX Data Marts**
+
+  Cloud users can check their current credit balance, explore monthly consumption by product and operation, and review their subscription from Project settings. Credits groups usage from self-hosted installations by license name. Usage details show streaming names and open the matching streaming or transformation directly in its available plugin, including project-published plugins. If a project moves to Free after a cancellation or missed payment, the subscription page explains why and offers an Upgrade button. Paid subscriptions offer Manage to open the available plans. Credits and Subscription align with the other Project settings tabs, and the Billing help icon indicates that it opens an external page.
+
+  Cloud operators can enable these pages with `CLOUD_BILLING_ENABLED` and set the public HTTPS billing address in `CLOUD_BILLING_API_ORIGIN`. The server checks the address at startup when the pages are enabled. See [Cloud billing pages](../../docs/getting-started/deployment-guide/environment-variables.md#cloud-billing-pages).
+
+  <!-- markdownlint-disable-file MD041 MD036 -->
+
+- 1494d61: **Choose a plan and start checkout in OWOX Data Marts**
+
+  From Project settings → Subscription, Cloud users can compare monthly and yearly plans and see the credits and accounts included with each offer. Project editors and admins can select a plan, continue to Stripe Checkout, and return to the app to see the result.
+
+  If a subscription is unpaid, editors and admins can open the existing Stripe invoice when it is available and pay it to restore the subscription.
+
+  <!-- markdownlint-disable-file MD041 MD036 -->
+
+- baf0ec0: **Manage your Cloud profile while waiting for project access**
+
+  Cloud members waiting for project access previously had to open Platform to check or update their personal details. You can now open **My profile** from the user menu in OWOX Data Marts, including on the **Request access** screen.
+
+  On **Overview**, check your sign-in email and edit your contact and company details. You can also request deletion of your Cloud account and cancel the request while it is pending.
+
+  The **Projects** table shows your memberships and roles. Search by project name or filter by role or project status.
+
+  Use **Email preferences** to manage your personal service notifications, tips and suggestions, and offers.
+
+  See [My profile in OWOX Cloud](../../docs/project/#my-profile-in-owox-cloud).
+
+- 45217db: **Connecting Claude or ChatGPT is easier: find the connector on every page and start with a ready prompt**
+
+  You could connect Claude or ChatGPT to OWOX Data Marts, but the app pointed to the connector only on the Reports page and the Destinations tab, so it was easy to miss. Now a **Connect AI assistant** entry is in the sidebar on every page, and the screens where you create or finish setting up something offer the connector at the moment you need it.
+
+  The video shows how a block gives your assistant a prompt with the task and the IDs of what you have open.
+
+  <https://customer-4geatlj66rtkaxtz.cloudflarestream.com/9725e9c1ec08480ed6c3dbab207181bf/iframe>
+
+  Each block opens Claude or ChatGPT with a ready prompt for the task on that screen:
+  - A row on the Data Setup tab of every Data Mart and on the custom connector page. Click it to open the prompt, or to copy it into another client. After you publish the connector, the row helps you maintain it.
+  - A line under **Save** and **Cancel** on Create Data Mart and in the sheets for Storages, Destinations, Credentials, Contexts and reports, when you add one. When you open an existing Storage, Destination, Context or report, the line helps you maintain it.
+  - A separate **Set it up with AI** block in an empty project.
+  - A hint on the Storage card when the Storage setup is incomplete or fails validation.
+  - A toast right after you create a Data Mart.
+
+  On the Overview tab of a published Data Mart, a block lets you ask questions about that Data Mart in Claude or ChatGPT.
+
+  The sidebar entry and the blocks appear only on OWOX Cloud, where the MCP server exists. To connect an assistant, see [MCP setup guide](../../docs/getting-started/setup-guide/mcp.md).
+
+  <!-- markdownlint-disable-file MD036 MD041 -->
+
+- 498e5df: **Creating a Data Mart no longer dead-ends when the Storage you search for does not exist**
+
+  When you create a Data Mart and search the **Storage** list for a Storage that has not been added yet, the list used to show only "No storages found": the **Create new storage** item was hidden by the search, so you had to clear the search to find it. Now **Create new storage** stays at the bottom of the list whatever you type, and you can add the Storage without leaving the form.
+
+  ![The Storage list on the Create Data Mart form with a search that matches nothing: "No storages found" and, below it, Create new storage](https://imagedelivery.net/zKr-4bdC5CBGL2DuuEmvYw/40b2e1bc-e6c3-410d-cb99-e7555f37a000/w=800)
+
+  When no Storage is available to you yet, the form no longer shows a list to search: it says that a Data Mart needs a Storage first and offers **Create new storage** right there.
+
+  ![The Create Data Mart form when no Storage is available: a short explanation under the Storage label and a Create new storage button](https://imagedelivery.net/zKr-4bdC5CBGL2DuuEmvYw/a9b3d5c0-a772-4e83-fda2-a09ce6962300/w=800)
+
+  See [Adding a New Storage](../../docs/storages/manage-storages.md#adding-a-new-storage) for the steps that follow.
+
+  <!-- markdownlint-disable-file MD041 MD036 -->
+
+- 8546314: **See new runs in Run History without a page reload**
+
+  Run History, the log of every run, showed a run that started outside the page late. A run from a schedule, an AI assistant or another browser tab came up after up to 30 seconds on a Data Mart. On the project Run History, it came up only after a page reload, unless a run on the page was still in progress. To see it at once, people reloaded the whole page.
+
+  Now the Run History of a Data Mart and of the project has a **Refresh** button. It loads the newest runs and keeps the runs that are already loaded. The Run History of a Data Mart also updates as soon as you come back to its browser tab. See [Create your first Data Mart](../../docs/getting-started/first-data-mart.md).
+
+  ![The Run History tab of a Data Mart with the Refresh button in the card header, above a list of successful report runs](https://imagedelivery.net/zKr-4bdC5CBGL2DuuEmvYw/1dbd9b1a-4dd5-44eb-b5c2-ee090274ed00/public)
+
+  <!-- markdownlint-disable-file MD041 MD036 -->
+
+- 70f8ae6: **Share a link that opens the same Credential, member or schedule for a colleague**
+
+  A team member who wanted to show a colleague one Credential, member or schedule could share only the page address. That address did not hold the open side panel, so the colleague had to find the record in the list again. Now the page address holds the record whose panel is open, and the panel header has **Copy link**. The link opens the same panel for a colleague who has access to that record.
+  - **Where.** Credentials, License keys, Members, membership requests, Notifications, Data Mart schedules and triggers, relationships on the Model canvas, and Data Artifacts of an Insight. Storages, Destinations, reports and Contexts already had links.
+  - **Access.** A link does not grant access. When the record is deleted, or the member cannot open or change it, the link opens only the list.
+  - **Members.** A `?member=` link from a Data Mart's access list now stays in the address while the member panel is open.
+
+  See [Credentials](../../docs/project/credentials.md).
+
+  <!-- markdownlint-disable-file MD041 MD036 -->
+
+- 4fae4cb: **Installed plugins are easier to find: the left menu lists them alphabetically**
+
+  A member with several installed plugins could not predict where a plugin sits in the **Plugins** section of the left menu. Previously the menu listed them in no defined order, and a newly installed plugin could appear anywhere in the list. Now the menu lists installed plugins by name, so a plugin always sits where you expect it.
+
+  ![The Plugins section of the left menu with six installed plugins listed alphabetically: Attribution Paths, Budget Pacing, Cohort Explorer, Funnel Report 2, Funnel Report 10 and Retention Curves](https://imagedelivery.net/zKr-4bdC5CBGL2DuuEmvYw/78278b07-54cf-4ed0-aba8-d8301338c600/public)
+
+  Sorting ignores letter case and reads numbers as numbers: _Plugin 2_ comes before _Plugin 10_. The alphabetical view of the Plugins Gallery orders names the same way.
+
+- 09415dc: **Microsoft Ads imports no longer shift columns when a value contains a comma**
+
+  When an account, campaign, ad or URL value in Microsoft Ads contained a comma, such as an account named "Example Energy, a.s.", the connector split that value in two and moved every column after it one place to the right. Clicks then held impressions, Spend held clicks, and the real spend was lost, so the only way to get correct numbers was to leave fields such as `AccountName` and the URL fields out of the Data Mart. Now values with commas, quotes or line breaks stay in their own column, and you can select these fields again.
+
+  The fix covers every Microsoft Ads report and every entity node, such as Campaigns and Keywords.
+
+  <!-- markdownlint-disable-file MD041 MD036 -->
+
+- 4298cfc: **Permission warnings are easier to act on: they say which role or access you need**
+
+  A Business User who opened the Connector Builder saw "The connector builder needs editor access". The project roles are Project Admin, Data Owner and Business User, so it was not clear which role to ask for. Now the message names the Data Owner and Project Admin roles. Point to **A Project Admin** to see the Project Admins, and open **Project settings → Members** to see every member's role.
+
+  On the Data Quality tab, a Business User now sees that editing and running checks needs the Data Owner role, with the same hint. A Data Owner who cannot edit this Data Mart sees that they need edit access to it. Before, the disabled buttons said "Editor access is required".
+
+  See [Roles and Permissions](../../docs/project/roles-and-permissions.md) for what each role can do.
+
+  <!-- markdownlint-disable-file MD041 MD036 -->
+
+- 8f22885: **Field names in the Connector Builder are easier to edit: they change as you type**
+
+  In the **Fields** table of a custom connector node, you edited a field name in a popover. The name changed only after **Apply** or Enter. A click outside the popover or the Escape key discarded the name that you typed. **Data path** and **Description** change as you type, so the field name worked differently. Now the field name also changes as you type, with no **Apply**.
+
+  ![The Fields table of an npm downloads node. The field names are input boxes, like the data paths, and the downloads name has the cursor](https://imagedelivery.net/zKr-4bdC5CBGL2DuuEmvYw/c78452df-58cd-4dee-6c8d-b521c984de00/w=800)
+
+  See [Connector Builder](../../docs/connectors/connector-builder.md#step-6-define-the-fields).
+
+  <!-- markdownlint-disable-file MD041 MD036 -->
+
+- f339e11: **Custom connectors are easier to tell apart on Credentials and Triggers**
+
+  Every Custom connector Credential showed the same key icon. Triggers showed the technical name of a custom connector. So with many custom connectors, you could not see which Credential or run belonged to which connector.
+  - **Credentials.** A [Custom connector Credential](../../docs/project/credentials.md#custom-connector-credentials) shows the logo of its connector when all its Data Marts that you can see use one custom connector. In other cases, and for a connector without a logo, it shows a plug icon. On Data Setup of a custom connector, the Credential picker shows the connector's logo.
+
+    ![The Credentials page with three Custom connector Credentials: Task Tracker token and Expenses API key show the logos of their connectors, and Support Desk token shows the plug icon because its connector has no logo](https://imagedelivery.net/zKr-4bdC5CBGL2DuuEmvYw/5e32452b-9a49-44c1-62cc-f9c2a40b7a00/w=800)
+
+  - **Triggers.** Rows and the hover card show the display name of a custom connector and its logo, or a plug icon when it has no logo. The Triggers page also searches and filters these runs by display name.
+
+    ![The Triggers page with three Connector Run triggers: Run Target shows Task Tracker and Team Expenses with their logos and Support Desk with the plug icon, in place of the technical connector names](https://imagedelivery.net/zKr-4bdC5CBGL2DuuEmvYw/c7882501-0409-4c8d-fd44-9210b936f300/w=800)
+
+  <!-- markdownlint-disable-file MD041 MD036 -->
+
+- b7c770e: **Know what a backfill loads when a connector has no date fields**
+
+  A user ran a backfill on a connector with no date fields and saw an empty **Run configuration**. Examples are the Google Sheets source and a custom connector with no **Time-series node** and no **Incremental** strategy. The user could not tell if the run loads all data or if the connector needs a change first. Now the form says: "This node has no date filter: a backfill loads all its data in one run, the same as an incremental load." The **Backfill** description above it no longer mentions a time range.
+
+  For a custom connector, the form also says: "If the API filters by date, set the node's Incremental strategy and date parameters in the Connector Builder." See [Backfill a custom period](../../docs/getting-started/setup-guide/connector-data-mart.md#backfill-a-custom-period).
+
+  ![The Manual Run sheet of a Data Mart on a custom connector, with Backfill (custom period) selected, a description with no time range, and Run configuration saying the node has no date filter and how to load a period](https://imagedelivery.net/zKr-4bdC5CBGL2DuuEmvYw/48583129-1e48-4d24-079d-df744cd38200/public)
+
+  <!-- markdownlint-disable-file MD041 MD036 -->
+
+- 1a8d63d: <!-- markdownlint-disable-file MD041 MD036 -->
+
+  **Plugins can show custom connector logos and link to the Connector Builder**
+
+  A plugin such as Data Flow draws one card for each Source. It showed a logo for a bundled connector, but only initials for a custom connector. It could not link the card to the connector's builder page. It could not group custom connectors that call the same API. Plugins could not read custom connectors at all.
+
+  Now a plugin can call `GET /api/connectors/custom/summaries`. It returns `id`, `name`, `title`, `logo` and `hosts` for each custom connector, and never a manifest. Pass `names` to read only the connectors you need. See [Read custom connector logos](../../docs/plugins/authoring-guide.md#read-custom-connector-logos).
+
+- 94bd517: **Context lists are easier to read: one line for each context, with a plain-text description**
+
+  When you assign contexts to a Data Mart, a Storage, a Destination, a Credential or a member, the list showed each description as raw Markdown: `## Mission`, `**Owner:**` and full link URLs. A two-word name such as "Customer Success" wrapped to two lines, and a long description ran past the list. So it was hard to see which context is which.
+
+  Now each context is one line: its name, then its description as plain text. Text that does not fit ends with an ellipsis. To read the full name or description, move the pointer onto it. The contexts list in **Project Settings → Contexts** also shows descriptions as plain text. Open a context to read its description with formatting. See [Contexts](../../docs/project/contexts.md).
+
+  ![The Contexts card of a Data Mart: each context on one line, with its name and a plain-text description cut with an ellipsis](https://imagedelivery.net/zKr-4bdC5CBGL2DuuEmvYw/4b6668b6-73a9-4fdd-395d-e406893f2b00/public)
+
+  The help text about contexts is now only in the (i) tooltip of the Contexts block. On a Data Mart and a Destination, the tooltip also tells who can see the item: a member with the **Selected contexts only** scope sees it only if they own it, or it is shared and has one of their contexts. On a Storage, the same rule applies to members with the Data Owner role.
+
+  <!-- markdownlint-disable-file MD041 MD036 -->
+
+- 0014bd6: **Plugins can keep a member from losing unsaved work**
+
+  A member stages choices on a plugin screen and then clicks a Data Mart in the sidebar to check a
+  field. Before, the plugin could not warn the member: a sidebar click, the browser Back button, a
+  reload or a tab close removed the plugin, and every unsaved choice was lost without a question. Now
+  the plugin tells OWOX Data Marts that its screen has unsaved changes, and OWOX Data Marts asks the
+  member before the plugin page closes.
+
+  ![The Unsaved Changes dialog over the Setup tab of a plugin's Settings page, with the plugin's text "Your Setup choices are not saved." and the buttons "No, stay here" and "Yes, leave now"](https://imagedelivery.net/zKr-4bdC5CBGL2DuuEmvYw/eeb21807-dc7a-40b4-571f-c01c483f4100/public)
+  - `ctx.ui.setUnsaved(dirty, message?)` marks the current screen as unsaved. While the flag is set,
+    the Unsaved Changes dialog opens before the member leaves through the sidebar, the browser Back
+    and Forward buttons, or the plugin's own `ctx.ui.navigate`. A reload or a tab close shows the
+    browser's own prompt.
+  - `message` is plain text, up to 200 characters. It replaces the text of the dialog.
+  - `ctx.ui.setRoute` to another path clears the flag.
+
+  The change is backward compatible. To use the new member, update `@owox/plugin-sdk` to this
+  release. On an older OWOX Data Marts deployment, the call does nothing and does not fail.
+
+  See [Warn about unsaved changes](../../docs/plugins/authoring-guide.md#warn-about-unsaved-changes).
+
+  <!-- markdownlint-disable-file MD041 MD036 -->
+
+- 7a1180a: **Keep your place in a plugin: open its links to OWOX pages in a new tab**
+
+  A plugin that shows a Data Mart or a Context could only send you to that page in place of the
+  plugin. To check a field during setup, or to compare Data Marts, you left the plugin and lost what
+  you did in it. Now a plugin can show real links to OWOX pages. Open one in a new tab with Cmd-click
+  (Ctrl-click on Windows and Linux), a middle click or the browser's context menu, and the plugin
+  stays open. A plain click still opens the page in place.
+  - `ctx.ui.link(path)` gives `href` and `onClick` for an `<a>` element.
+  - `ctx.appOrigin` is the origin of the page that runs the plugin, for example
+    `https://app.owox.com`.
+
+  A plugin shows such links after its author updates `@owox/plugin-sdk` to this release.
+  `ctx.ui.link` and `ctx.appOrigin` also work on older OWOX Data Marts deployments.
+
+  See [Link to OWOX pages](../../docs/plugins/authoring-guide.md#link-to-owox-pages).
+
+  <!-- markdownlint-disable-file MD041 MD036 -->
+
+- 3250405: **Fewer steps to invite teammates from the setup checklist**
+
+  When you set up a new project and want colleagues to join, the **Invite teammates** item in the **Get to know OWOX** checklist used to open a panel with an **Invite teammates** step, and inside it an **Invite teammates** button: three clicks on the same words before you reached the member list. Now the checklist item opens **Project Settings → Members** right away, where a Project Admin clicks **Invite member** to invite a teammate.
+
+  The item is still checked off once a teammate is invited. See [Invite a Member](../../docs/project/members.md#invite-a-member).
+
+  <!-- markdownlint-disable-file MD041 MD036 -->
+
+- a5c4c21: **Plugins can show the SQL and totals of a Data Mart read before the rows arrive**
+
+  A plugin that streams Data Mart rows with `traverseData()` gets the ID of its run in `data.runId`. OWOX saved that run only after the last row. So the plugin had to read every row before it could show the totals. A read that only selected columns saved no SQL, so the plugin could not show a query that returns its rows.
+
+  Now OWOX saves the run when the read starts, with the status Running. Before the first row arrives, the run holds the SQL of the read and the totals of its metrics. When the stream ends, the run gets its final status and the row count. Scripts that use `@owox/api-client` and other HTTP Data reads get the same run. Run History shows the SQL as **Executed SQL** for each of these runs. See [Read Data Mart data](../../docs/plugins/authoring-guide.md#read-data-mart-data) and [Stream Data Mart rows](../../docs/api/api-client.md#stream-data-mart-rows).
+
+  ![Run History of a Data Mart: a Manual HTTP Data run with the Success status and its Configuration tab open on the Executed SQL block](https://imagedelivery.net/zKr-4bdC5CBGL2DuuEmvYw/4dbc1270-9fdc-42e3-9af9-f63e3d7c5700/public)
+
+  <!-- markdownlint-disable-file MD041 MD036 -->
+
+- 987f1b3: **Plugins can show how many rows a Data Mart read has in total**
+
+  A plugin that shows the first rows of a Data Mart, for example 200, could not tell the user how many rows the full result has. The run counted only the rows that the plugin read, so the plugin could not show "200 of 5,000".
+
+  Now a plugin asks for the count with `traverseData(id, { includeTotalRowCount: true })` and gets it in `data.totalRowCount` before the first row arrives. OWOX counts the rows of the full result with the same filters, grouping and metric filters as the read. The count is one more query in your storage, so OWOX runs it only for a read that asks for it. If the count fails or takes longer than 60 seconds, the rows still arrive and `data.totalRowCount` is `undefined`. The run keeps the reason.
+
+  Scripts that call the HTTP Data endpoint directly send `includeTotalRowCount=true` and get the count in the `x-owox-total-row-count` response header. See [Read Data Mart data](../../docs/plugins/authoring-guide.md#read-data-mart-data) and [Stream Data Mart rows](../../docs/api/api-client.md#stream-data-mart-rows).
+
+  <!-- markdownlint-disable-file MD041 MD036 -->
+
+- fab3202: **Custom connectors need no workarounds for substream nodes over MCP or Microsoft JSON dates**
+
+  A user who builds a custom connector for an API such as Bing Webmaster Tools met two problems. Each one needed a manual step in the Connector Builder or in SQL. Now both work:
+  - **Substream nodes save over MCP.** A substream node reads a parent list and then calls an endpoint once for each parent record. `create_custom_connector` and `save_custom_connector_draft` refused it with "Remove the keys at …partitionRouter.parent.key", because the key check read the field path in `parent.key` as an access key. The user had to add the node by hand in the Connector Builder. Now the AI assistant saves it, and `get_custom_connector_version` shows the real `parent.key` value instead of `[REDACTED]`. The same check also refused a request body property named `key`, `auth` or `appid`, such as a filter name in `filters[].key`. Now these three names are keys only in `headers` and `queryParameters`. See [Partition router: substream and list](../../docs/connectors/manifest-reference.md#partition-router-substream-and-list).
+  - **Microsoft JSON dates are no longer empty.** A `date` or `datetime` field was empty when the API sent a date such as `/Date(1316156400000-0700)/`, the format of the Bing Webmaster API. Users stored the value as text and converted it in SQL. Now the field reads it as the UTC instant of its milliseconds. Rows loaded before have an empty date. If the date is one of the node's unique keys, those loads also lost rows: the rows of one write with the same other key values merged into one row. Delete the rows with an empty date, then load their period again: the new rows do not replace them. See [Fields](../../docs/connectors/manifest-reference.md#fields).
+
+  <!-- markdownlint-disable-file MD041 MD036 -->
+
+- 0945b51: **Custom connectors can add the partition value to each row of substream and list nodes**
+
+  A custom connector often calls one endpoint once for each parent record, for example once for each page of a site in Bing Webmaster Tools. The child response does not always repeat the page, so the connector adds it to each row with `transformations.add` and `{{ stream_slice.page }}`. That value was always empty, because `stream_slice` reached only the child request. When the field was one of the node's unique keys, rows of different pages with the same other keys merged into one row, and a later run could add the rows again. Now `add` writes the partition value of the request that returned each row. See [Partition router: substream and list](../../docs/connectors/manifest-reference.md#partition-router-substream-and-list).
+
+  **After the update, check each node that adds `{{ stream_slice.<field> }}` to one of its unique keys.** Rows loaded before the update keep the old value in that field: NULL when the template is the whole value. They do not match the new rows and stay next to them. Delete them, then load the period again. A full-refresh node needs no action: its next run replaces the table.
+
+  <!-- markdownlint-disable-file MD041 MD036 -->
+
+### Patch Changes 0.45.0
+
+- @owox/internal-helpers@0.45.0
+- @owox/idp-protocol@0.45.0
+- @owox/idp-better-auth@0.45.0
+- @owox/idp-owox-better-auth@0.45.0
+- @owox/backend@0.45.0
+- @owox/web@0.45.0
+
 ## 0.44.0
 
 ### Minor Changes 0.44.0
