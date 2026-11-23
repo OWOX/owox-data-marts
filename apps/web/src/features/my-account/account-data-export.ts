@@ -21,22 +21,22 @@ const personalDataSchema = z.object({
 
 export type PersonalData = z.infer<typeof personalDataSchema>;
 
-const commonPurpose =
-  'To communicate with you and manage our relationship with you. ' +
-  'To comply with ​OWOX legal obligations and for compliance reasons, such as the prevention, detection,' +
-  'or investigation of a crime; loss prevention; or fraud.';
-const projectPurpose =
-  'To provide ​OWOX services to you and technical support​. ' +
-  'To personalize and improve your customer experience​ in OWOX​. ' +
-  'T​o improve ​OWOX services, fulfill our administrative purposes and protect OWOX business interests. ' +
-  'To showcase the results of using OWOX services or ​your feedback, only upon prior agreement with ' +
-  'you and to the agreed extent​.';
-const emailPurpose = '​To inform you about ​OWOX news and offers that you may like​';
+const commonPurpose = [
+  'To communicate with you and manage our relationship with you.',
+  'To comply with OWOX legal obligations and for compliance reasons, such as the prevention, detection, or investigation of a crime; loss prevention; or fraud.',
+].join(' ');
+const projectPurpose = [
+  'To provide OWOX services to you and technical support.',
+  'To personalize and improve your customer experience in OWOX.',
+  'To improve OWOX services, fulfill our administrative purposes and protect OWOX business interests.',
+  'To showcase the results of using OWOX services or your feedback, only upon prior agreement with you and to the agreed extent.',
+].join(' ');
+const emailPurpose = 'To inform you about OWOX news and offers that you may like';
 const purposes = {
   inactive: commonPurpose,
-  with_projects_and_email_subscriptions: commonPurpose + projectPurpose + ' ' + emailPurpose,
-  with_projects: commonPurpose + projectPurpose,
-  with_email_subscriptions: commonPurpose + emailPurpose,
+  with_projects_and_email_subscriptions: [commonPurpose, projectPurpose, emailPurpose].join(' '),
+  with_projects: [commonPurpose, projectPurpose].join(' '),
+  with_email_subscriptions: [commonPurpose, emailPurpose].join(' '),
 };
 
 /** Keeps the existing Platform export's disclosure, field names and signed-link omissions. */

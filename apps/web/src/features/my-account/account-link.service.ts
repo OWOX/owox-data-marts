@@ -2,18 +2,17 @@ import { z } from 'zod';
 import { savePersonalDataResponse } from './account-data-export';
 
 const emailLinkSchema = z.object({
-  email: z.email().max(320),
-  signature: z.string().min(1).max(512),
+  email: z.string().min(3),
+  signature: z.string().min(1),
 });
 const subscriptionLinkSchema = emailLinkSchema.extend({
-  topicId: z.string().min(1).max(128),
-  expiresAt: z.string().max(128).optional(),
+  topicId: z.string().min(1),
+  expiresAt: z.string().optional(),
 });
 const signedPreferencesSchema = z.object({
   topics: z.array(
     z.object({ id: z.string(), subscribed: z.boolean(), signature: z.string().min(1) })
   ),
-  allSignature: z.string().min(1),
 });
 
 export type EmailLink = z.infer<typeof emailLinkSchema>;
@@ -42,6 +41,7 @@ async function signedAccountRequest(origin: string, path: string, method: string
     cache: 'no-store',
     redirect: 'error',
     referrerPolicy: 'no-referrer',
+    signal: AbortSignal.timeout(30_000),
   });
 }
 

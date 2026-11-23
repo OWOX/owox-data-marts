@@ -17,7 +17,7 @@ export class AppFlagsService extends ApiService {
       redirect: 'error',
       referrerPolicy: 'no-referrer',
     });
-    if (!response.ok) throw new Error('Could not load account settings.');
+    if (!response.ok) throw new Error('Could not load profile settings.');
     return (await response.json()) as Record<string, unknown>;
   }
 }

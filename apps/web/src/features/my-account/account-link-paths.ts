@@ -1,3 +1,5 @@
+import { matchRoutes } from 'react-router';
+
 export const accountLinkRoutes = [
   { path: '/subscriptions', action: 'subscriptions' },
   { path: '/download-account-data', action: 'export' },
@@ -6,6 +8,8 @@ export const accountLinkRoutes = [
   { path: '/ui/p/download-account-data', action: 'export' },
 ] as const;
 
+const routePatterns = accountLinkRoutes.map(({ path }) => ({ path }));
+
 export function isAccountLinkPath(path: string): boolean {
-  return accountLinkRoutes.some(({ path: value }) => path === value || path === `${value}/`);
+  return matchRoutes(routePatterns, path) !== null;
 }

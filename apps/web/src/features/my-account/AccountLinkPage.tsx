@@ -26,6 +26,8 @@ export function AccountLinkPage({ action }: { action: 'subscriptions' | 'export'
     queryKey: ['public-account-flags'],
     queryFn: ({ signal }) => appFlagsService.getPublicFlags(signal),
     enabled: link.success,
+    staleTime: Infinity,
+    refetchOnReconnect: false,
   });
   const origin = getAccountApiOrigin(flags.data);
   const title = action === 'subscriptions' ? 'Email preferences' : 'Personal data';
@@ -35,7 +37,7 @@ export function AccountLinkPage({ action }: { action: 'subscriptions' | 'export'
     content = <LinkError>Open the full link from your OWOX email.</LinkError>;
   } else if (flags.isPending) {
     content = <LoadingSpinner message='Loading profile settings...' />;
-  } else if (flags.isError) {
+  } else if (flags.isError && !origin) {
     content = (
       <>
         <LinkError>Could not load profile settings. Try again.</LinkError>

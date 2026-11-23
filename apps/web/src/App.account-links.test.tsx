@@ -46,10 +46,16 @@ describe('Public account link bootstrap', () => {
   it.each([
     '/subscriptions',
     '/subscriptions/',
+    '/Subscriptions',
+    '/subscriptions//',
+    '/%73ubscriptions',
     '/download-account-data',
     '/download-account-data/',
+    '/DOWNLOAD-ACCOUNT-DATA//',
     '/ui/p/subscriptions',
     '/ui/p/download-account-data',
+    '/UI/P/Subscriptions//',
+    '/ui/p/%73ubscriptions',
   ])('opens %s without session bootstrap or telemetry', path => {
     window.history.replaceState({}, '', `${path}?email=anna%40example.test&hash=private-proof`);
     render(<App />);

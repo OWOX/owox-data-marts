@@ -1,6 +1,6 @@
 import { StrictMode } from 'react';
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { QueryClient, QueryClientProvider, onlineManager } from '@tanstack/react-query';
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { MemoryRouter } from 'react-router';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { AccountLinkPage } from './AccountLinkPage';
@@ -18,17 +18,14 @@ const topics = {
 };
 function renderLink(
   action: 'subscriptions' | 'export' = 'subscriptions',
-  search = '?email=anna%2Btest%40example.test&hash=old-proof&topicName=Offers&expires_date=2030-01-02'
+  search = '?email=anna%2Btest%40example.test&hash=old-proof&topicName=Offers&expires_date=2030-01-02',
+  client = new QueryClient({
+    defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
+  })
 ) {
   render(
     <StrictMode>
-      <QueryClientProvider
-        client={
-          new QueryClient({
-            defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
-          })
-        }
-      >
+      <QueryClientProvider client={client}>
         <MemoryRouter initialEntries={[`/${action}${search}`]}>
           <AccountLinkPage action={action} />
         </MemoryRouter>
@@ -38,6 +35,8 @@ function renderLink(
 }
 
 afterEach(() => {
+  onlineManager.setOnline(true);
+  vi.restoreAllMocks();
   vi.unstubAllGlobals();
   vi.clearAllMocks();
 });
@@ -104,6 +103,90 @@ describe('Public account links', () => {
     expect(fetch).toHaveBeenCalledTimes(2);
   });
 
+  it('keeps the recipient choices through reconnect and a failed flags refetch without replaying unsubscribe', async () => {
+    cloud();
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    const fetch = vi
+      .fn()
+      .mockResolvedValueOnce(Response.json(topics))
+      .mockResolvedValueOnce(Response.json({ topics: [{ ...topics.topics[0], subscribed: true }] }))
+      .mockImplementation(() => Promise.resolve(Response.json(topics)));
+    vi.stubGlobal('fetch', fetch);
+    renderLink('subscriptions', undefined, client);
+    fireEvent.click(await screen.findByRole('switch', { name: 'Offers' }));
+    await waitFor(() => {
+      expect(screen.getByRole('switch', { name: 'Offers' })).toBeChecked();
+    });
+    const initialFlagsRequests = vi.mocked(appFlagsService.getPublicFlags).mock.calls.length;
+
+    await act(async () => {
+      onlineManager.setOnline(false);
+      onlineManager.setOnline(true);
+    });
+    expect(appFlagsService.getPublicFlags).toHaveBeenCalledTimes(initialFlagsRequests);
+
+    vi.mocked(appFlagsService.getPublicFlags).mockRejectedValueOnce(new Error('offline'));
+    await act(async () => {
+      await client.refetchQueries({ queryKey: ['public-account-flags'] });
+    });
+    expect(screen.getByRole('switch', { name: 'Offers' })).toBeChecked();
+    expect(
+      screen.queryByText('Could not load profile settings. Try again.')
+    ).not.toBeInTheDocument();
+
+    cloud();
+    await act(async () => {
+      await client.refetchQueries({ queryKey: ['public-account-flags'] });
+    });
+    expect(screen.getByRole('switch', { name: 'Offers' })).toBeChecked();
+    expect(fetch).toHaveBeenCalledTimes(2);
+  });
+
+  it.each(['a!b@example.com', 'name@shop.xn--p1ai'])(
+    'passes the signed recipient %s to the server without a restrictive email pattern',
+    async email => {
+      cloud();
+      const fetch = vi.fn().mockResolvedValue(Response.json({ topics: topics.topics }));
+      vi.stubGlobal('fetch', fetch);
+      renderLink('subscriptions', `?${new URLSearchParams({ email, hash: 'proof' })}`);
+      expect(await screen.findByRole('switch', { name: 'Offers' })).toBeVisible();
+      expect(fetch).toHaveBeenCalledWith(
+        expect.any(URL),
+        expect.objectContaining({
+          body: JSON.stringify({ email, signature: 'proof', topicId: 'all', subscribed: false }),
+        })
+      );
+    }
+  );
+
+  it('exits the pending state when the signed request times out', async () => {
+    cloud();
+    const controller = new AbortController();
+    vi.spyOn(AbortSignal, 'timeout').mockReturnValue(controller.signal);
+    const fetch = vi.fn(
+      (_url: RequestInfo | URL, init: RequestInit) =>
+        new Promise<Response>((_resolve, reject) => {
+          init.signal?.addEventListener(
+            'abort',
+            () => {
+              reject(new Error('Timed out'));
+            },
+            { once: true }
+          );
+        })
+    );
+    vi.stubGlobal('fetch', fetch);
+    renderLink();
+    await waitFor(() => {
+      expect(fetch).toHaveBeenCalledTimes(1);
+    });
+    await act(async () => {
+      controller.abort(new DOMException('Timed out', 'TimeoutError'));
+    });
+    expect(await screen.findByRole('button', { name: 'Try again' })).toBeEnabled();
+    expect(screen.queryByText('Updating email preferences...')).not.toBeInTheDocument();
+  });
+
   it('does not silently retry an invalid signature or display its response body', async () => {
     cloud();
     const fetch = vi.fn().mockResolvedValue(new Response('secret-response', { status: 400 }));
@@ -114,10 +197,10 @@ describe('Public account links', () => {
     expect(fetch).toHaveBeenCalledTimes(1);
   });
 
-  it('does not call an API for a missing or invalid email link', async () => {
+  it('does not call an API for missing email link fields', async () => {
     const fetch = vi.fn();
     vi.stubGlobal('fetch', fetch);
-    renderLink('subscriptions', '?email=bad&hash=proof');
+    renderLink('subscriptions', '?email=&hash=proof');
     expect(screen.getByRole('alert')).toHaveTextContent('full link');
     expect(appFlagsService.getPublicFlags).not.toHaveBeenCalled();
     expect(fetch).not.toHaveBeenCalled();

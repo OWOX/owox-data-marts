@@ -24,6 +24,6 @@ it('loads public flags without auth-client refresh, cookies or the signed-link r
 it('keeps a failed public flags request as an error', async () => {
   vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response(null, { status: 503 })));
   await expect(appFlagsService.getPublicFlags(new AbortController().signal)).rejects.toThrow(
-    'Could not load account settings.'
+    'Could not load profile settings.'
   );
 });
