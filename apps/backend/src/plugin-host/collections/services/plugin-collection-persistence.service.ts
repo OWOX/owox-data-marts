@@ -282,7 +282,13 @@ export class PluginCollectionPersistenceService {
         totalBytes: '0',
       },
     ];
-    await this.usages.createQueryBuilder().insert().values(values).orIgnore().execute();
+    // Upsert, not INSERT IGNORE: its shared lock on existing rows deadlocks parallel writers.
+    await this.usages
+      .createQueryBuilder()
+      .insert()
+      .values(values)
+      .orUpdate(['level'], ['usageKey'])
+      .execute();
     const query = this.usages
       .createQueryBuilder('usage')
       .where('usage.usageKey IN (:...keys)', { keys: values.map(row => row.usageKey) })

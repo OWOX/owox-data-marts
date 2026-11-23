@@ -843,6 +843,17 @@ default to `3306`, `root` and `owox_test`. It drops `plugin_action_schedule`,
 `plugin_action_execution`, `plugin_installation` and `migrations`, so use a throwaway database, for
 example `docker run -d --rm -e MYSQL_ROOT_PASSWORD=… -e MYSQL_DATABASE=owox_test -p 33306:3306 mysql:8.4`.
 
+### `plugin-collections-mysql.integration.ts` — 2 tests
+
+Runs the plugin collection migration on MySQL and writes two documents in parallel in one project:
+once from one plugin and collection, and once from two plugins. A subscriber holds each write after
+its usage-row insert until the second write arrives, so both transactions reach the usage
+`SELECT … FOR UPDATE` together. InnoDB must serialize them and not report a deadlock. SQLite has
+one writer and cannot show this. Set `PLUGIN_COLLECTIONS_MYSQL_HOST` and
+`PLUGIN_COLLECTIONS_MYSQL_PASSWORD`; `_PORT`, `_USER` and `_DATABASE` default to `3306`, `root`
+and `owox_test`. It drops the three `plugin_collection_*` tables and
+`plugin_collections_migrations`, so use a throwaway database.
+
 ## Adding a New Integration Test
 
 1. Create `your-service.integration.ts` in this directory
