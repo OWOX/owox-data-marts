@@ -694,6 +694,16 @@ WITH
     SELECT * FROM analytics.target_table
   ),
 
+  dq_relationship_keys AS (
+    SELECT
+      target."tenant_id",
+      target."id"
+    FROM dq_target AS target
+    GROUP BY
+      target."tenant_id",
+      target."id"
+  ),
+
   dq_violations AS (
     SELECT
       source."tenant_id" AS source_join_value_1,
@@ -701,17 +711,13 @@ WITH
       source."id" AS primary_key_value_1,
       source."tenant_id" AS primary_key_value_2
     FROM dq_source AS source
+    LEFT JOIN dq_relationship_keys AS target
+      ON source."tenant_id" = target."tenant_id"
+      AND source."customer_id" = target."id"
     WHERE
       source."tenant_id" IS NOT NULL
       AND source."customer_id" IS NOT NULL
-      AND NOT EXISTS (
-        SELECT
-          1
-        FROM dq_target AS target
-        WHERE
-          source."tenant_id" = target."tenant_id"
-          AND source."customer_id" = target."id"
-      )
+      AND target."tenant_id" IS NULL
   ),
 
   dq_summary AS (
@@ -775,6 +781,16 @@ WITH
     SELECT * FROM analytics.target_table
   ),
 
+  dq_relationship_keys AS (
+    SELECT
+      source."tenant_id",
+      source."customer_id"
+    FROM dq_source AS source
+    GROUP BY
+      source."tenant_id",
+      source."customer_id"
+  ),
+
   dq_violations AS (
     SELECT
       target."tenant_id" AS target_join_value_1,
@@ -782,17 +798,13 @@ WITH
       target."id" AS primary_key_value_1,
       target."tenant_id" AS primary_key_value_2
     FROM dq_target AS target
+    LEFT JOIN dq_relationship_keys AS source
+      ON source."tenant_id" = target."tenant_id"
+      AND source."customer_id" = target."id"
     WHERE
       target."tenant_id" IS NOT NULL
       AND target."id" IS NOT NULL
-      AND NOT EXISTS (
-        SELECT
-          1
-        FROM dq_source AS source
-        WHERE
-          source."tenant_id" = target."tenant_id"
-          AND source."customer_id" = target."id"
-      )
+      AND source."tenant_id" IS NULL
   ),
 
   dq_summary AS (
@@ -1554,6 +1566,16 @@ WITH
     SELECT * FROM analytics.target_table
   ),
 
+  dq_relationship_keys AS (
+    SELECT
+      target."tenant_id",
+      target."id"
+    FROM dq_target AS target
+    GROUP BY
+      target."tenant_id",
+      target."id"
+  ),
+
   dq_violations AS (
     SELECT
       source."tenant_id" AS source_join_value_1,
@@ -1561,17 +1583,13 @@ WITH
       source."id" AS primary_key_value_1,
       source."tenant_id" AS primary_key_value_2
     FROM dq_source AS source
+    LEFT JOIN dq_relationship_keys AS target
+      ON source."tenant_id" = target."tenant_id"
+      AND source."customer_id" = target."id"
     WHERE
       source."tenant_id" IS NOT NULL
       AND source."customer_id" IS NOT NULL
-      AND NOT EXISTS (
-        SELECT
-          1
-        FROM dq_target AS target
-        WHERE
-          source."tenant_id" = target."tenant_id"
-          AND source."customer_id" = target."id"
-      )
+      AND target."tenant_id" IS NULL
   ),
 
   dq_summary AS (
@@ -1635,6 +1653,16 @@ WITH
     SELECT * FROM analytics.target_table
   ),
 
+  dq_relationship_keys AS (
+    SELECT
+      source."tenant_id",
+      source."customer_id"
+    FROM dq_source AS source
+    GROUP BY
+      source."tenant_id",
+      source."customer_id"
+  ),
+
   dq_violations AS (
     SELECT
       target."tenant_id" AS target_join_value_1,
@@ -1642,17 +1670,13 @@ WITH
       target."id" AS primary_key_value_1,
       target."tenant_id" AS primary_key_value_2
     FROM dq_target AS target
+    LEFT JOIN dq_relationship_keys AS source
+      ON source."tenant_id" = target."tenant_id"
+      AND source."customer_id" = target."id"
     WHERE
       target."tenant_id" IS NOT NULL
       AND target."id" IS NOT NULL
-      AND NOT EXISTS (
-        SELECT
-          1
-        FROM dq_source AS source
-        WHERE
-          source."tenant_id" = target."tenant_id"
-          AND source."customer_id" = target."id"
-      )
+      AND source."tenant_id" IS NULL
   ),
 
   dq_summary AS (
@@ -2383,6 +2407,16 @@ WITH
     SELECT * FROM analytics.target_table
   ),
 
+  dq_relationship_keys AS (
+    SELECT
+      target.\`tenant_id\`,
+      target.\`id\`
+    FROM dq_target AS target
+    GROUP BY
+      target.\`tenant_id\`,
+      target.\`id\`
+  ),
+
   dq_violations AS (
     SELECT
       source.\`tenant_id\` AS source_join_value_1,
@@ -2390,17 +2424,13 @@ WITH
       source.\`id\` AS primary_key_value_1,
       source.\`tenant_id\` AS primary_key_value_2
     FROM dq_source AS source
+    LEFT JOIN dq_relationship_keys AS target
+      ON source.\`tenant_id\` = target.\`tenant_id\`
+      AND source.\`customer_id\` = target.\`id\`
     WHERE
       source.\`tenant_id\` IS NOT NULL
       AND source.\`customer_id\` IS NOT NULL
-      AND NOT EXISTS (
-        SELECT
-          1
-        FROM dq_target AS target
-        WHERE
-          source.\`tenant_id\` = target.\`tenant_id\`
-          AND source.\`customer_id\` = target.\`id\`
-      )
+      AND target.\`tenant_id\` IS NULL
   ),
 
   dq_summary AS (
@@ -2464,6 +2494,16 @@ WITH
     SELECT * FROM analytics.target_table
   ),
 
+  dq_relationship_keys AS (
+    SELECT
+      source.\`tenant_id\`,
+      source.\`customer_id\`
+    FROM dq_source AS source
+    GROUP BY
+      source.\`tenant_id\`,
+      source.\`customer_id\`
+  ),
+
   dq_violations AS (
     SELECT
       target.\`tenant_id\` AS target_join_value_1,
@@ -2471,17 +2511,13 @@ WITH
       target.\`id\` AS primary_key_value_1,
       target.\`tenant_id\` AS primary_key_value_2
     FROM dq_target AS target
+    LEFT JOIN dq_relationship_keys AS source
+      ON source.\`tenant_id\` = target.\`tenant_id\`
+      AND source.\`customer_id\` = target.\`id\`
     WHERE
       target.\`tenant_id\` IS NOT NULL
       AND target.\`id\` IS NOT NULL
-      AND NOT EXISTS (
-        SELECT
-          1
-        FROM dq_source AS source
-        WHERE
-          source.\`tenant_id\` = target.\`tenant_id\`
-          AND source.\`customer_id\` = target.\`id\`
-      )
+      AND source.\`tenant_id\` IS NULL
   ),
 
   dq_summary AS (
@@ -3210,6 +3246,16 @@ WITH
     SELECT * FROM analytics.target_table
   ),
 
+  dq_relationship_keys AS (
+    SELECT
+      target."tenant_id",
+      target."id"
+    FROM dq_target AS target
+    GROUP BY
+      target."tenant_id",
+      target."id"
+  ),
+
   dq_violations AS (
     SELECT
       source."tenant_id" AS source_join_value_1,
@@ -3217,17 +3263,13 @@ WITH
       source."id" AS primary_key_value_1,
       source."tenant_id" AS primary_key_value_2
     FROM dq_source AS source
+    LEFT JOIN dq_relationship_keys AS target
+      ON source."tenant_id" = target."tenant_id"
+      AND source."customer_id" = target."id"
     WHERE
       source."tenant_id" IS NOT NULL
       AND source."customer_id" IS NOT NULL
-      AND NOT EXISTS (
-        SELECT
-          1
-        FROM dq_target AS target
-        WHERE
-          source."tenant_id" = target."tenant_id"
-          AND source."customer_id" = target."id"
-      )
+      AND target."tenant_id" IS NULL
   ),
 
   dq_summary AS (
@@ -3291,6 +3333,16 @@ WITH
     SELECT * FROM analytics.target_table
   ),
 
+  dq_relationship_keys AS (
+    SELECT
+      source."tenant_id",
+      source."customer_id"
+    FROM dq_source AS source
+    GROUP BY
+      source."tenant_id",
+      source."customer_id"
+  ),
+
   dq_violations AS (
     SELECT
       target."tenant_id" AS target_join_value_1,
@@ -3298,17 +3350,13 @@ WITH
       target."id" AS primary_key_value_1,
       target."tenant_id" AS primary_key_value_2
     FROM dq_target AS target
+    LEFT JOIN dq_relationship_keys AS source
+      ON source."tenant_id" = target."tenant_id"
+      AND source."customer_id" = target."id"
     WHERE
       target."tenant_id" IS NOT NULL
       AND target."id" IS NOT NULL
-      AND NOT EXISTS (
-        SELECT
-          1
-        FROM dq_source AS source
-        WHERE
-          source."tenant_id" = target."tenant_id"
-          AND source."customer_id" = target."id"
-      )
+      AND source."tenant_id" IS NULL
   ),
 
   dq_summary AS (
@@ -4037,6 +4085,16 @@ WITH
     SELECT * FROM analytics.target_table
   ),
 
+  dq_relationship_keys AS (
+    SELECT
+      target.\`tenant_id\`,
+      target.\`id\`
+    FROM dq_target AS target
+    GROUP BY
+      target.\`tenant_id\`,
+      target.\`id\`
+  ),
+
   dq_violations AS (
     SELECT
       source.\`tenant_id\` AS source_join_value_1,
@@ -4044,17 +4102,13 @@ WITH
       source.\`id\` AS primary_key_value_1,
       source.\`tenant_id\` AS primary_key_value_2
     FROM dq_source AS source
+    LEFT JOIN dq_relationship_keys AS target
+      ON source.\`tenant_id\` = target.\`tenant_id\`
+      AND source.\`customer_id\` = target.\`id\`
     WHERE
       source.\`tenant_id\` IS NOT NULL
       AND source.\`customer_id\` IS NOT NULL
-      AND NOT EXISTS (
-        SELECT
-          1
-        FROM dq_target AS target
-        WHERE
-          source.\`tenant_id\` = target.\`tenant_id\`
-          AND source.\`customer_id\` = target.\`id\`
-      )
+      AND target.\`tenant_id\` IS NULL
   ),
 
   dq_summary AS (
@@ -4118,6 +4172,16 @@ WITH
     SELECT * FROM analytics.target_table
   ),
 
+  dq_relationship_keys AS (
+    SELECT
+      source.\`tenant_id\`,
+      source.\`customer_id\`
+    FROM dq_source AS source
+    GROUP BY
+      source.\`tenant_id\`,
+      source.\`customer_id\`
+  ),
+
   dq_violations AS (
     SELECT
       target.\`tenant_id\` AS target_join_value_1,
@@ -4125,17 +4189,13 @@ WITH
       target.\`id\` AS primary_key_value_1,
       target.\`tenant_id\` AS primary_key_value_2
     FROM dq_target AS target
+    LEFT JOIN dq_relationship_keys AS source
+      ON source.\`tenant_id\` = target.\`tenant_id\`
+      AND source.\`customer_id\` = target.\`id\`
     WHERE
       target.\`tenant_id\` IS NOT NULL
       AND target.\`id\` IS NOT NULL
-      AND NOT EXISTS (
-        SELECT
-          1
-        FROM dq_source AS source
-        WHERE
-          source.\`tenant_id\` = target.\`tenant_id\`
-          AND source.\`customer_id\` = target.\`id\`
-      )
+      AND source.\`tenant_id\` IS NULL
   ),
 
   dq_summary AS (
@@ -4864,6 +4924,16 @@ WITH
     SELECT * FROM analytics.target_table
   ),
 
+  dq_relationship_keys AS (
+    SELECT
+      target.\`tenant_id\`,
+      target.\`id\`
+    FROM dq_target AS target
+    GROUP BY
+      target.\`tenant_id\`,
+      target.\`id\`
+  ),
+
   dq_violations AS (
     SELECT
       source.\`tenant_id\` AS source_join_value_1,
@@ -4871,17 +4941,13 @@ WITH
       source.\`id\` AS primary_key_value_1,
       source.\`tenant_id\` AS primary_key_value_2
     FROM dq_source AS source
+    LEFT JOIN dq_relationship_keys AS target
+      ON source.\`tenant_id\` = target.\`tenant_id\`
+      AND source.\`customer_id\` = target.\`id\`
     WHERE
       source.\`tenant_id\` IS NOT NULL
       AND source.\`customer_id\` IS NOT NULL
-      AND NOT EXISTS (
-        SELECT
-          1
-        FROM dq_target AS target
-        WHERE
-          source.\`tenant_id\` = target.\`tenant_id\`
-          AND source.\`customer_id\` = target.\`id\`
-      )
+      AND target.\`tenant_id\` IS NULL
   ),
 
   dq_summary AS (
@@ -4945,6 +5011,16 @@ WITH
     SELECT * FROM analytics.target_table
   ),
 
+  dq_relationship_keys AS (
+    SELECT
+      source.\`tenant_id\`,
+      source.\`customer_id\`
+    FROM dq_source AS source
+    GROUP BY
+      source.\`tenant_id\`,
+      source.\`customer_id\`
+  ),
+
   dq_violations AS (
     SELECT
       target.\`tenant_id\` AS target_join_value_1,
@@ -4952,17 +5028,13 @@ WITH
       target.\`id\` AS primary_key_value_1,
       target.\`tenant_id\` AS primary_key_value_2
     FROM dq_target AS target
+    LEFT JOIN dq_relationship_keys AS source
+      ON source.\`tenant_id\` = target.\`tenant_id\`
+      AND source.\`customer_id\` = target.\`id\`
     WHERE
       target.\`tenant_id\` IS NOT NULL
       AND target.\`id\` IS NOT NULL
-      AND NOT EXISTS (
-        SELECT
-          1
-        FROM dq_source AS source
-        WHERE
-          source.\`tenant_id\` = target.\`tenant_id\`
-          AND source.\`customer_id\` = target.\`id\`
-      )
+      AND source.\`tenant_id\` IS NULL
   ),
 
   dq_summary AS (
@@ -5612,6 +5684,16 @@ WITH
     SELECT * FROM analytics.target_table
   ),
 
+  dq_relationship_keys AS (
+    SELECT
+      target."tenant_id",
+      target."id"
+    FROM dq_target AS target
+    GROUP BY
+      target."tenant_id",
+      target."id"
+  ),
+
   dq_violations AS (
     SELECT
       source."tenant_id" AS source_join_value_1,
@@ -5619,17 +5701,13 @@ WITH
       source."id" AS primary_key_value_1,
       source."tenant_id" AS primary_key_value_2
     FROM dq_source AS source
+    LEFT JOIN dq_relationship_keys AS target
+      ON source."tenant_id" = target."tenant_id"
+      AND source."customer_id" = target."id"
     WHERE
       source."tenant_id" IS NOT NULL
       AND source."customer_id" IS NOT NULL
-      AND NOT EXISTS (
-        SELECT
-          1
-        FROM dq_target AS target
-        WHERE
-          source."tenant_id" = target."tenant_id"
-          AND source."customer_id" = target."id"
-      )
+      AND target."tenant_id" IS NULL
   ),
 
   dq_summary AS (
@@ -5693,6 +5771,16 @@ WITH
     SELECT * FROM analytics.target_table
   ),
 
+  dq_relationship_keys AS (
+    SELECT
+      source."tenant_id",
+      source."customer_id"
+    FROM dq_source AS source
+    GROUP BY
+      source."tenant_id",
+      source."customer_id"
+  ),
+
   dq_violations AS (
     SELECT
       target."tenant_id" AS target_join_value_1,
@@ -5700,17 +5788,13 @@ WITH
       target."id" AS primary_key_value_1,
       target."tenant_id" AS primary_key_value_2
     FROM dq_target AS target
+    LEFT JOIN dq_relationship_keys AS source
+      ON source."tenant_id" = target."tenant_id"
+      AND source."customer_id" = target."id"
     WHERE
       target."tenant_id" IS NOT NULL
       AND target."id" IS NOT NULL
-      AND NOT EXISTS (
-        SELECT
-          1
-        FROM dq_source AS source
-        WHERE
-          source."tenant_id" = target."tenant_id"
-          AND source."customer_id" = target."id"
-      )
+      AND source."tenant_id" IS NULL
   ),
 
   dq_summary AS (

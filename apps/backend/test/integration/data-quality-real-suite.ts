@@ -62,7 +62,7 @@ const relationshipSnapshot: DataQualityRelationshipSnapshot = {
   sourceDataMartId: 'real-dq-source',
   targetDataMartId: 'real-dq-target',
   targetAlias: 'target_records',
-  joinConditions: [{ sourceFieldName: 'relationship_id', targetFieldName: 'id' }],
+  joinConditions: [{ sourceFieldName: 'dq_source', targetFieldName: 'dq_target' }],
 };
 
 export function registerRealDataQualitySuite(options: RealDataQualitySuiteOptions): void {
@@ -392,24 +392,26 @@ function relationshipScenario(
     : DataQualityCategory.RELATIONSHIP_INTEGRITY;
   const sourceFields = [
     { name: 'id', type: options.nativeTypes.integer, isPrimaryKey: true },
-    { name: 'relationship_id', type: options.nativeTypes.integer },
+    { name: 'dq_source', type: options.nativeTypes.integer },
   ];
-  const targetFields = [{ name: 'id', type: options.nativeTypes.integer, isPrimaryKey: true }];
+  const targetFields = [
+    { name: 'dq_target', type: options.nativeTypes.integer, isPrimaryKey: true },
+  ];
   const targetRows = selectRows([
-    { id: options.expressions.integer(1) },
-    { id: options.expressions.integer(2) },
+    { dq_target: options.expressions.integer(1) },
+    { dq_target: options.expressions.integer(2) },
   ]);
   const passingSource = selectRows([
-    { id: options.expressions.integer(10), relationship_id: options.expressions.integer(1) },
-    { id: options.expressions.integer(20), relationship_id: options.expressions.integer(2) },
+    { id: options.expressions.integer(10), dq_source: options.expressions.integer(1) },
+    { id: options.expressions.integer(20), dq_source: options.expressions.integer(2) },
   ]);
   const findingSource = reverse
     ? selectRows([
-        { id: options.expressions.integer(10), relationship_id: options.expressions.integer(1) },
+        { id: options.expressions.integer(10), dq_source: options.expressions.integer(1) },
       ])
     : selectRows([
-        { id: options.expressions.integer(10), relationship_id: options.expressions.integer(1) },
-        { id: options.expressions.integer(30), relationship_id: options.expressions.integer(3) },
+        { id: options.expressions.integer(10), dq_source: options.expressions.integer(1) },
+        { id: options.expressions.integer(30), dq_source: options.expressions.integer(3) },
       ]);
   return {
     category,
