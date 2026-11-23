@@ -12,4 +12,4 @@ The **Projects** table shows your memberships and roles. Search by project name 
 
 Use **Email preferences** to manage your personal service notifications, tips and suggestions, and offers.
 
-See [My profile in OWOX Cloud](../../docs/project/index.md#my-profile-in-owox-cloud).
+See [My profile in OWOX Cloud](../../docs/project/#my-profile-in-owox-cloud).
