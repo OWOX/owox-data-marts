@@ -902,7 +902,17 @@ export class DataQualityCheckCompiler {
         `${sourceAlias}.${dialect.quoteIdentifierPath([condition.sourceFieldName])} = ${targetAlias}.${dialect.quoteIdentifierPath([condition.targetFieldName])}`
     );
     const primary = reverse ? `dq_target AS ${targetAlias}` : `dq_source AS ${sourceAlias}`;
-    const secondary = reverse ? `dq_source AS ${sourceAlias}` : `dq_target AS ${targetAlias}`;
+    const secondaryAlias = reverse ? sourceAlias : targetAlias;
+    const secondary = `${reverse ? 'dq_source' : 'dq_target'} AS ${secondaryAlias}`;
+    // BigQuery can read an unqualified key as the whole row if the key and table names match.
+    const secondaryKeys = [
+      ...new Set(
+        relationship.snapshot.joinConditions.map(condition => {
+          const field = reverse ? condition.sourceFieldName : condition.targetFieldName;
+          return `${secondaryAlias}.${dialect.quoteIdentifierPath([field])}`;
+        })
+      ),
+    ];
     const violationAlias = reverse ? targetAlias : sourceAlias;
     const projectionFields = reverse
       ? relationship.snapshot.joinConditions.map(condition => condition.targetFieldName)
@@ -941,19 +951,19 @@ export class DataQualityCheckCompiler {
         ],
         ctes: [
           {
+            name: 'dq_relationship_keys',
+            body: renderSelect(secondaryKeys, secondary, { groupBy: secondaryKeys }),
+          },
+          {
             name: 'dq_violations',
             body: renderSelect(splitProjection(projection.sql), primary, {
-              where: [
-                ...nonNullPredicates,
-                [
-                  'NOT EXISTS (',
-                  indentContinuation(
-                    renderSelect(['1'], secondary, { where: equalityPredicates }),
-                    2
-                  ),
-                  ')',
-                ].join('\n'),
+              joins: [
+                renderJoinOn(
+                  `LEFT JOIN dq_relationship_keys AS ${secondaryAlias}`,
+                  equalityPredicates.join('\nAND ')
+                ),
               ],
+              where: [...nonNullPredicates, `${secondaryKeys[0]} IS NULL`],
             }),
           },
           {

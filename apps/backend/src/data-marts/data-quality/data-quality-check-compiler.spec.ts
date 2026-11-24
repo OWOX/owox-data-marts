@@ -501,12 +501,56 @@ describe('DataQualityCheckCompiler', () => {
       });
       const measurement = sql(plan);
 
-      expect(measurement).toContain('FROM dq_source AS dq_row_source');
-      expect(measurement).toContain('FROM dq_target AS dq_row_target');
+      expect(measurement).toMatch(/(FROM|JOIN) dq_\w+ AS dq_row_source\n/);
+      expect(measurement).toMatch(/(FROM|JOIN) dq_\w+ AS dq_row_target\n/);
       expect(measurement).toContain('dq_row_source.`tenant_id` = dq_row_target.`tenant_id`');
       expect(measurement).toContain('dq_row_source.`customer_id` = dq_row_target.`id`');
     }
   );
+
+  it.each(storageTypes)(
+    'compiles relationship checks on %s as anti-joins without correlated subqueries',
+    async storageType => {
+      const compiler = createDataQualityCheckCompiler();
+      const relationshipInputs = allCategoryInputs(storageType).filter(
+        input => 'relationship' in input
+      );
+
+      expect(relationshipInputs).toHaveLength(2);
+      for (const input of relationshipInputs) {
+        const measurement = sql(await compiler.compile(input));
+        expect(measurement).not.toMatch(/\bEXISTS\b/);
+        expect(measurement).toMatch(/LEFT JOIN dq_relationship_keys AS \w+\n\s+ON /);
+      }
+    }
+  );
+
+  it('deduplicates relationship keys that reuse one secondary column', async () => {
+    const plan = await createDataQualityCheckCompiler().compile({
+      storageType: DataStorageType.GOOGLE_BIGQUERY,
+      sourceQuery,
+      schema: schema(DataStorageType.GOOGLE_BIGQUERY),
+      rule: relationshipRule(DataQualityCategory.RELATIONSHIP_INTEGRITY),
+      relationship: {
+        snapshot: {
+          ...relationship,
+          joinConditions: [
+            { sourceFieldName: 'customer_id', targetFieldName: 'id' },
+            { sourceFieldName: 'id', targetFieldName: 'id' },
+          ],
+        },
+        targetSourceQuery: targetQuery,
+        targetSchema: schema(DataStorageType.GOOGLE_BIGQUERY),
+        targetStorageType: DataStorageType.GOOGLE_BIGQUERY,
+        sourceConnectionId: 'connection-1',
+        targetConnectionId: 'connection-1',
+      },
+    });
+
+    expect(sql(plan)).toContain(
+      'SELECT\n      target.`id`\n    FROM dq_target AS target\n    GROUP BY\n      target.`id`\n'
+    );
+  });
 
   it('keeps every generated header line commented when details contain control characters', async () => {
     const plan = await createDataQualityCheckCompiler().compile({
@@ -1109,16 +1153,13 @@ describe('DataQualityCheckCompiler', () => {
     expect(measurement).toContain('source.`customer_id` = target.`id`');
     expect(measurement).toContain(
       [
-        'WHERE',
+        'LEFT JOIN dq_relationship_keys AS target',
+        '      ON source.`tenant_id` = target.`tenant_id`',
+        '      AND source.`customer_id` = target.`id`',
+        '    WHERE',
         '      source.`tenant_id` IS NOT NULL',
         '      AND source.`customer_id` IS NOT NULL',
-      ].join('\n')
-    );
-    expect(measurement).toContain(
-      [
-        'WHERE',
-        '          source.`tenant_id` = target.`tenant_id`',
-        '          AND source.`customer_id` = target.`id`',
+        '      AND target.`tenant_id` IS NULL',
       ].join('\n')
     );
   });
