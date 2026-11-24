@@ -106,7 +106,7 @@ describe('parseReleaseFeed', () => {
 describe('links', () => {
   it('links to the release section of the changelog', () => {
     expect(changelogUrl('0.41.0')).toBe(
-      'https://docs.owox.com/docs/changelog/?utm_source=owox-data-marts&utm_medium=ui&utm_campaign=whats-new-popover#0410'
+      'https://www.owox.com/product/changelog?utm_source=owox-data-marts&utm_medium=ui&utm_campaign=whats-new-popover#v0.41.0'
     );
   });
 
