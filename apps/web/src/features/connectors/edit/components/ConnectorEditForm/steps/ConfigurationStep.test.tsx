@@ -2258,12 +2258,13 @@ describe('ConfigurationStep Credential', () => {
         expect(toastMock).toHaveBeenCalledWith(
           'Copied the settings of Other API. Its Credential does not fit this connector version: select a Credential.'
         );
-      });
-      expect(onChange).toHaveBeenLastCalledWith({
-        _id: 'cfg-1',
-        Mode: 'oauth',
-        Account: 'acc-7',
-        _credential_id: 'cc-fit',
+        // onChange comes from an effect after the toast, so it is waited for too.
+        expect(onChange).toHaveBeenLastCalledWith({
+          _id: 'cfg-1',
+          Mode: 'oauth',
+          Account: 'acc-7',
+          _credential_id: 'cc-fit',
+        });
       });
     });
 
