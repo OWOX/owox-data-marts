@@ -440,7 +440,7 @@ export function TargetSetupStep({
           <AppWizardStepSection title='Choose where to store your data'>
             <AppWizardStepItem>
               <AppWizardStepLabel
-                required={true}
+                required={!fixedDatasetName}
                 htmlFor='dataset-name'
                 tooltip='Enter dataset name for Google BigQuery where the connector data will be stored.'
               >
@@ -453,7 +453,7 @@ export function TargetSetupStep({
                 autoComplete='off'
                 className='box-border w-full'
                 value={datasetName}
-                readOnly={Boolean(fixedDatasetName)}
+                disabled={Boolean(fixedDatasetName)}
                 aria-invalid={Boolean(datasetError)}
                 aria-describedby={datasetError ? 'dataset-name-error' : undefined}
                 onChange={e => {

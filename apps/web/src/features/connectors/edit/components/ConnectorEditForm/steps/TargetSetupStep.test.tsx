@@ -248,7 +248,7 @@ describe('TargetSetupStep', () => {
 
     const datasetInput = screen.getByLabelText(/dataset name/i, { selector: 'input' });
     expect(datasetInput).toHaveValue('owox_abc');
-    expect(datasetInput).toHaveAttribute('readonly');
+    expect(datasetInput).toBeDisabled();
     expect(screen.queryByText(/dataset is auto-created/i)).toBeNull();
     expect(screen.getByLabelText(/table name/i, { selector: 'input' })).toHaveValue('ad_insights');
   });
@@ -290,7 +290,7 @@ describe('TargetSetupStep', () => {
     render(<TargetSetupStepHarness dataStorageType={DataStorageType.GOOGLE_BIGQUERY} />);
 
     const datasetInput = screen.getByLabelText(/dataset name/i, { selector: 'input' });
-    expect(datasetInput).not.toHaveAttribute('readonly');
+    expect(datasetInput).toBeEnabled();
     expect(screen.getByText(/dataset is auto-created/i)).toBeInTheDocument();
   });
 
