@@ -4,15 +4,14 @@
 
 ### Minor Changes 0.45.0
 
-<https://customer-4geatlj66rtkaxtz.cloudflarestream.com/e729494e222dc420ae04e5e9256e7ec3/iframe>
+<https://customer-4geatlj66rtkaxtz.cloudflarestream.com/7c062ab6aac86f803746fb9de8f72ad3/iframe>
 
-[0:10](https://customer-4geatlj66rtkaxtz.cloudflarestream.com/e729494e222dc420ae04e5e9256e7ec3/iframe?startTime=10.6s) - Start Without a Warehouse\
-[0:25](https://customer-4geatlj66rtkaxtz.cloudflarestream.com/e729494e222dc420ae04e5e9256e7ec3/iframe?startTime=25.5s) - Two New Plugins\
-[0:41](https://customer-4geatlj66rtkaxtz.cloudflarestream.com/e729494e222dc420ae04e5e9256e7ec3/iframe?startTime=41.5s) - The SQL Behind Every Read\
-[0:56](https://customer-4geatlj66rtkaxtz.cloudflarestream.com/e729494e222dc420ae04e5e9256e7ec3/iframe?startTime=56.6s) - Substream Nodes in Custom Connectors\
-[1:14](https://customer-4geatlj66rtkaxtz.cloudflarestream.com/e729494e222dc420ae04e5e9256e7ec3/iframe?startTime=75.2s) - Your AI Assistant on Every Page\
-[1:30](https://customer-4geatlj66rtkaxtz.cloudflarestream.com/e729494e222dc420ae04e5e9256e7ec3/iframe?startTime=90.9s) - And a Few More Things\
-[1:43](https://customer-4geatlj66rtkaxtz.cloudflarestream.com/e729494e222dc420ae04e5e9256e7ec3/iframe?startTime=104.2s) - For Plugin Authors and More
+[0:10](https://customer-4geatlj66rtkaxtz.cloudflarestream.com/7c062ab6aac86f803746fb9de8f72ad3/iframe?startTime=10.6s) - Start Without a Warehouse\
+[0:25](https://customer-4geatlj66rtkaxtz.cloudflarestream.com/7c062ab6aac86f803746fb9de8f72ad3/iframe?startTime=25.5s) - Two New Plugins\
+[0:41](https://customer-4geatlj66rtkaxtz.cloudflarestream.com/7c062ab6aac86f803746fb9de8f72ad3/iframe?startTime=41.5s) - Your AI Assistant on Every Page\
+[0:56](https://customer-4geatlj66rtkaxtz.cloudflarestream.com/7c062ab6aac86f803746fb9de8f72ad3/iframe?startTime=57.2s) - And a Few More Things\
+[1:11](https://customer-4geatlj66rtkaxtz.cloudflarestream.com/7c062ab6aac86f803746fb9de8f72ad3/iframe?startTime=71.8s) - For Plugin Authors and More\
+[1:22](https://customer-4geatlj66rtkaxtz.cloudflarestream.com/7c062ab6aac86f803746fb9de8f72ad3/iframe?startTime=82.3s) - OWOX-Hosted Plugins
 
 - 8d63743: **Easier start on a self-managed deployment: load data without a warehouse**
 
