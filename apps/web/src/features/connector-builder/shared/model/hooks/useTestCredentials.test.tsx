@@ -209,6 +209,19 @@ describe('credentialsLoadReason', () => {
       } as AxiosResponse),
       undefined,
     ],
+    [
+      'a failed request validation',
+      new AxiosError('bad', undefined, undefined, undefined, {
+        status: 400,
+        data: {
+          message: 'Request validation failed',
+          details: {
+            errors: [{ message: 'manifest must be shorter than or equal to 122880 characters' }],
+          },
+        },
+      } as AxiosResponse),
+      'Request validation failed. manifest must be shorter than or equal to 122880 characters',
+    ],
   ])('reads %s', (_name, error, expected) => {
     expect(credentialsLoadReason(error)).toBe(expected);
   });

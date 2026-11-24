@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import type { AxiosError } from 'axios';
 import { extractApiError } from '../../../../../app/api/extract-api-error.util';
+import { formatValidationErrors } from '../../../../../shared/utils/showApiErrorToast';
 import { ConnectorBuilderApiService } from '../../api/connector-builder-api.service';
 import type {
   CredentialRequirementDto,
@@ -29,9 +30,13 @@ export function credentialsLoadReason(error: unknown): string | undefined {
   if (status === undefined || status < 400 || status > 499 || status === 408 || status === 429) {
     return undefined;
   }
+  const apiError = extractApiError(error);
   // A proxy can send a non-string message, and trim() on it would throw in the rejection handler.
-  const message: unknown = extractApiError(error).message;
-  return typeof message === 'string' && message.trim() ? message.trim() : undefined;
+  const message: unknown = apiError.message;
+  if (typeof message !== 'string' || !message.trim()) return undefined;
+  // A failed request validation says only "Request validation failed"; its details name the cause.
+  const details = formatValidationErrors(apiError.details?.errors);
+  return details && !message.includes(details) ? `${message.trim()}. ${details}` : message.trim();
 }
 
 /** The Credentials that fit the manifest being tested and what a new one must hold, asked once typing pauses. */
