@@ -1,14 +1,20 @@
-import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { MemoryRouter } from 'react-router';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { GalleryView, InstalledPlugin, PluginGalleryEntry } from '../../../features/plugins';
 
 let plugins: PluginGalleryEntry[] = [];
 let galleryLoading = false;
 let installations: InstalledPlugin[] = [];
 const update = vi.fn();
+const install = vi.fn();
+const navigate = vi.fn();
 let view: GalleryView = { sort: 'default', filter: 'all' };
 
+vi.mock('react-router', async () => {
+  const actual = await vi.importActual<typeof import('react-router')>('react-router');
+  return { ...actual, useNavigate: () => navigate };
+});
 vi.mock('../../../features/plugins', async () => {
   const actual = await vi.importActual<typeof import('../../../features/plugins')>(
     '../../../features/plugins'
@@ -17,13 +23,59 @@ vi.mock('../../../features/plugins', async () => {
     ...actual,
     usePluginGallery: () => ({ plugins, isLoading: galleryLoading }),
     usePluginInstallations: () => ({ installations, isLoading: false }),
-    usePluginActions: () => ({ install: vi.fn(), isInstalling: false }),
+    usePluginActions: () => ({ install, isInstalling: false }),
     useGalleryView: () => ({ view, update }),
     PublishPluginSheet: () => null,
-    InstallPluginDialog: () => null,
-    // Stubbed to its name: the card has its own suite, and pulling the real one in would
-    // drag the whole auth-dependent hook graph into a test about filtering and ordering.
-    PluginCard: ({ plugin }: { plugin: PluginGalleryEntry }) => <div>{plugin.displayName}</div>,
+    InstallPluginDialog: ({
+      plugin,
+      open,
+      onOpenChange,
+      onConfirm,
+    }: {
+      plugin: PluginGalleryEntry;
+      open: boolean;
+      onOpenChange: (open: boolean) => void;
+      onConfirm: (selections: Record<string, string | null>) => void;
+    }) =>
+      open ? (
+        <div role='dialog' aria-label='Install this plugin?'>
+          <span>{plugin.currentSemver}</span>
+          <button
+            onClick={() => {
+              onConfirm({});
+            }}
+          >
+            Confirm install
+          </button>
+          <button
+            onClick={() => {
+              onOpenChange(false);
+            }}
+          >
+            Cancel
+          </button>
+        </div>
+      ) : null,
+    // Stubbed to its name and an Install button: the card has its own suite, and pulling the
+    // real one in would drag the whole auth-dependent hook graph into a test about filtering
+    // and ordering.
+    PluginCard: ({
+      plugin,
+      onInstall,
+    }: {
+      plugin: PluginGalleryEntry;
+      onInstall: (plugin: PluginGalleryEntry) => void;
+    }) => (
+      <>
+        <div>{plugin.displayName}</div>
+        <button
+          aria-label={`Install ${plugin.displayName}`}
+          onClick={() => {
+            onInstall(plugin);
+          }}
+        />
+      </>
+    ),
   };
 });
 vi.mock('../../../shared/hooks', () => ({
@@ -69,12 +121,17 @@ const renderPage = () =>
   );
 
 describe('PluginsGalleryPage', () => {
+  afterEach(() => {
+    window.history.replaceState({}, '', '/');
+  });
+
   beforeEach(() => {
     vi.clearAllMocks();
     view = { sort: 'default', filter: 'all' };
     plugins = [entry()];
     galleryLoading = false;
     installations = [];
+    install.mockResolvedValue(null);
   });
 
   it('offers publishing as the only action in the header', () => {
@@ -298,6 +355,64 @@ describe('PluginsGalleryPage', () => {
         expect(screen.queryByText('Alpha Plugin')).toBeNull();
       });
       expect(screen.getByText('Unlisted Plugin')).toBeTruthy();
+    });
+  });
+
+  describe('install', () => {
+    const confirmInstall = () => {
+      renderPage();
+      fireEvent.click(screen.getByRole('button', { name: 'Install Alpha Plugin' }));
+      fireEvent.click(screen.getByRole('button', { name: 'Confirm install' }));
+    };
+
+    it('opens the plugin once it is installed', async () => {
+      confirmInstall();
+
+      await waitFor(() => {
+        expect(navigate).toHaveBeenCalledWith('/ui/project-1/plugins/p1/open');
+      });
+      expect(screen.queryByRole('dialog')).toBeNull();
+    });
+
+    it('asks again with the newer version instead of opening the plugin', async () => {
+      install.mockResolvedValue(entry({ currentVersionId: 'v2', currentSemver: '1.1.0' }));
+      confirmInstall();
+
+      await waitFor(() => {
+        expect(install).toHaveBeenCalled();
+      });
+      expect(navigate).not.toHaveBeenCalled();
+      expect((await screen.findByRole('dialog')).textContent).toContain('1.1.0');
+    });
+
+    it('does not open the plugin after the member left the page', async () => {
+      let finish: (stale: null) => void = () => undefined;
+      install.mockReturnValueOnce(
+        new Promise<null>(resolve => {
+          finish = resolve;
+        })
+      );
+      confirmInstall();
+      window.history.pushState({}, '', '/elsewhere');
+      finish(null);
+
+      await waitFor(() => {
+        expect(install).toHaveBeenCalled();
+      });
+      await act(async () => {});
+      expect(navigate).not.toHaveBeenCalled();
+    });
+
+    it('keeps the dialog and does not navigate when the install fails', async () => {
+      install.mockRejectedValueOnce(new Error('refused'));
+      confirmInstall();
+
+      await waitFor(() => {
+        expect(install).toHaveBeenCalled();
+      });
+      await act(async () => {});
+      expect(navigate).not.toHaveBeenCalled();
+      expect(screen.getByRole('dialog')).toBeTruthy();
     });
   });
 });

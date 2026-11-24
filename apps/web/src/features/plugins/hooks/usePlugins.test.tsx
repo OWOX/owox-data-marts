@@ -23,7 +23,7 @@ vi.mock('../services/plugins.service', () => ({
 
 import toast from 'react-hot-toast';
 import { pluginsService } from '../services/plugins.service';
-import { usePluginActions, usePluginGallery } from './usePlugins';
+import { usePluginActions, usePluginGallery, usePluginInstallations } from './usePlugins';
 
 const service = pluginsService as unknown as Record<string, ReturnType<typeof vi.fn>>;
 
@@ -265,6 +265,31 @@ describe('usePluginActions', () => {
     });
 
     expect(reset).toHaveBeenCalledWith({ queryKey: ['plugin-history', 'project-1'] });
+  });
+
+  // The pages open the plugin right after install resolves, so the list must be fresh by then.
+  it('install resolves only after the active installation list is fresh', async () => {
+    const row = { installationId: 'i1', pluginId: 'p1', uninstalledAt: null };
+    service.getInstallations.mockResolvedValueOnce([]).mockResolvedValue([row]);
+    service.install.mockResolvedValue({ installationId: 'i1' });
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    const { result } = renderHook(
+      () => ({ list: usePluginInstallations(true), actions: usePluginActions() }),
+      {
+        wrapper: ({ children }: { children: ReactNode }) => (
+          <QueryClientProvider client={client}>{children}</QueryClientProvider>
+        ),
+      }
+    );
+    await waitFor(() => {
+      expect(service.getInstallations).toHaveBeenCalledTimes(1);
+      expect(result.current.list.isLoading).toBe(false);
+    });
+
+    await act(async () => {
+      await result.current.actions.install('p1', 'v1');
+      expect(client.getQueryData(['plugin-installations', 'project-1', true])).toEqual([row]);
+    });
   });
 
   // A publisher whose fresh check rejected a release must not read "you're up to date":

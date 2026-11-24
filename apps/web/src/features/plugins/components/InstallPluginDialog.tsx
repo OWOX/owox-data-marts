@@ -38,6 +38,9 @@ const NO_SELECTIONS: Readonly<Record<string, string | null>> = Object.freeze({})
  * The name and current SemVer stay because §13 requires the installation screen to show
  * display metadata and the current version. Changing an installed plugin's Credentials is
  * no new act of trust and happens on its Credentials tab instead.
+ *
+ * It cannot be closed while the install runs: the install would finish anyway, and a closed
+ * dialog would hide its result.
  */
 export function InstallPluginDialog({
   plugin,
@@ -68,7 +71,14 @@ export function InstallPluginDialog({
   return (
     <ConfirmationDialog
       open={open}
-      onOpenChange={onOpenChange}
+      onOpenChange={next => {
+        // The install finishes anyway; closing now would hide its result.
+        if (!next && isInstalling) {
+          return;
+        }
+        onOpenChange(next);
+      }}
+      showCloseButton={!isInstalling}
       title='Install this plugin?'
       description='Installing is personal. It does not change who else can find this plugin.'
       confirmLabel={isInstalling ? 'Installing…' : 'Install'}

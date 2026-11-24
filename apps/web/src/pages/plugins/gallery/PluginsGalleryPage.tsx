@@ -15,7 +15,7 @@ import {
 } from '@owox/ui/components/select';
 import { EllipsisVertical, History, Plus, Puzzle } from 'lucide-react';
 import { useMemo, useState } from 'react';
-import { Link } from 'react-router';
+import { Link, useNavigate } from 'react-router';
 import {
   comparePluginsByName,
   describeVisibility,
@@ -56,6 +56,7 @@ export default function PluginsGalleryPage() {
   const { install, isInstalling } = usePluginActions();
   const { view, update } = useGalleryView();
   const { scope } = useProjectRoute();
+  const navigate = useNavigate();
 
   const [query, setQuery] = useState('');
   const [candidate, setCandidate] = useState<PluginGalleryEntry | null>(null);
@@ -131,6 +132,7 @@ export default function PluginsGalleryPage() {
     plugin: PluginGalleryEntry,
     credentialSelections: Readonly<Record<string, string | null>>
   ) => {
+    const from = window.location.pathname;
     const stale = await install(plugin.pluginId, plugin.currentVersionId, credentialSelections);
     if (stale) {
       setCandidate(stale);
@@ -138,6 +140,9 @@ export default function PluginsGalleryPage() {
     }
 
     setCandidate(null);
+    // The member may have left while the install ran.
+    if (window.location.pathname !== from) return;
+    void navigate(scope(`/plugins/${plugin.pluginId}/open`));
   };
 
   return (
@@ -290,7 +295,10 @@ export default function PluginsGalleryPage() {
               setCandidate(null);
             }
           }}
-          onConfirm={credentialSelections => void installPlugin(candidate, credentialSelections)}
+          onConfirm={credentialSelections => {
+            // install has already shown the failure.
+            void installPlugin(candidate, credentialSelections).catch(() => undefined);
+          }}
           isInstalling={isInstalling}
         />
       )}

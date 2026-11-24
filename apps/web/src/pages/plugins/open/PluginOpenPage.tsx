@@ -9,7 +9,8 @@ export default function PluginOpenPage() {
   const { pluginId = '' } = useParams<{ pluginId: string }>();
   const location = useLocation();
   const { scope } = useProjectRoute();
-  const { installations, isLoading } = usePluginInstallations();
+  // An install refreshes this list before it resolves, so a fresh install opens without the offer.
+  const { installations, isLoading } = usePluginInstallations(true);
   /** The plugin this page last ran: losing its installation is an uninstall, not a visit. */
   const ranPluginIdRef = useRef<string | null>(null);
 

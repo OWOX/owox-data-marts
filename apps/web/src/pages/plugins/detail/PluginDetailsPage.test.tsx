@@ -1,6 +1,6 @@
 import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { MemoryRouter, Route, Routes } from 'react-router';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type {
   InstalledPlugin,
   PluginGalleryEntry,
@@ -121,16 +121,19 @@ vi.mock('../../../features/plugins', () => ({
     </div>
   ),
   InstallPluginDialog: ({
+    plugin,
     open,
     onOpenChange,
     onConfirm,
   }: {
+    plugin: PluginGalleryEntry;
     open: boolean;
     onOpenChange: (open: boolean) => void;
     onConfirm: (selections: Record<string, string | null>) => void;
   }) =>
     open ? (
       <div role='dialog' aria-label='Install this plugin?'>
+        <span>{plugin.currentSemver}</span>
         <button
           onClick={() => {
             onConfirm({});
@@ -242,6 +245,10 @@ const openMenu = () =>
   fireEvent.keyDown(screen.getByRole('button', { name: 'More plugin actions' }), { key: 'Enter' });
 
 describe('PluginDetailsPage', () => {
+  afterEach(() => {
+    window.history.replaceState({}, '', '/');
+  });
+
   beforeEach(() => {
     vi.clearAllMocks();
     publications = [];
@@ -254,6 +261,64 @@ describe('PluginDetailsPage', () => {
     plugin = entry();
     installationsLoading = false;
     grants = { credentialSelections: undefined, isLoading: false, isError: false };
+  });
+
+  it('opens the plugin once it is installed from its page', async () => {
+    renderPage();
+    fireEvent.click(screen.getByRole('button', { name: 'Install' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Confirm install' }));
+
+    await waitFor(() => {
+      expect(navigate).toHaveBeenCalledWith('/ui/project-1/plugins/p1/open');
+    });
+  });
+
+  it('asks again with the newer version instead of opening the plugin', async () => {
+    install.mockResolvedValueOnce(entry({ currentVersionId: 'v2', currentSemver: '1.1.0' }));
+    renderPage();
+    fireEvent.click(screen.getByRole('button', { name: 'Install' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Confirm install' }));
+
+    await waitFor(() => {
+      expect(install).toHaveBeenCalled();
+    });
+    expect(navigate).not.toHaveBeenCalled();
+    const dialog = await screen.findByRole('dialog', { name: 'Install this plugin?' });
+    expect(within(dialog).getByText('1.1.0')).toBeInTheDocument();
+  });
+
+  it('does not open the plugin after the member left the page', async () => {
+    let finish: (stale: null) => void = () => undefined;
+    install.mockReturnValueOnce(
+      new Promise<null>(resolve => {
+        finish = resolve;
+      })
+    );
+    renderPage();
+    fireEvent.click(screen.getByRole('button', { name: 'Install' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Confirm install' }));
+    window.history.pushState({}, '', '/elsewhere');
+    finish(null);
+
+    await waitFor(() => {
+      expect(install).toHaveBeenCalled();
+    });
+    await act(async () => {});
+    expect(navigate).not.toHaveBeenCalled();
+  });
+
+  it('keeps the dialog and does not navigate when the install fails', async () => {
+    install.mockRejectedValueOnce(new Error('refused'));
+    renderPage();
+    fireEvent.click(screen.getByRole('button', { name: 'Install' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Confirm install' }));
+
+    await waitFor(() => {
+      expect(install).toHaveBeenCalled();
+    });
+    await act(async () => {});
+    expect(navigate).not.toHaveBeenCalled();
+    expect(screen.getByRole('dialog', { name: 'Install this plugin?' })).toBeInTheDocument();
   });
 
   // Header owns Install; the version chip carries Check and Update regardless. An installed

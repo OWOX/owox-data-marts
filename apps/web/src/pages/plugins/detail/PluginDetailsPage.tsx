@@ -153,6 +153,7 @@ export default function PluginDetailsPage({
     target: PluginGalleryEntry,
     credentialSelections: Readonly<Record<string, string | null>>
   ) => {
+    const from = window.location.pathname;
     const stale = await install(target.pluginId, target.currentVersionId, credentialSelections);
     if (stale) {
       setConfirming(stale);
@@ -161,6 +162,11 @@ export default function PluginDetailsPage({
 
     leaveLinkOnCancel.current = false;
     setConfirming(null);
+    // On the open address, the page shows the plugin by itself.
+    // The member may have left while the install ran.
+    if (!installOnOpen && window.location.pathname === from) {
+      void navigate(scope(`/plugins/${target.pluginId}/open`));
+    }
   };
 
   const offersInstallBanner =
@@ -641,7 +647,10 @@ export default function PluginDetailsPage({
               }
             }
           }}
-          onConfirm={credentialSelections => void installPlugin(confirming, credentialSelections)}
+          onConfirm={credentialSelections => {
+            // install has already shown the failure.
+            void installPlugin(confirming, credentialSelections).catch(() => undefined);
+          }}
           isInstalling={isInstalling}
         />
       )}

@@ -210,6 +210,42 @@ describe('InstallPluginDialog', () => {
     expect(screen.getByTestId('install-data-notice')).not.toHaveTextContent('Runs code on');
   });
 
+  // The install finishes anyway; a dialog dismissed now would leave the page without its answer.
+  it('cannot be dismissed while the install runs', () => {
+    const onOpenChange = vi.fn();
+    render(
+      <InstallPluginDialog
+        plugin={plugin()}
+        open
+        onOpenChange={onOpenChange}
+        onConfirm={vi.fn()}
+        isInstalling
+      />
+    );
+
+    expect(screen.queryByRole('button', { name: 'Close' })).toBeNull();
+    fireEvent.keyDown(screen.getByRole('dialog'), { key: 'Escape' });
+
+    expect(onOpenChange).not.toHaveBeenCalled();
+  });
+
+  it('closes on Escape once nothing is running', () => {
+    const onOpenChange = vi.fn();
+    render(
+      <InstallPluginDialog
+        plugin={plugin()}
+        open
+        onOpenChange={onOpenChange}
+        onConfirm={vi.fn()}
+        isInstalling={false}
+      />
+    );
+
+    fireEvent.keyDown(screen.getByRole('dialog'), { key: 'Escape' });
+
+    expect(onOpenChange).toHaveBeenCalledWith(false);
+  });
+
   it('shows display metadata and the current SemVer required by §13', () => {
     render(
       <InstallPluginDialog
