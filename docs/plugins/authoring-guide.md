@@ -6,46 +6,98 @@ plugin contract, SDK usage, UI foundation, deployment, releases, publication, an
 If the repository and development tools are not ready yet, first follow
 [Get Started](./project-setup.md).
 
-## Scaffold the plugin
+## Scaffold with Void and Vite+
 
-Create a React and TypeScript application with Vite in the prepared repository:
+Start with one React and TypeScript app. [Void](https://void.cloud/guide/quickstart) serves
+the page and its HTTP routes, and [Vite+](https://viteplus.dev/guide/) builds them together.
+
+Create `package.json` in the prepared repository. Void and its React adapter import `vite`.
+The override tells npm to resolve those imports to Vite+'s bundled core, so the app uses
+one copy of Vite. Keep the override in sync when you upgrade Vite+.
+See [Vite+ project-local installation](https://viteplus.dev/guide/local-cli#manual-installation).
+
+```json
+{
+  "name": "my-owox-plugin",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "vp dev",
+    "build": "vp build",
+    "typecheck": "tsc --noEmit",
+    "postinstall": "void prepare"
+  },
+  "dependencies": {
+    "@owox/plugin-sdk": "^0.45.0",
+    "react": "^19.2.4",
+    "react-dom": "^19.2.4"
+  },
+  "devDependencies": {
+    "@types/react": "^19.2.14",
+    "@types/react-dom": "^19.2.3",
+    "@void/react": "1.11.0",
+    "typescript": "^7.0.2",
+    "vite-plus": "1.7.0",
+    "void": "1.11.0"
+  },
+  "overrides": {
+    "vite": "npm:@voidzero-dev/vite-plus-core@8.3.8000"
+  }
+}
+```
+
+Create `vite.config.ts` with the Void plugin and its React adapter.
+
+```ts
+import { voidReact } from '@void/react/plugin';
+import { defineConfig } from 'vite-plus';
+import { voidPlugin } from 'void';
+
+export default defineConfig({
+  plugins: [voidPlugin(), voidReact()],
+});
+```
+
+Create `void.config.ts` to serve the page and HTTP routes at runtime.
+
+```ts
+import { defineConfig } from 'void/config';
+
+export default defineConfig({
+  output: 'server',
+  routing: { typedRoutes: true },
+});
+```
+
+Create `pages/index.tsx` for the UI.
+
+```tsx
+export default function PluginPage() {
+  return <h1>My OWOX plugin</h1>;
+}
+```
+
+To accept backend action calls, add [`routes/owox.ts`](#write-the-backend) and
+[declare the actions in `plugin.json`](#declare-actions). Keep the manifest at the repository
+root so OWOX Data Marts can read it from the GitHub Release commit.
+
+Install dependencies, initialize the TypeScript configuration, and run the app locally.
+The `postinstall` script generates Void's route types on install, including in CI.
+If Void prompts you about `AGENTS.md`, keep the plugin instructions you already have.
 
 ```bash
-npm create vite@latest . -- --template react-ts
 npm install
-npm install @owox/plugin-sdk lucide-react
+npx void init --tsconfig
+npm run typecheck
 npm run build
+npm run dev
 ```
 
-A simple plugin can use this project structure:
+Add `node_modules/`, `dist/`, `.void/`, `.cloudflare/`, and `.void-wrangler.jsonc` to `.gitignore`.
+Commit `package-lock.json` and `void.lock.json` if Void generates it. Call `connect()` in the
+browser after the page mounts, and test the SDK handshake in [an installed plugin](#test-the-installed-plugin).
 
-```text
-.
-├── .github/
-│   └── workflows/
-│       └── deploy-pages.yml
-├── src/
-│   ├── components/
-│   │   └── ui/
-│   ├── App.tsx
-│   ├── main.tsx
-│   └── styles.css
-├── .gitignore
-├── AGENTS.md
-├── index.html
-├── package.json
-├── plugin.json
-├── tsconfig.json
-└── vite.config.ts
-```
-
-Keep reusable controls in `src/components/ui/`. Vite's default build output is `dist/`; GitHub
-Pages publishes that directory. Keep `plugin.json` at the repository root: OWOX Data Marts reads
-it from the GitHub Release commit rather than from the deployed page.
-
-A plugin whose page and actions are served by one Worker has `wrangler.toml` and `worker/` in place
-of `.github/workflows/deploy-pages.yml`, and its `delivery.url` is the Worker's URL. See
-[Deploy the page and the Worker together](#deploy-the-page-and-the-worker-together).
+[Choose one host for the whole plugin](#choose-a-host-and-deploy).
 
 ## Understand the plugin runtime
 
@@ -93,21 +145,48 @@ Never place GitHub tokens, OWOX API keys, or other credentials in plugin source 
 OWOX credential. Use `OWOX_API_KEY` only for `owox-ctl` or an external script running outside the
 plugin.
 
-- Add `.env` and `.env.*` to `.gitignore`; keep only a secret-free `.env.example` when useful.
+- Add `.env`, `.env.*`, and `.dev.vars*` to `.gitignore`; keep only a secret-free
+  `.env.example` when useful.
 - Let `gh` use its own authenticated credential store.
-- Put backend secrets in the backend host's secret manager, never in Vite environment variables.
-  Values exposed to browser code are public even when their names contain “secret.”
+- Put backend runtime secrets in the deployment host's secret manager. Keep them out of
+  `VITE_*` variables, which Vite+ can embed in public browser code.
 
 ## Use the plugin SDK
 
-Import `connect` from the [`@owox/plugin-sdk`](https://www.npmjs.com/package/@owox/plugin-sdk),
-then use the context it returns:
+Replace `pages/index.tsx` with a page that calls
+[`connect()`](https://www.npmjs.com/package/@owox/plugin-sdk) after React mounts in the browser.
+Use the returned context to load data marts and show a message if the connection or request fails.
 
-```ts
+```tsx
 import { connect } from '@owox/plugin-sdk';
+import { useEffect, useState } from 'react';
 
-const ctx = await connect();
-const dataMarts = await ctx.owox.dataMarts.list();
+export default function PluginPage() {
+  const [status, setStatus] = useState('Loading data marts…');
+
+  useEffect(() => {
+    let active = true;
+
+    async function loadDataMarts() {
+      try {
+        const ctx = await connect();
+        const dataMarts = await ctx.owox.dataMarts.list();
+        if (active) setStatus(`Data marts: ${dataMarts.length}`);
+      } catch {
+        if (active) {
+          setStatus('Could not load data marts. Open the plugin in OWOX Data Marts and try again.');
+        }
+      }
+    }
+
+    void loadDataMarts();
+    return () => {
+      active = false;
+    };
+  }, []);
+
+  return <p role="status">{status}</p>;
+}
 ```
 
 `connect()` completes a handshake with the OWOX Data Marts host. It rejects outside an OWOX Data
@@ -145,39 +224,6 @@ body)`, `patchJson<T>(path, body)`, `deleteJson<T = void>(path)`, and `getStream
 The generic does not validate the response at runtime, so validate returned data yourself. Paths
 must be root-relative `/api/...` and are limited to 2,048 characters; unsafe or redirecting paths
 are refused.
-
-### Read custom connector logos
-
-Bundled connectors come from `GET /api/connectors`. To draw a card for a custom connector, read
-`GET /api/connectors/custom/summaries` with `getJson`. It needs the viewer role.
-
-```ts
-type ConnectorSummary = {
-  id: string;
-  name: string;
-  title: string;
-  logo: string | null;
-  hosts: string[];
-};
-const names = [...new Set(dataMarts.map(m => m.connectorSourceName).filter(Boolean))];
-const connectors = names.length
-  ? await ctx.owox.getJson<ConnectorSummary[]>('/api/connectors/custom/summaries', {
-      names: names.join(','),
-    })
-  : [];
-```
-
-- Match `name` to `connectorSourceName` without regard to case.
-- Draw `logo` only when it is a `data:image/…;base64` value. Otherwise show initials.
-- Link a card to the connector builder with `id`. See the page table in
-  [Link to OWOX pages](#link-to-owox-pages).
-- `hosts` lists the API hosts of the active published version. Connectors that call one API can
-  share a card. `hosts` is empty when no version is published or the stored manifest cannot be
-  read.
-- When `GET /api/connectors` also lists the exact name, with the same case, use that bundled
-  entry, because a run uses the bundled connector.
-- The endpoint never returns a manifest.
-- Without `names`, it returns every custom connector of the project.
 
 ### Handle request errors
 
@@ -755,6 +801,39 @@ data-driven screen should include loading, empty, error, and success states.
 Do not depend on undocumented host HTML or CSS: it cannot cross the iframe boundary and may change
 without notice.
 
+### Read custom connector logos
+
+Bundled connectors come from `GET /api/connectors`. To draw a card for a custom connector, read
+`GET /api/connectors/custom/summaries` with `getJson`. It needs the viewer role.
+
+```ts
+type ConnectorSummary = {
+  id: string;
+  name: string;
+  title: string;
+  logo: string | null;
+  hosts: string[];
+};
+const names = [...new Set(dataMarts.map(m => m.connectorSourceName).filter(Boolean))];
+const connectors = names.length
+  ? await ctx.owox.getJson<ConnectorSummary[]>('/api/connectors/custom/summaries', {
+      names: names.join(','),
+    })
+  : [];
+```
+
+- Match `name` to `connectorSourceName` without regard to case.
+- Draw `logo` only when it is a `data:image/…;base64` value. Otherwise show initials.
+- Link a card to the connector builder with `id`. See the page table in
+  [Link to OWOX pages](#link-to-owox-pages).
+- `hosts` lists the API hosts of the active published version. Connectors that call one API can
+  share a card. `hosts` is empty when no version is published or the stored manifest cannot be
+  read.
+- When `GET /api/connectors` also lists the exact name, with the same case, use that bundled
+  entry, because a run uses the bundled connector.
+- The endpoint never returns a manifest.
+- Without `names`, it returns every custom connector of the project.
+
 ## Define the plugin manifest
 
 Add `plugin.json` at the repository root:
@@ -765,15 +844,15 @@ Add `plugin.json` at the repository root:
   "description": "What this plugin helps a member accomplish",
   "delivery": {
     "type": "remote",
-    "url": "https://OWNER.github.io/PLUGIN_NAME/"
+    "url": "https://my-plugin.example.com/"
   },
   "credentials": []
 }
 ```
 
-Replace `OWNER` and `PLUGIN_NAME` after the first successful deployment. The URL must use HTTPS,
-be publicly reachable without a sign-in prompt, and not resolve to a private or metadata network,
-including through redirects.
+After the first successful deployment, set `delivery.url` to the deployed page's exact HTTPS URL.
+The URL must be publicly reachable without a sign-in prompt and must avoid private or metadata
+networks, including through redirects.
 
 The manifest contains the plugin-authored fields above. OWOX Data Marts derives plugin identity
 from the GitHub repository and the current version from the eligible GitHub Release tag. Renaming
@@ -922,11 +1001,10 @@ project, with the oldest records removed first.
 
 ## Run code on your backend with actions
 
-A plugin can declare actions that run on its own backend, for example a
-[Cloudflare Worker](https://developers.cloudflare.com/workers/) or a
-[Cloud Run](https://cloud.google.com/run/docs) service. The plugin page starts an action with
-`ctx.actions`. OWOX Data Marts checks the input against the action's JSON Schema, calls the
-backend, and gives it an execution token. The token acts with the installing member's access and
+A plugin can declare actions that run in its Void server route. Deploy the route and the page
+together on the same origin. The plugin page starts an action with `ctx.actions`. OWOX Data Marts
+checks the input against the action's JSON Schema, calls the backend, and gives it an execution
+token. The token acts with the installing member's access and
 works only while that action runs. It keeps the role the member had when the action started until
 the action ends, at most `timeoutSeconds`, even if the member leaves the project or gets another
 role meanwhile; the installation is checked on every request. Credential secrets stay in OWOX Data
@@ -950,7 +1028,7 @@ self-managed deployment can use actions only when the backend can reach its `PUB
 {
   "name": "Acme Docs",
   "description": "Updates Acme documents from Data Mart data",
-  "delivery": { "type": "remote", "url": "https://acme-docs.acme.workers.dev/" },
+  "delivery": { "type": "remote", "url": "https://acme-docs.owox.app/" },
   "backend": {
     "url": "/owox",
     "actions": {
@@ -968,9 +1046,8 @@ self-managed deployment can use actions only when the backend can reach its `PUB
 ```
 
 - `backend.url` is resolved against `delivery.url` the way a link is, so `/owox` above means
-  `https://acme-docs.acme.workers.dev/owox`. A relative URL must stay on the delivery origin. An
-  absolute `https://` URL is also accepted, for example when the page is on GitHub Pages and the
-  backend is a separate Worker or a Cloud Run service. The resolved URL must be public HTTPS.
+  `https://acme-docs.owox.app/owox`. Use a relative `backend.url` on the same public HTTPS origin
+  as the page.
 - Up to 50 actions. Names match `^[a-z][a-z0-9-]{0,63}$`.
 - `timeoutSeconds` is 1 to 300, 30 by default.
 - `input` is an optional [JSON Schema 2020-12](https://json-schema.org/draft/2020-12) of at most
@@ -1068,10 +1145,13 @@ Transport failures still reject with `PluginTransportError`; for a suspended plu
 
 ### Write the backend
 
+Create `routes/owox.ts` in the same Void app as the page. Void maps its `POST` export to `/owox`.
+
 ```ts
 import { createBackend } from '@owox/plugin-sdk/server';
+import { defineHandler } from 'void';
 
-export default createBackend({
+const backend = createBackend({
   repositoryId: '123456789',
   actions: {
     'update-document': async (input, ctx) => {
@@ -1081,6 +1161,8 @@ export default createBackend({
     },
   },
 });
+
+export const POST = defineHandler(ctx => backend.fetch(ctx.req.raw));
 ```
 
 - `repositoryId` is the plugin's GitHub repository id, which stays the same when the repository is
@@ -1095,9 +1177,9 @@ export default createBackend({
 - `hosts` lists the exact origins allowed to call, such as `hosts: ['https://app.owox.com']`. Set
   it when a handler also uses the backend's own secrets or storage, and to allow an internal or
   `http:` deployment. A request naming another host is refused before anything runs.
-- `@owox/plugin-sdk/server` without `hosts` runs only on Cloudflare Workers. Deployed Workers do
-  not connect to private addresses, but `wrangler dev` does: list `hosts` while a Worker runs
-  locally, especially behind a tunnel. The Worker needs the global `navigator`, which comes with a
+- `@owox/plugin-sdk/server` without `hosts` runs only on Cloudflare Workers. Deployed Workers block
+  connections to private addresses. List `hosts` when you run the Worker locally with `vp dev`,
+  especially behind a tunnel. The Worker needs the global `navigator`, which comes with a
   compatibility date of 2022-03-21 or later and no `no_global_navigator` flag. On Node, import
   `createBackend` from `@owox/plugin-sdk/server/node`. On other runtimes, such as Bun or Deno,
   list `hosts`.
@@ -1119,84 +1201,7 @@ export default createBackend({
   `BACKEND_`, and the codes OWOX Data Marts sets itself, are reserved.
 - Never log the `x-owox-execution-token` header.
 
-### Deploy the page and the Worker together
-
-One Worker can serve the built page and the actions. With Vite `base: '/'`:
-
-```toml
-# wrangler.toml
-name = "acme-docs"
-main = "worker/index.ts"
-compatibility_date = "2026-10-01"
-
-[assets]
-directory = "./dist"
-```
-
-Workers Static Assets sends no `Access-Control-Allow-Origin`, and the page runs in an opaque
-origin, so without it the browser blocks the module script. Add `public/_headers`, which Vite
-copies to `dist`:
-
-```text
-/*
-  Access-Control-Allow-Origin: *
-```
-
-```bash
-npm run build
-npx wrangler deploy
-```
-
-Requests for files in `dist` get the files; every other request reaches the Worker, whatever its
-path. `backend.url` only tells OWOX where to POST, and a stray POST still fails token verification.
-Use the Worker's URL as `delivery.url`, then create a release as usual.
-
-### Deploy the backend to Cloud Run
-
-On Node, import `createBackend` from `@owox/plugin-sdk/server/node` and run it behind
-[`@hono/node-server`](https://github.com/honojs/node-server). Without `hosts`, it checks every
-address it connects to and refuses a host name that resolves to a loopback, private, link-local
-or other non-public address with `HOST_NOT_ALLOWED`. Keep the page on GitHub Pages and put the
-backend in its own directory, such as `server/`, with this `package.json`:
-
-```json
-{
-  "type": "module",
-  "scripts": { "start": "node server.js" },
-  "engines": { "node": ">=22.22.0" }
-}
-```
-
-```js
-// server/server.js
-import { serve } from '@hono/node-server';
-import { createBackend } from '@owox/plugin-sdk/server/node';
-
-const backend = createBackend({
-  repositoryId: '123456789',
-  actions: {
-    'update-document': async (input, ctx) => {
-      const dataMarts = await ctx.owox.dataMarts.list();
-      return { documentId: input.documentId, dataMarts: dataMarts.length };
-    },
-  },
-});
-
-serve({ fetch: backend.fetch, port: Number(process.env.PORT) || 8080 });
-```
-
-```bash
-cd server
-npm install @owox/plugin-sdk @hono/node-server
-gcloud run deploy acme-docs-backend --source . --region europe-west1 --allow-unauthenticated
-```
-
-- `--allow-unauthenticated` is required: OWOX Data Marts sends no Google identity token, and
-  `createBackend` checks every call with OWOX Data Marts instead.
-- Set `backend.url` to the service URL the command prints, for example
-  `https://acme-docs-backend-123456789012.europe-west1.run.app/`. A new deploy of the same service
-  keeps that URL.
-- Cloud Run's default request timeout, 300 seconds, covers the largest `timeoutSeconds`.
+See [Choose a host and deploy](#choose-a-host-and-deploy) to deploy the page and action endpoint together.
 
 ## Run actions on a schedule
 
@@ -1341,46 +1346,370 @@ function describeScheduleError(error: unknown): string {
 }
 ```
 
-## Deploy with GitHub Pages
+## Choose a host and deploy
 
-[GitHub Pages](https://docs.github.com/en/pages/getting-started-with-github-pages/what-is-github-pages)
-can host the plugin's static HTML, CSS, and JavaScript. A repository named `OWNER/PLUGIN_NAME`
-normally receives this address:
+Build the same Void app with Vite+ for every option. Choose one host per plugin.
+Serve the page, its assets, and any `/owox` endpoint from the same public HTTPS origin.
 
-```text
-https://OWNER.github.io/PLUGIN_NAME/
-```
+| Host | When to use it | Availability |
+| --- | --- | --- |
+| [OWOX-hosted plugins](#deploy-an-owox-hosted-plugin) | **Recommended** | [Private preview](#request-a-preview-invitation) |
+| [Cloudflare Workers](#deploy-to-cloudflare-workers) | Deploy the full app to your own Cloudflare account | Cloudflare account |
+| [Google Cloud Run](#deploy-to-google-cloud-run) | Run the full app on Node.js in Google Cloud | Google Cloud project |
+| [GitHub Pages](#deploy-with-github-pages) | Publish a static plugin with no backend actions | GitHub Pages site |
 
-### Configure Vite for the deployment path
+### Configure HTML caching and asset CORS
 
-Most plugins use the project-site address above. GitHub Pages serves that site below its repository
-name, so update `vite.config.ts` to make scripts, styles, and images use `/PLUGIN_NAME/`. Vite's
-default build output remains `dist/`.
+On hosts that let you configure response headers, serve every plugin HTML page with
+`Cache-Control: no-cache`. This tells browsers and shared caches to revalidate HTML before
+reusing it, so a new navigation picks up the asset URLs from the current deployment. Apply
+this policy at the public URL in `plugin.json` and any cache in front of the origin.
+Fingerprinted JavaScript and CSS keep their normal cache policy.
+See [Vite's guidance on load errors after deploying](https://vite.dev/guide/build.html#load-error-handling).
+
+For OWOX-hosted plugins and Cloudflare Workers, use this `void.config.ts`. The HTML rule covers
+the scaffold's root page. The asset rule lets the plugin iframe load bundled assets.
 
 ```ts
-import { defineConfig } from 'vite';
-import react from '@vitejs/plugin-react';
+import { defineConfig } from 'void/config';
 
 export default defineConfig({
-  base: '/PLUGIN_NAME/',
-  plugins: [react()],
+  output: 'server',
+  routing: {
+    typedRoutes: true,
+    headers: {
+      '/': ['Cache-Control: no-cache'],
+      '/assets/*': ['Access-Control-Allow-Origin: *'],
+    },
+  },
 });
 ```
 
-Replace `PLUGIN_NAME` with the exact repository name, then verify that `npm run build` creates
-`dist/index.html`.
+Apply the cache rule to any other HTML routes. Add CORS rules for any other asset paths that
+need them, such as fonts.
+See [Void's custom header rules](https://void.cloud/guide/edge/headers).
 
-Use `base: '/'` instead when the plugin is served from the domain root: an `OWNER.github.io`
-user or organization site, or a custom domain deployed at its root. For example:
+For Node.js, keep the HTML cache rule in `void.config.ts` and set asset CORS in the
+[Node.js entry point](#deploy-to-google-cloud-run).
 
-```ts
-export default defineConfig({
-  base: '/',
-  plugins: [react()],
+See [Security and trust model](#security-and-trust-model) for the iframe's asset and embedding rules.
+
+### Deploy an OWOX-hosted plugin
+
+OWOX-hosted plugins are in **private preview**. OWOX runs Void Platform at
+[`owox.app`](https://owox.app). Use the Void CLI to connect, manage your project, and deploy.
+OWOX Data Marts must be able to reach the deployed page and `/owox` without a separate sign-in.
+
+Use the [shared header configuration](#configure-html-caching-and-asset-cors) in `void.config.ts`.
+For backend actions, use `createBackend` from `@owox/plugin-sdk/server` in
+[`routes/owox.ts`](#write-the-backend).
+
+#### Request a preview invitation
+
+Open the support chat in [OWOX Data Marts](https://app.owox.com/) and ask for an invitation to
+the private preview for OWOX-hosted plugins. Include the email address you’ll use to sign in
+and a brief description of the plugin you plan to build.
+Once invited, use that email address when `void connect` opens the browser to sign in.
+
+#### Create or link a public Void project
+
+Run in the plugin repository after installing its dependencies.
+
+```bash
+npx void connect https://owox.app
+npx void project link
+```
+
+Choose **Create new project** and enter a slug, or select an existing project owned by your
+team. To link an existing project by slug, use
+`npx void project link PLUGIN_SLUG`. Confirm that the project's app hostname is
+public. A project owner or admin can check or change this with
+`npx void project zero-trust status` or `npx void project zero-trust public`. Use the project's
+public URL, typically `https://PLUGIN_SLUG.owox.app/`, in `delivery.url`.
+
+#### Store a project deploy token in GitHub Actions
+
+Run this with the project owner's Void login and an authenticated `gh` account authorized to
+set repository Actions secrets. Replace `PLUGIN_SLUG` and `OWNER/PLUGIN_NAME`. An agent can
+run the same block after you complete any interactive sign-in. The block gives the token to
+`gh` over standard input and reports only the secret name.
+
+```bash
+(
+  set +x
+  set -e
+  set -o pipefail
+  export VOID_API_URL=https://owox.app
+  project=PLUGIN_SLUG
+  repo=OWNER/PLUGIN_NAME
+
+  token=$(
+    npx void project token create --name github-actions \
+      --project "$project" --expires-in 90 --json |
+      jq -er 'select(.apiUrl == "https://owox.app") | .token | strings | select(length > 0)'
+  )
+  printf '%s' "$token" | gh secret set VOID_TOKEN --app actions --repo "$repo"
+  unset token
+  gh secret list --app actions --repo "$repo" --json name --jq '.[] | select(.name == "VOID_TOKEN") | .name'
+)
+```
+
+This requires `jq` and a shell that supports `pipefail`, such as Bash or Zsh.
+The deploy token is scoped to one project and expires within 90 days. Use
+`npx void project token list --project PLUGIN_SLUG` to check its expiry. To rotate it,
+replace `create --name github-actions` with `renew CREDENTIAL_ID` in the same block.
+Renewal revokes the previous token, so update the Actions secret in the same operation.
+See [Void project deploy credentials](https://void.cloud/reference/cli/project#void-project-token-create-list-renew-revoke).
+
+#### Deploy from GitHub Actions
+
+Create `.github/workflows/deploy.yml` and replace `PLUGIN_SLUG`. Use the same supported Node.js
+version locally and in CI. Every push to `main` deploys the page and its routes together.
+The Void CLI runs the plugin build as part of deployment.
+In CI, `--no-login` skips browser sign-in. The deploy step authenticates with `VOID_TOKEN`.
+
+```yaml
+name: Deploy to owox.app
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: deploy-owox-app
+  queue: max
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      VOID_API_URL: https://owox.app
+      VOID_PROJECT: PLUGIN_SLUG
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v6
+        with:
+          node-version: '24.22.2'
+          cache: npm
+      - run: npm ci
+      - run: npm run lint --if-present
+      - run: npm run typecheck --if-present
+      - run: npm test --if-present
+      - name: Connect to Void
+        run: npx void connect "$VOID_API_URL" --no-login
+      - name: Deploy the plugin
+        run: npx void deploy --platform void --project "$VOID_PROJECT"
+        env:
+          VOID_TOKEN: ${{ secrets.VOID_TOKEN }}
+```
+
+After pushing, use `gh run list --workflow deploy.yml --limit 1` and
+`gh run watch RUN_ID --exit-status`. To retry a failed production deployment,
+rerun the job in GitHub Actions.
+
+### Deploy to Cloudflare Workers
+
+Use Void's default Cloudflare target. Add `cloudflare: { name: 'acme-docs', workers_dev: true }`
+to `void.config.ts`, replacing `acme-docs` with your Worker name. The workflow uses a
+`workers.dev` hostname. Enable a Workers subdomain in the account before deploying.
+Use the [shared header configuration](#configure-html-caching-and-asset-cors) in `void.config.ts`.
+
+#### Configure GitHub Actions for Cloudflare Workers
+
+Create a scoped Cloudflare API token with **Workers Scripts: Edit** for the deployment account.
+Give it access to any additional resources your app actually uses. Save it as the repository's
+`CLOUDFLARE_API_TOKEN` Actions secret. Add `CLOUDFLARE_ACCOUNT_ID` and `CLOUDFLARE_WORKERS_SUBDOMAIN`
+as repository variables. Use the account's Workers subdomain for the latter, such as `my-team`.
+See [Void's Cloudflare CI requirements](https://void.cloud/integrations/cloudflare#deploying-from-ci).
+
+Create `.github/workflows/deploy-workers.yml`. Void runs the Vite+ build and deploys the page,
+assets, and routes to a single Worker.
+
+```yaml
+name: Deploy plugin to Cloudflare Workers
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: deploy-cloudflare-workers
+  queue: max
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v6
+        with:
+          node-version: '24.22.2'
+          cache: npm
+      - run: npm ci
+      - run: npm run lint --if-present
+      - run: npm run typecheck --if-present
+      - run: npm test --if-present
+      - name: Build and deploy with Void
+        run: npx void deploy --platform cloudflare
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ vars.CLOUDFLARE_ACCOUNT_ID }}
+          CLOUDFLARE_WORKERS_SUBDOMAIN: ${{ vars.CLOUDFLARE_WORKERS_SUBDOMAIN }}
+```
+
+Use the public Worker URL printed in the deployment log as `delivery.url`. Keep `backend.url`
+relative if the plugin declares actions.
+
+### Deploy to Google Cloud Run
+
+Set `target: 'node'` in `void.config.ts` and import the action handler's `createBackend` from
+`@owox/plugin-sdk/server/node`. Keep the page and `routes/owox.ts` in the same Void project.
+
+```bash
+npm install @hono/node-server
+```
+
+Void's Node build contains the app and routes in `dist/ssr` and the assets in `dist/client`.
+Use the [HTML cache rule](#configure-html-caching-and-asset-cors) in `void.config.ts`.
+Void's Node.js static file middleware serves bundled assets before the route header rules
+run. Create `server.mjs` at the repository root to add the CORS header that the iframe
+needs for those files. Include any fonts or other assets that need CORS outside `/assets/`
+in the path check.
+
+```js
+import { serve } from '@hono/node-server';
+import app from './dist/ssr/app.js';
+
+serve({
+  port: Number(process.env.PORT ?? 8080),
+  async fetch(request, env) {
+    const response = await app.fetch(request, env);
+    if (!new URL(request.url).pathname.startsWith('/assets/')) {
+      return response;
+    }
+    const asset = new Response(response.body, response);
+    asset.headers.set('Access-Control-Allow-Origin', '*');
+    return asset;
+  },
 });
 ```
 
-### Add the GitHub Actions workflow
+Run `npm run build` and `PORT=8080 node server.mjs` to test the built app locally.
+Deploy it using a `Dockerfile` at the repository root.
+
+```dockerfile
+FROM node:24.22.2-bookworm-slim
+WORKDIR /app
+COPY . .
+RUN npm ci && npm run build
+ENV NODE_ENV=production
+CMD ["node", "server.mjs"]
+```
+
+In both `.gcloudignore` and `.dockerignore`, exclude `node_modules/`, `dist/`, `.git/`,
+`.void/`, `.cloudflare/`, `.void-wrangler.jsonc`, `.env`, `.env.*`, `.dev.vars*`, and
+`gha-creds-*.json`.
+Add `gha-creds-*.json` to `.gitignore` too. The Google authentication action writes a
+temporary credentials file in the workspace.
+
+#### Configure GitHub Actions for Cloud Run
+
+Enable the Cloud Run, Cloud Build, and Artifact Registry APIs. Set up
+[Workload Identity Federation](https://docs.github.com/en/actions/how-tos/secure-your-work/security-harden-deployments/oidc-in-google-cloud-platform)
+for this repository and restrict it to the deployment branch. Grant the federated service account
+the [permissions for deployment from source](https://docs.cloud.google.com/run/docs/deploying-source-code#permissions_required_to_deploy).
+Set `GOOGLE_CLOUD_PROJECT`, `GOOGLE_WIF_PROVIDER`, and `GOOGLE_DEPLOY_SERVICE_ACCOUNT` as repository
+variables.
+
+Create `.github/workflows/deploy-cloud-run.yml`. Replace the example service name and region.
+Cloud Build uses the `Dockerfile` to run the Void build and deliver the page and routes in one
+container.
+
+```yaml
+name: Deploy plugin to Google Cloud Run
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  id-token: write
+
+concurrency:
+  group: deploy-cloud-run
+  queue: max
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v6
+        with:
+          node-version: '24.22.2'
+          cache: npm
+      - run: npm ci
+      - run: npm run lint --if-present
+      - run: npm run typecheck --if-present
+      - run: npm test --if-present
+      - uses: google-github-actions/auth@v3
+        with:
+          workload_identity_provider: ${{ vars.GOOGLE_WIF_PROVIDER }}
+          service_account: ${{ vars.GOOGLE_DEPLOY_SERVICE_ACCOUNT }}
+      - name: Build and deploy the container
+        uses: google-github-actions/deploy-cloudrun@v3
+        with:
+          project_id: ${{ vars.GOOGLE_CLOUD_PROJECT }}
+          service: acme-docs
+          region: europe-west1
+          source: .
+```
+
+After the first deployment, [allow public invocation](https://docs.cloud.google.com/run/docs/authenticating/public)
+on the service once. The iframe and the OWOX action caller send no Google identity token.
+`createBackend` still verifies OWOX execution tokens for `POST /owox`. The default Cloud Run
+request timeout of 300 seconds covers the largest action `timeoutSeconds`. Set `delivery.url`
+to the service's public HTTPS URL and keep `backend.url` at `/owox` if the plugin declares actions.
+
+### Deploy with GitHub Pages
+
+Use GitHub Pages for a plugin without server routes or backend actions. Deploy at the
+root of a custom domain or of an `OWNER.github.io` user or organization site. Prerendered
+Void pages emit root-relative asset URLs, so a project site under `/PLUGIN_NAME/` needs
+a [custom domain](https://docs.github.com/en/pages/configuring-a-custom-domain-for-your-github-pages-site)
+to use this build. Publishing Pages from a private repository requires an eligible GitHub plan.
+
+GitHub Pages does not let you configure response headers, so you cannot set
+`Cache-Control: no-cache` on HTML. After a new deployment, the plugin may be temporarily
+unavailable if cached HTML points to JavaScript or CSS files that the new deployment no longer serves.
+See [GitHub's note on Pages response headers](https://github.com/orgs/community/discussions/60087).
+
+Use the same Void and Vite+ scaffold. In `void.config.ts`, set `output: 'static'` to
+prerender the pages and add `routing.trailingSlash: true` for directory indexes.
+Keep the app free of server routes and server-side loaders that require a live server.
+Keep the Void and React plugins and the default root `base` in `vite.config.ts`.
+
+Run `npm run build` and check for `dist/client/index.html`. Publish `dist/client`, including the
+generated assets. Pages serves the CORS headers needed by the plugin iframe.
+
+#### Add the GitHub Actions workflow
 
 Create `.github/workflows/deploy-pages.yml`:
 
@@ -1405,10 +1734,10 @@ jobs:
   build:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v6
+      - uses: actions/setup-node@v6
         with:
-          node-version: 22
+          node-version: '24.22.2'
           cache: npm
       - run: npm ci
       - run: npm run lint --if-present
@@ -1418,7 +1747,7 @@ jobs:
       - uses: actions/configure-pages@v5
       - uses: actions/upload-pages-artifact@v3
         with:
-          path: dist
+          path: dist/client
 
   deploy:
     needs: build
@@ -1431,7 +1760,7 @@ jobs:
         uses: actions/deploy-pages@v4
 ```
 
-### Enable and verify GitHub Pages
+#### Enable and verify GitHub Pages
 
 The GitHub CLI can ask GitHub to use the Actions workflow:
 
@@ -1451,9 +1780,30 @@ gh run list --workflow deploy-pages.yml --limit 1
 gh run watch RUN_ID --exit-status
 ```
 
-Replace `RUN_ID` with the value shown by the first command. Open the deployed address and confirm
-that it loads over HTTPS without a sign-in prompt. Put that exact address in `plugin.json`, commit
-and push the manifest change, and wait for the deployment again before creating a release.
+Replace `RUN_ID` with the value shown by the first command. Continue with [Verify your deployment](#verify-your-deployment).
+
+### Verify your deployment
+
+Check the deployed page over HTTPS with no credentials. Confirm that the response is
+`200` and serves HTML. A sign-in redirect means the page is private. If your host
+supports custom response headers, also confirm `Cache-Control: no-cache`.
+
+```bash
+curl -fsS -D - -o /dev/null -w 'HTTP status: %{http_code}\n' https://my-plugin.example.com/
+```
+
+Open the page in a browser and copy a bundled JavaScript URL from the Network tab. Replace
+`ASSET_URL` below with that full HTTPS URL. Confirm that the response is `200` and includes
+`Access-Control-Allow-Origin: *`. The `Origin: null` header matches requests from the plugin iframe.
+
+```bash
+curl -fsS -D - -o /dev/null -H 'Origin: null' 'ASSET_URL'
+```
+
+Put the exact page URL in `plugin.json`, push the
+manifest change, and wait for the deployment before creating a release. For a plugin with
+actions, confirm `/owox` uses the same origin and refuses a POST without an OWOX execution token.
+Test an authenticated action from the installed plugin.
 
 ## Create a release
 
@@ -1566,8 +1916,8 @@ appeared in, or left, this project. Events within the same second may appear in 
 ## Test the installed plugin
 
 Publish the first release to **Only me**, install it, and test it inside OWOX Data Marts. The
-frontend depends on the host iframe and the real `@owox/plugin-sdk` handshake, so a standalone
-local frontend is not a supported preview environment.
+page can run locally with `npm run dev` for UI work. Verify the real `@owox/plugin-sdk` handshake,
+sandbox behavior, and backend actions from the installed plugin.
 
 Exercise the key flows with the installing member's real access. Confirm loading, empty, error,
 and success states; light and dark themes; narrow and wide layouts; navigation; and every
@@ -1629,11 +1979,11 @@ and keep its release metadata aligned.
 
 If the plugin cannot be published or opens as a blank page, verify that:
 
-- `npm run build` succeeds and creates `dist/index.html`;
-- the GitHub Actions workflow uploads `dist`;
-- Vite's `base` exactly matches the deployed path: `/PLUGIN_NAME/` for a project site, or `/` for
-  a user or organization site or custom-domain root deployment;
-- the Pages deployment succeeds and the HTTPS address opens without signing in;
+- `npm run build` succeeds with Void and Vite+ for the chosen host;
+- the deployed page and `/owox`, if declared, use the same public HTTPS origin;
+- a GitHub Pages site serves `dist/client` at the domain root;
+- an OWOX-hosted plugin deploys with an active `VOID_TOKEN` scoped to its Void project;
+- the deployment succeeds and the HTTPS address opens without signing in;
 - `plugin.json` is at the repository root and contains that exact delivery address;
 - the GitHub Release is published, is not a prerelease, and has an eligible version tag;
 - scripts, fonts, and fetched assets are served with `Access-Control-Allow-Origin: *`;
@@ -1654,8 +2004,9 @@ again on the current version.
 
 Before sharing the plugin with a project, confirm that:
 
-- the repository contains `AGENTS.md`, source files, `plugin.json`, and the Pages workflow, or
-  `wrangler.toml` and `worker/` when one Worker serves the page and the actions;
+- the repository contains `AGENTS.md`, `plugin.json`, both toolchain configuration files, the
+  npm lockfile, and the deployment workflow or configuration for the chosen host;
+- one deployment serves the page, its assets, and any `/owox` endpoint together;
 - build, lint, type checking, and tests pass;
 - the installed personal test in OWOX Data Marts covers narrow and wide layouts, light and dark
   themes, and understandable loading, empty, error, and success states;
@@ -1676,7 +2027,8 @@ Before sharing the plugin with a project, confirm that:
 - [TypeScript/JavaScript API client](../api/api-client.md)
 - [API Support Matrix](../api/coverage.md)
 - [owox-ctl](../api/owox-ctl.md)
-- [Vite deployment guide](https://vite.dev/guide/static-deploy.html)
+- [Void deployment guide](https://void.cloud/guide/deployment)
+- [Vite+](https://viteplus.dev/guide/)
 - [GitHub Pages custom workflows](https://docs.github.com/en/pages/getting-started-with-github-pages/using-custom-workflows-with-github-pages)
 - [GitHub Pages API](https://docs.github.com/en/rest/pages/pages?apiVersion=2022-11-28#create-a-github-pages-site)
 - [GitHub Releases](https://docs.github.com/en/repositories/releasing-projects-on-github/managing-releases-in-a-repository)
