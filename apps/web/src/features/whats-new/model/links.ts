@@ -1,9 +1,9 @@
-const CHANGELOG_URL = 'https://docs.owox.com/docs/changelog/';
+const CHANGELOG_URL = 'https://www.owox.com/product/changelog';
 const CHANGELOG_UTM = 'utm_source=owox-data-marts&utm_medium=ui&utm_campaign=whats-new-popover';
 
-/** The release's section of the public changelog, e.g. `#0410` for 0.41.0. */
+/** The release's section of the public changelog, e.g. `#v0.41.0` for 0.41.0. */
 export function changelogUrl(version: string): string {
-  return `${CHANGELOG_URL}?${CHANGELOG_UTM}#${version.replace(/\./g, '')}`;
+  return `${CHANGELOG_URL}?${CHANGELOG_UTM}#v${version}`;
 }
 
 /** The release video, started from a chapter when one is picked. */

@@ -11,7 +11,7 @@ export function helpMenuItems(
       type: 'menu-item',
       title: 'What´s new',
       icon: Rocket,
-      href: 'https://docs.owox.com/docs/changelog/?utm_source=community_edition&utm_medium=organic&utm_campaign=support_menu_dropdown&utm_content=whats_new',
+      href: 'https://www.owox.com/product/changelog?utm_source=community_edition&utm_medium=organic&utm_campaign=support_menu_dropdown&utm_content=whats_new',
       visible: true,
     },
     { type: 'separator' },
