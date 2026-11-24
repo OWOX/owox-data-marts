@@ -21,8 +21,10 @@ describe('scheduledDeletion', () => {
     });
   });
 
-  it('never deletes PAID', () => {
-    expect(scheduledDeletion(base, ProjectPlanType.PAID, days, now)).toBeNull();
+  it('dates PAID from the last activity', () => {
+    expect(
+      scheduledDeletion({ ...base, lastActivityAt: ago(3) }, ProjectPlanType.PAID, days, now)
+    ).toEqual({ reason: 'INACTIVE', date: new Date(ago(3).getTime() + 20 * DAY) });
   });
 
   it('restarts the inactivity period for FREE that just left NOT_PAID', () => {

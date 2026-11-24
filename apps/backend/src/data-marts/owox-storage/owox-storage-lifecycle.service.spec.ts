@@ -137,12 +137,26 @@ describe('OwoxStorageLifecycleService.runDaily', () => {
     expect(engine.deprovision).not.toHaveBeenCalled();
   });
 
-  it('never deletes PAID for inactivity and restarts the Free countdown each day', async () => {
-    const r = record('a', { lastActivityAt: ago(90) });
+  it('deletes a PAID storage whose last job is 31 days old', async () => {
+    const r = record('a', { lastActivityAt: ago(31) });
     const { service, engine, managed } = setup([r], { 'p-a': ProjectPlanType.PAID });
     await service.runDaily(now);
+    expect(engine.deprovision).toHaveBeenCalled();
+    expect(managed.markDeleting.mock.calls).toEqual([['a', now, r.lastActivityAt]]);
+    expect(managed.updateActive).not.toHaveBeenCalled();
+    expect(logs).toContain('OWOX Storage ds_a deleted: INACTIVE');
+  });
+
+  it('keeps a PAID storage that ran a job yesterday', async () => {
+    const r = record('a', { lastActivityAt: ago(31) });
+    const { service, engine, managed } = setup(
+      [r],
+      { 'p-a': ProjectPlanType.PAID },
+      { 'a@sa.example': ago(1) }
+    );
+    await service.runDaily(now);
+    expect(managed.updateActive.mock.calls).toEqual([['a', { lastActivityAt: ago(1) }]]);
     expect(engine.deprovision).not.toHaveBeenCalled();
-    expect(managed.updateActive.mock.calls).toEqual([['a', { lastActivityAt: now }]]);
   });
 
   it('leaves a storage alone when its plan cannot be read', async () => {

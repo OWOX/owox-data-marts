@@ -14,7 +14,6 @@ export function scheduledDeletion(
   days: Pick<OwoxStorageSettings, 'notPaidDeletionDays' | 'inactivityDeletionDays'>,
   now: Date
 ): { reason: OwoxStorageDeletionReason; date: Date } | null {
-  if (plan === ProjectPlanType.PAID) return null;
   if (plan === ProjectPlanType.NOT_PAID) {
     return {
       reason: 'NOT_PAID',

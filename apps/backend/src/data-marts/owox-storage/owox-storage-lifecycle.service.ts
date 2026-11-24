@@ -101,12 +101,12 @@ export class OwoxStorageLifecycleService {
     if (plan === ProjectPlanType.NOT_PAID) {
       if (!record.notPaidSince) changes.notPaidSince = now;
       else deletable = true;
-    } else if (record.notPaidSince || plan === ProjectPlanType.PAID) {
-      // Leaving NOT_PAID or PAID gives a FREE project its full inactivity period.
-      if (record.notPaidSince) changes.notPaidSince = null;
+    } else if (record.notPaidSince) {
+      // Leaving NOT_PAID gives the project its full inactivity period.
+      changes.notPaidSince = null;
       changes.lastActivityAt = now;
     } else {
-      deletable = plan === ProjectPlanType.FREE && jobTimes !== null;
+      deletable = jobTimes !== null;
     }
 
     const due = deletable ? scheduledDeletion({ ...record, ...changes }, plan, days, now) : null;
