@@ -36,10 +36,10 @@ vi.mock('../idp/hooks/useAuthState', () => ({
   }),
 }));
 
-function renderProfile(initialPath = '/ui/me/profile') {
+function renderProfile(initialPath = '/ui/me/profile', deletedProjectId?: string) {
   render(
     <QueryClientProvider client={new QueryClient()}>
-      <MemoryRouter initialEntries={[initialPath]}>
+      <MemoryRouter initialEntries={[{ pathname: initialPath, state: { deletedProjectId } }]}>
         <Routes>
           <Route path='/ui/me/profile' element={<MyAccountPage />} />
           <Route path='/ui/me/projects' element={<MyAccountPage section='projects' />} />
@@ -144,6 +144,30 @@ describe('My profile', () => {
     });
     expect(table.queryByText('Marketing')).not.toBeInTheDocument();
     expect(table.getByText('Sales analytics')).toBeVisible();
+  });
+
+  it('shows the projects table after deletion without a link back to the deleted project', async () => {
+    enableCloud();
+    renderProfile('/ui/me/projects', 'project-1');
+
+    expect(await screen.findByRole('table', { name: 'My projects' })).toBeVisible();
+    expect(screen.queryByRole('link', { name: /Back to/ })).not.toBeInTheDocument();
+  });
+
+  it('shows Projects with Cloud project management enabled and no profile API origin', async () => {
+    useFlags.mockReturnValue({
+      callState: RequestStatus.LOADED,
+      flags: {
+        IDP_PROVIDER: 'owox-better-auth',
+        CLOUD_PROJECT_API_ORIGIN: 'https://ib.example.test',
+      },
+    });
+    renderProfile('/ui/me/projects');
+
+    expect(await screen.findByRole('table', { name: 'My projects' })).toBeVisible();
+    expect(screen.queryByRole('link', { name: 'Overview' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('link', { name: 'Email preferences' })).not.toBeInTheDocument();
+    expect(request).not.toHaveBeenCalled();
   });
 
   it('saves a personal email preference without project roles', async () => {

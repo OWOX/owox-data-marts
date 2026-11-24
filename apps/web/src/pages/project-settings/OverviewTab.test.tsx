@@ -1,6 +1,6 @@
 import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { MemoryRouter } from 'react-router';
+import { MemoryRouter, Route, Routes } from 'react-router';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { ProjectsContextType } from '../../features/idp/context/ProjectContext.types';
 import type { User } from '../../features/idp/types';
@@ -280,6 +280,7 @@ describe('OverviewTab project status', () => {
 
     expect(await screen.findByText('Removing')).toBeVisible();
     expect(screen.queryByRole('button', { name: 'Delete project' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('heading', { name: 'My projects' })).not.toBeInTheDocument();
     expect(projectManagement.signIn).not.toHaveBeenCalled();
   });
 
@@ -300,67 +301,27 @@ describe('OverviewTab project status', () => {
     expect(screen.queryByRole('button', { name: 'Delete project' })).not.toBeInTheDocument();
   });
 
-  it('opens the chosen remaining project through the existing sign-in flow', async () => {
-    enableCloudManagement();
-    const context = projectContext();
-    context.projects.push(
-      { id: 'next-project', title: 'Analytics', status: 'active', roles: ['viewer'] },
-      { id: 'old-project', title: 'Removed project', status: 'removed', roles: ['admin'] }
-    );
-    projectsContext.value = context;
-    projectManagement.delete.mockResolvedValue('removed');
-    renderOverview();
-    confirmDeletion();
+  it.each(['other projects', 'only the deleted project'])(
+    'opens My profile Projects after deletion with %s',
+    async scenario => {
+      enableCloudManagement();
+      if (scenario === 'other projects') {
+        projectsContext.value.projects.push({
+          id: 'next-project',
+          title: 'Analytics',
+          status: 'active',
+          roles: ['viewer'],
+        });
+      }
+      projectManagement.delete.mockResolvedValue('removed');
+      renderOverview();
+      confirmDeletion();
 
-    expect(await screen.findByText('Project deleted')).toBeVisible();
-    expect(screen.queryByRole('button', { name: 'Removed project' })).not.toBeInTheDocument();
-    fireEvent.click(screen.getByRole('button', { name: 'Analytics' }));
-
-    expect(projectManagement.signIn).toHaveBeenCalledWith({
-      projectId: 'next-project',
-      redirect: '/ui/next-project/data-marts',
-    });
-  });
-
-  it('lets the user search and select from a long list after project deletion', async () => {
-    enableCloudManagement();
-    const context = projectContext();
-    for (let number = 1; number <= 24; number++) {
-      context.projects.push({
-        id: `remaining-${String(number)}`,
-        title: `Project ${String(number)}`,
-        status: 'active',
-        roles: ['viewer'],
-      });
+      expect(await screen.findByRole('heading', { name: 'My projects' })).toBeVisible();
+      expect(projectsContext.value.loadProjects).toHaveBeenCalledWith({ force: true });
+      expect(projectManagement.signIn).not.toHaveBeenCalled();
     }
-    projectsContext.value = context;
-    projectManagement.delete.mockResolvedValue('removed');
-    renderOverview();
-    confirmDeletion();
-
-    fireEvent.click(await screen.findByRole('combobox', { name: 'Select a project' }));
-    const search = screen.getByPlaceholderText('Search...');
-    fireEvent.change(search, { target: { value: 'unmatched project' } });
-    expect(await screen.findByText('No projects found.')).toBeVisible();
-    fireEvent.change(search, { target: { value: 'project 24' } });
-    expect(screen.queryByRole('option', { name: 'Project 1' })).not.toBeInTheDocument();
-    fireEvent.click(await screen.findByRole('option', { name: 'Project 24' }));
-
-    expect(projectManagement.signIn).toHaveBeenCalledWith({
-      projectId: 'remaining-24',
-      redirect: '/ui/remaining-24/data-marts',
-    });
-  });
-
-  it('continues without a target project when the last project is deleted', async () => {
-    enableCloudManagement();
-    projectManagement.delete.mockResolvedValue('removed');
-    renderOverview();
-    confirmDeletion();
-
-    fireEvent.click(await screen.findByRole('button', { name: 'Continue' }));
-    expect(projectManagement.signIn).toHaveBeenCalledWith({ redirect: '/' });
-  });
+  );
 
   it('does not render a client-built MCP server URL when auth context has no URL', () => {
     currentUser.value = {
@@ -450,7 +411,10 @@ function renderOverview() {
   return render(
     <QueryClientProvider client={new QueryClient()}>
       <MemoryRouter>
-        <OverviewTab />
+        <Routes>
+          <Route path='/' element={<OverviewTab />} />
+          <Route path='/ui/me/projects' element={<h1>My projects</h1>} />
+        </Routes>
       </MemoryRouter>
     </QueryClientProvider>
   );

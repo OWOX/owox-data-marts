@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
-import { Link } from 'react-router';
+import { Link, Navigate } from 'react-router';
+import { toast } from 'sonner';
 import {
   BookOpenIcon,
   ChartNoAxesColumn,
@@ -17,6 +18,7 @@ import {
   CollapsibleCardHeaderTitle,
 } from '../../shared/components/CollapsibleCard';
 import { useUser } from '../../features/idp/hooks/useAuthState';
+import { MY_ACCOUNT_PROJECTS_PATH } from '../../features/idp/utils/my-account-path';
 import { useFlags } from '../../app/store/hooks';
 import { useProjectRoute } from '../../shared/hooks';
 import { checkVisible } from '../../utils/check-visible';
@@ -37,7 +39,6 @@ import { InlineEditDescription } from '../../shared/components/InlineEditDescrip
 import { Skeleton } from '@owox/ui/components/skeleton';
 import { ProjectNameEditor } from '../../features/project-settings/management/ProjectNameEditor';
 import { ProjectDeletionCard } from '../../features/project-settings/management/ProjectDeletionCard';
-import { ProjectDeleted } from '../../features/project-settings/management/ProjectDeleted';
 import { getCloudProjectApiOrigin } from '../../features/project-settings/management/project-management.service';
 import { StatusLabel, StatusTypeEnum } from '../../shared/components/StatusLabel';
 
@@ -173,6 +174,7 @@ export function OverviewTab() {
   function onProjectDeletion(status: 'removed' | 'removing') {
     setDeletion({ sessionKey, status });
     void loadProjects({ force: true });
+    if (status === 'removed') toast.success('Project deleted');
   }
 
   const adminCount = members.filter(m => m.role === 'admin').length;
@@ -187,7 +189,11 @@ export function OverviewTab() {
     .join(' · ');
   const mcpServerUrl = user?.mcpServerUrl ?? '';
 
-  if (origin && projectStatus === 'removed') return <ProjectDeleted projectId={projectId} />;
+  if (origin && projectStatus === 'removed') {
+    return (
+      <Navigate to={MY_ACCOUNT_PROJECTS_PATH} replace state={{ deletedProjectId: projectId }} />
+    );
+  }
 
   return (
     <div className='flex flex-col gap-4'>
