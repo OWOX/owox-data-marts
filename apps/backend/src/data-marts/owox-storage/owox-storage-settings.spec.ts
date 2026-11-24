@@ -15,7 +15,6 @@ describe('readOwoxStorageSettings', () => {
   it('reads a full configuration with defaults', () => {
     expect(readOwoxStorageSettings(ENABLED)).toEqual({
       engine: 'bigquery',
-      queryLimitBytesPerDay: 100 * 2 ** 30,
       storageLimitBytes: 100 * 2 ** 30,
       notPaidDeletionDays: 30,
       inactivityDeletionDays: 30,
@@ -25,13 +24,6 @@ describe('readOwoxStorageSettings', () => {
   describe('limits', () => {
     const base = ENABLED;
 
-    it('reads OWOX_STORAGE_QUERY_LIMIT_GIB_PER_DAY', () => {
-      expect(
-        readOwoxStorageSettings({ ...base, OWOX_STORAGE_QUERY_LIMIT_GIB_PER_DAY: '0.5' })
-          ?.queryLimitBytesPerDay
-      ).toBe(0.5 * 2 ** 30);
-    });
-
     it('reads OWOX_STORAGE_STORAGE_LIMIT_GIB', () => {
       expect(
         readOwoxStorageSettings({ ...base, OWOX_STORAGE_STORAGE_LIMIT_GIB: '250' })
@@ -40,10 +32,7 @@ describe('readOwoxStorageSettings', () => {
     });
 
     it('throws on a non-positive limit', () => {
-      for (const name of [
-        'OWOX_STORAGE_QUERY_LIMIT_GIB_PER_DAY',
-        'OWOX_STORAGE_STORAGE_LIMIT_GIB',
-      ]) {
+      for (const name of ['OWOX_STORAGE_STORAGE_LIMIT_GIB']) {
         for (const value of ['0', '-1']) {
           expect(() => readOwoxStorageSettings({ ...base, [name]: value })).toThrow(
             `${name} must be a positive number.`

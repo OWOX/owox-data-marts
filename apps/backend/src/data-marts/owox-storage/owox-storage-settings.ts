@@ -3,7 +3,6 @@ export const OWOX_STORAGE_LOCATIONS: readonly OwoxStorageLocation[] = ['US', 'EU
 
 export interface OwoxStorageSettings {
   engine: 'bigquery';
-  queryLimitBytesPerDay: number;
   storageLimitBytes: number;
   notPaidDeletionDays: number;
   inactivityDeletionDays: number;
@@ -62,7 +61,6 @@ export function readOwoxStorageSettings(env: Record<string, unknown>): OwoxStora
 
   return {
     engine,
-    queryLimitBytesPerDay: limitGib('OWOX_STORAGE_QUERY_LIMIT_GIB_PER_DAY', 100) * GIB,
     storageLimitBytes: limitGib('OWOX_STORAGE_STORAGE_LIMIT_GIB', 100) * GIB,
     notPaidDeletionDays: days('OWOX_STORAGE_NOT_PAID_DELETION_DAYS'),
     inactivityDeletionDays: days('OWOX_STORAGE_INACTIVITY_DELETION_DAYS'),

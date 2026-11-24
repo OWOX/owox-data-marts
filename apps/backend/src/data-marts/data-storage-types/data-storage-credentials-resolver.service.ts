@@ -1,5 +1,5 @@
 import { BusinessViolationException } from '../../common/exceptions/business-violation.exception';
-import { Inject, Injectable } from '@nestjs/common';
+import { Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
@@ -27,10 +27,6 @@ import { DataStorageType } from './enums/data-storage-type.enum';
 import { resolveDuckDbDatabasePath } from './duckdb/utils/duckdb-path.utils';
 import { ManagedStorageService } from '../owox-storage/managed-storage.service';
 import { OwoxStorageIdentity } from '../owox-storage/owox-storage-identity.service';
-import {
-  OWOX_STORAGE_SCAN_BUDGET,
-  type OwoxStorageScanBudgetFactory,
-} from '../owox-storage/owox-storage-scan-budget.token';
 
 @Injectable()
 export class DataStorageCredentialsResolver {
@@ -41,9 +37,7 @@ export class DataStorageCredentialsResolver {
     private readonly legacy: LegacyStorageCredentialReader,
     private readonly configService: ConfigService,
     private readonly managedStorages: ManagedStorageService,
-    private readonly identity: OwoxStorageIdentity,
-    @Inject(OWOX_STORAGE_SCAN_BUDGET)
-    private readonly scanBudgets: OwoxStorageScanBudgetFactory
+    private readonly identity: OwoxStorageIdentity
   ) {}
 
   /** True when the Storage has a bound Credential or an old credentials row. */
@@ -109,7 +103,6 @@ export class DataStorageCredentialsResolver {
         serviceAccountEmail: managed.serviceAccountEmail,
         datasetId: managed.datasetId,
         internalDatasetId: managed.internalDatasetId,
-        scanBudget: this.scanBudgets.forStorage(managed),
       } satisfies BigQueryManagedCredentials;
     }
     const bound = await this.storageCredentials.resolveForStorage(storage);

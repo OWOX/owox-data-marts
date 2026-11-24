@@ -21,7 +21,6 @@ describe('DataStorageCredentialsResolver (managed storage)', () => {
   const identity = {
     impersonate: jest.fn(async (email: string, _generation?: string) => ({ email })),
   };
-  const budget = { remainingBytes: jest.fn() };
   const binding = { resolveForStorage: jest.fn(), findBoundStorageIds: jest.fn() };
   const legacy = { resolve: jest.fn(), hasOldKey: jest.fn() };
   const resolver = new DataStorageCredentialsResolver(
@@ -30,8 +29,7 @@ describe('DataStorageCredentialsResolver (managed storage)', () => {
     legacy as never,
     {} as never,
     managed as never,
-    identity as never,
-    { forStorage: jest.fn().mockReturnValue(budget) }
+    identity as never
   );
 
   beforeEach(() => jest.clearAllMocks());
@@ -43,8 +41,8 @@ describe('DataStorageCredentialsResolver (managed storage)', () => {
       serviceAccountEmail: 'a@x.iam',
       datasetId: 'ds_a',
       internalDatasetId: 'ds_a_internal',
-      scanBudget: budget,
     });
+    expect(result).not.toHaveProperty('scanBudget');
     expect(result).toHaveProperty('authClient', await identity.impersonate.mock.results[0].value);
     expect(identity.impersonate).toHaveBeenCalledWith('a@x.iam', '1700000000000');
     expect(binding.resolveForStorage).not.toHaveBeenCalled();

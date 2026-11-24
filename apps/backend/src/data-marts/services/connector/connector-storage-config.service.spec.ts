@@ -186,7 +186,6 @@ describe('ConnectorStorageConfigService', () => {
       serviceAccountEmail: 'owox-st-abc@p.iam.gserviceaccount.com',
       datasetId: 'owox_abc',
       internalDatasetId: 'owox_abc_internal',
-      scanBudget: { remainingBytes: jest.fn() },
     });
     const dm = {
       ...baseDataMart,

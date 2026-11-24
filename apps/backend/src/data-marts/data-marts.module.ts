@@ -139,12 +139,10 @@ import { OwoxStorageIdentity } from './owox-storage/owox-storage-identity.servic
 import { OwoxStorageProvisioningClient } from './owox-storage/engine/owox-storage-provisioning.client';
 import { BigQueryManagedStorageEngine } from './owox-storage/engine/bigquery-managed-storage.engine';
 import { MANAGED_STORAGE_ENGINE } from './owox-storage/engine/managed-storage-engine';
-import { OwoxStorageScanBudgetService } from './owox-storage/owox-storage-scan-budget.service';
 import { OwoxStoragePlanService } from './owox-storage/owox-storage-plan.service';
 import { OwoxStorageUsageService } from './owox-storage/owox-storage-usage.service';
 import { OwoxStorageLifecycleService } from './owox-storage/owox-storage-lifecycle.service';
 import { OwoxStorageLifecycleProcessor } from './system-triggers/processors/owox-storage-lifecycle.processor';
-import { OWOX_STORAGE_SCAN_BUDGET } from './owox-storage/owox-storage-scan-budget.token';
 import { DestinationOwner } from './entities/destination-owner.entity';
 import { ReportOwner } from './entities/report-owner.entity';
 import { DataStorage } from './entities/data-storage.entity';
@@ -719,8 +717,6 @@ import { McpCredentialsFacadeImpl } from './credentials/facades/mcp-credentials.
     OwoxStoragePlanService,
     OwoxStorageUsageService,
     OwoxStorageLifecycleService,
-    OwoxStorageScanBudgetService,
-    { provide: OWOX_STORAGE_SCAN_BUDGET, useExisting: OwoxStorageScanBudgetService },
     CredentialConsumerBindingFacadeImpl,
     {
       provide: CREDENTIAL_CONSUMER_BINDING_FACADE,

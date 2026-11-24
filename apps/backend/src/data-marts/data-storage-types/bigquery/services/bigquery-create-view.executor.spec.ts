@@ -306,7 +306,6 @@ describe('BigQueryCreateViewExecutor', () => {
       serviceAccountEmail: 'sa@p.iam.gserviceaccount.com',
       datasetId: 'owox_abc',
       internalDatasetId: 'owox_abc_internal',
-      scanBudget: {},
     } as unknown as DataStorageCredentials;
     const config: BigQueryConfig = { projectId: 'proj-abc', location: 'US' };
     const executeViewDdl = jest.fn();

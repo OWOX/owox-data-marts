@@ -6,8 +6,6 @@ import {
   BIGQUERY_MANAGED_TYPE,
   BIGQUERY_OAUTH_TYPE,
   BigQueryCredentials,
-  ScanBudget,
-  ScanReservation,
 } from '../schemas/bigquery-credentials.schema';
 import type { SqlParameter } from '../../utils/sql-clause-renderer';
 import {
@@ -22,9 +20,6 @@ import {
   OwoxStorageQueryLimitException,
   OwoxStorageStatementException,
 } from '../../../owox-storage/owox-storage.exceptions';
-
-// BigQuery bills at least 10 MB per query and per referenced table.
-const MIN_BILLED_BYTES = 10 * 2 ** 20;
 
 // Google words a refusal by the per-user or the project query-usage quota this way; rate and
 // concurrency limits share the reason but not the words.
@@ -69,8 +64,8 @@ export class BigQueryApiAdapter {
   private readonly logger = new Logger(BigQueryApiAdapter.name);
   private readonly bigQuery: BigQuery;
   private readonly authClient: JWT | OAuth2Client;
-  /** Set only for an OWOX Storage: its jobs run SELECT only, capped by today's scan budget. */
-  private readonly scanBudget?: ScanBudget;
+  /** An OWOX Storage runs SELECT only; Google's quotas cap its daily queries. */
+  private readonly owoxStorage: boolean;
   private location?: string;
 
   constructor(credentials: BigQueryCredentials, config: BigQueryConfig) {
@@ -89,9 +84,7 @@ export class BigQueryApiAdapter {
             });
 
     this.authClient = auth;
-    if (credentials.type === BIGQUERY_MANAGED_TYPE) {
-      this.scanBudget = credentials.scanBudget;
-    }
+    this.owoxStorage = credentials.type === BIGQUERY_MANAGED_TYPE;
     const shouldAutodetectLocation = config.location === BIGQUERY_AUTODETECT_LOCATION;
     this.bigQuery = new BigQuery({
       projectId: config.projectId,
@@ -133,8 +126,7 @@ export class BigQueryApiAdapter {
    * `signal` (client disconnect/cancel) cancels the running job immediately — the poll loop then
    * surfaces the cancellation as a thrown error. Unset = no cancellation hook.
    *
-   * On an OWOX Storage the query is dry-run first and refused unless it is a single SELECT, and its
-   * estimate is reserved from today's scan budget until the job ends.
+   * On an OWOX Storage the query is dry-run first and refused unless it is a single SELECT.
    */
   public async executeQuery(
     query: string,
@@ -142,39 +134,28 @@ export class BigQueryApiAdapter {
     jobTimeoutMs?: number,
     signal?: AbortSignal
   ): Promise<{ jobId: string }> {
-    let reservation: ScanReservation | undefined;
-    if (this.scanBudget) {
-      const { statementType, totalBytesProcessed, referencedTables } =
-        await this.executeDryRunQuery(query, params);
+    if (this.owoxStorage) {
+      const { statementType } = await this.executeDryRunQuery(query, params);
       if (statementType !== 'SELECT') throw new OwoxStorageStatementException(statementType);
-      reservation = await this.scanBudget.reserve(
-        totalBytesProcessed + MIN_BILLED_BYTES * Math.max(1, referencedTables.length)
-      );
     }
 
-    try {
-      const queryConfig: Query = {
-        query,
-        ...this.getLocationOption(),
-        ...(jobTimeoutMs !== undefined ? { jobTimeoutMs } : {}),
-        ...(reservation ? { maximumBytesBilled: String(reservation.maximumBytesBilled) } : {}),
-      };
-      if (params && params.length > 0) {
-        queryConfig.params = Object.fromEntries(params.map(p => [p.name, p.value]));
-        queryConfig.parameterMode = 'NAMED';
-      }
-      return await this.runJob(queryConfig, signal);
-    } finally {
-      reservation?.release();
+    const queryConfig: Query = {
+      query,
+      ...this.getLocationOption(),
+      ...(jobTimeoutMs !== undefined ? { jobTimeoutMs } : {}),
+    };
+    if (params && params.length > 0) {
+      queryConfig.params = Object.fromEntries(params.map(p => [p.name, p.value]));
+      queryConfig.parameterMode = 'NAMED';
     }
+    return this.runJob(queryConfig, signal);
   }
 
-  /** Runs ODM's own view DDL: an OWOX Storage keeps the scan budget but skips the SELECT check. */
+  /** Runs ODM's own view DDL: an OWOX Storage skips the SELECT check. */
   public async executeViewDdl(ddl: string): Promise<void> {
     await this.runJob({
       query: ddl,
       ...this.getLocationOption(),
-      ...(await this.getScanBudgetOption()),
     });
   }
 
@@ -185,8 +166,8 @@ export class BigQueryApiAdapter {
       return job;
     } catch (error) {
       const { errors, message } = error as { errors?: { reason?: string }[]; message?: string };
-      if (this.scanBudget && isDailyQuotaRefusal(errors?.[0]?.reason, message)) {
-        throw OwoxStorageQueryLimitException.googleQuota();
+      if (this.owoxStorage && isDailyQuotaRefusal(errors?.[0]?.reason, message)) {
+        throw new OwoxStorageQueryLimitException();
       }
       throw error;
     }
@@ -233,8 +214,8 @@ export class BigQueryApiAdapter {
       if (metadata?.status?.state === 'DONE') {
         const errorResult = metadata.status.errorResult;
         if (errorResult) {
-          if (this.scanBudget && isDailyQuotaRefusal(errorResult.reason, errorResult.message)) {
-            throw OwoxStorageQueryLimitException.googleQuota();
+          if (this.owoxStorage && isDailyQuotaRefusal(errorResult.reason, errorResult.message)) {
+            throw new OwoxStorageQueryLimitException();
           }
           throw new Error(
             errorResult.message ?? 'BigQuery query job failed without an error message'
@@ -388,7 +369,6 @@ export class BigQueryApiAdapter {
       },
       parameterMode: 'NAMED',
       ...this.getLocationOption(),
-      ...(await this.getScanBudgetOption()),
     });
 
     return toDateOrNull(rows?.[0]?.last_modified_time);
@@ -430,12 +410,6 @@ export class BigQueryApiAdapter {
     } catch (e) {
       throw new Error(`BigQuery access error: ${e instanceof Error ? e.message : String(e)}`);
     }
-  }
-
-  private async getScanBudgetOption(): Promise<{ maximumBytesBilled?: string }> {
-    return this.scanBudget
-      ? { maximumBytesBilled: String(await this.scanBudget.remainingBytes()) }
-      : {};
   }
 
   private getLocationOption(): { location?: string } {

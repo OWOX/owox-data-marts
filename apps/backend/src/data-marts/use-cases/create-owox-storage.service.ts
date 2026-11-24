@@ -112,7 +112,6 @@ export class CreateOwoxStorageService {
       storageId: created.id,
       projectId: command.projectId,
       storageLimitBytes: null,
-      queryLimitBytesPerDay: null,
       notPaidSince: null,
       lastActivityAt: null,
       deprovisionedAt: null,

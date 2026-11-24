@@ -41,11 +41,11 @@ A connector Data Mart on an OWOX Storage writes into the storage's one dataset. 
 
 ## Daily query limit
 
-Each OWOX Storage can scan up to 100 GiB of data a day with its queries. The limit is the same on every plan.
+Each OWOX Storage can scan up to 100 GiB of data a day with its queries and connector loads. BigQuery enforces this limit. The limit is the same on every plan. Each load counts as at least 10 MiB.
 
-Connector loads count toward the limit, with at least 10 MiB for each load. OWOX Data Marts does not stop them at the limit, but BigQuery stops the queries and connector loads of a storage when they reach 100 GiB in a day. BigQuery also stops all OWOX Storages for the rest of the day when together they use their shared daily capacity. Queries that BigQuery stops fail with the error "OWOX Storage has used its query capacity for today. It resets at midnight Pacific Time. If you need it sooner, contact support." Connector runs that it stops show BigQuery's own error in Run History. A query that is already running can take usage past the limit, and new queries are then refused until midnight Pacific Time.
+BigQuery also stops all OWOX Storages for the rest of the day when together they use their shared daily capacity.
 
-The limit resets at midnight Pacific Time. When a project has used it, queries fail with the error "This project has used today's OWOX Storage query limit. It resets at midnight Pacific Time. To get a higher limit, contact support." A query that would scan more than what is left today is refused before it runs.
+The limit resets at midnight Pacific Time. Queries that BigQuery stops fail with the error "OWOX Storage has used its query capacity for today. It resets at midnight Pacific Time. If you need it sooner, contact support." Connector runs that it stops show BigQuery's own error in Run History.
 
 To get a higher limit, contact support.
 

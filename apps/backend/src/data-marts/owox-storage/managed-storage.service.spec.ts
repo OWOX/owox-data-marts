@@ -13,7 +13,6 @@ function record(storageId: string, projectId = 'project-1'): ManagedStorage {
     internalDatasetId: 'owox_aaaaaaaaaaaa_internal',
     serviceAccountEmail: 'owox-st-aaaaaaaaaaaa@gcp-1.iam.gserviceaccount.com',
     storageLimitBytes: null,
-    queryLimitBytesPerDay: null,
     notPaidSince: null,
     lastActivityAt: null,
     deprovisionedAt: null,

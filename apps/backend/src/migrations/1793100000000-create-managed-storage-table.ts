@@ -22,7 +22,6 @@ export class CreateManagedStorageTable1793100000000 implements MigrationInterfac
           { name: 'internalDatasetId', type: 'varchar', length: '255' },
           { name: 'serviceAccountEmail', type: 'varchar', length: '255' },
           { name: 'storageLimitBytes', type: 'bigint', isNullable: true },
-          { name: 'queryLimitBytesPerDay', type: 'bigint', isNullable: true },
           { name: 'notPaidSince', type: 'datetime', isNullable: true },
           { name: 'lastActivityAt', type: 'datetime', isNullable: true },
           { name: 'deprovisionedAt', type: 'datetime', isNullable: true },

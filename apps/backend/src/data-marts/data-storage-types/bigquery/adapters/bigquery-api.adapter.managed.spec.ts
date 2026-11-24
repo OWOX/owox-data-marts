@@ -13,14 +13,10 @@ jest.mock('@google-cloud/bigquery', () => ({ BigQuery: jest.fn() }));
 describe('BigQueryApiAdapter (OWOX Storage)', () => {
   const createQueryJob = jest.fn();
   const query = jest.fn();
-  const remainingBytes = jest.fn();
-  const reserve = jest.fn();
-  const release = jest.fn();
   const config = { projectId: 'p', location: 'US' } as never;
   const managed = {
     type: BIGQUERY_MANAGED_TYPE,
     authClient: {},
-    scanBudget: { remainingBytes, reserve },
   } as never;
   const serviceAccount = {
     type: 'service_account',
@@ -55,8 +51,6 @@ describe('BigQueryApiAdapter (OWOX Storage)', () => {
   beforeEach(() => {
     jest.clearAllMocks();
     job.getMetadata.mockResolvedValue([{ status: { state: 'DONE' } }]);
-    remainingBytes.mockResolvedValue(5 * 2 ** 30);
-    reserve.mockResolvedValue({ maximumBytesBilled: 3 * 2 ** 30, release });
     query.mockResolvedValue([[{ last_modified_time: '1769337000000' }], undefined, {}]);
     (BigQuery as unknown as jest.Mock).mockImplementation(() => ({ createQueryJob, query }));
     dryRunReports('SELECT');
@@ -69,107 +63,16 @@ describe('BigQueryApiAdapter (OWOX Storage)', () => {
       new BigQueryApiAdapter(managed, config).executeQuery('SELECT 1; DROP TABLE t')
     ).rejects.toThrow(new OwoxStorageStatementException('SCRIPT'));
     expect(createQueryJob).toHaveBeenCalledTimes(1);
-    expect(reserve).not.toHaveBeenCalled();
   });
 
-  it("reserves the dry run's estimate plus the table minimum and caps the job at the reservation", async () => {
+  it('runs a SELECT on an OWOX Storage after the dry run, without a byte cap', async () => {
     dryRunReports('SELECT', '1073741824');
 
     await new BigQueryApiAdapter(managed, config).executeQuery('SELECT 1');
 
     expect(createQueryJob.mock.calls[0][0]).toMatchObject({ dryRun: true });
-    expect(createQueryJob.mock.calls[0][0]).not.toHaveProperty('maximumBytesBilled');
-    expect(reserve).toHaveBeenCalledWith(1073741824 + 10 * 2 ** 20);
-    expect(jobConfigs()).toEqual([
-      expect.objectContaining({ query: 'SELECT 1', maximumBytesBilled: '3221225472' }),
-    ]);
-    expect(remainingBytes).not.toHaveBeenCalled();
-    expect(release).toHaveBeenCalledTimes(1);
-    expect(release.mock.invocationCallOrder[0]).toBeGreaterThan(
-      job.getMetadata.mock.invocationCallOrder[0]
-    );
-  });
-
-  it('releases the reservation when the job fails', async () => {
-    job.getMetadata.mockResolvedValue([
-      { status: { state: 'DONE', errorResult: { message: 'Query exceeded limit' } } },
-    ]);
-
-    await expect(new BigQueryApiAdapter(managed, config).executeQuery('SELECT 1')).rejects.toThrow(
-      'Query exceeded limit'
-    );
-    expect(release).toHaveBeenCalledTimes(1);
-  });
-
-  it('releases the reservation when the job cannot be created', async () => {
-    createQueryJob.mockImplementation(async (cfg: { dryRun?: boolean }) => {
-      if (!cfg.dryRun) throw new Error('quota');
-      return [
-        {
-          metadata: {
-            statistics: { totalBytesProcessed: '0', query: { statementType: 'SELECT' } },
-          },
-        },
-      ];
-    });
-
-    await expect(new BigQueryApiAdapter(managed, config).executeQuery('SELECT 1')).rejects.toThrow(
-      'quota'
-    );
-    expect(reserve).toHaveBeenCalledTimes(1);
-    expect(release).toHaveBeenCalledTimes(1);
-  });
-
-  it('releases the reservation of a job cancelled through the abort signal after it reports DONE', async () => {
-    const controller = new AbortController();
-    job.cancel.mockImplementation(async () => {
-      job.getMetadata.mockResolvedValue([
-        { status: { state: 'DONE', errorResult: { message: 'Job execution was cancelled' } } },
-      ]);
-    });
-    job.getMetadata.mockImplementationOnce(async () => {
-      controller.abort();
-      return [{ status: { state: 'RUNNING' } }];
-    });
-
-    await expect(
-      new BigQueryApiAdapter(managed, config).executeQuery(
-        'SELECT 1',
-        undefined,
-        undefined,
-        controller.signal
-      )
-    ).rejects.toThrow('cancelled');
-    expect(job.cancel).toHaveBeenCalledTimes(1);
-    expect(release).toHaveBeenCalledTimes(1);
-    expect(release.mock.invocationCallOrder[0]).toBeGreaterThan(
-      job.getMetadata.mock.invocationCallOrder.at(-1) as number
-    );
-  });
-
-  it.each([
-    ['the estimate plus one 10 MB minimum for unknown tables', '1048576', 0, 11 * 2 ** 20],
-    ['the estimate plus 10 MB for each referenced table', '1048576', 3, 31 * 2 ** 20],
-    [
-      'the estimate plus the minimum of every table when it is large',
-      String(5 * 2 ** 30),
-      2,
-      5 * 2 ** 30 + 20 * 2 ** 20,
-    ],
-  ])('reserves %s', async (_name, bytes, tables, expected) => {
-    dryRunReports(
-      'SELECT',
-      bytes,
-      Array.from({ length: tables }, (_, i) => ({
-        projectId: 'p',
-        datasetId: 'd',
-        tableId: `t${i}`,
-      }))
-    );
-
-    await new BigQueryApiAdapter(managed, config).executeQuery('SELECT 1');
-
-    expect(reserve).toHaveBeenCalledWith(expected);
+    expect(jobConfigs()).toEqual([expect.objectContaining({ query: 'SELECT 1' })]);
+    expect(jobConfigs()[0]).not.toHaveProperty('maximumBytesBilled');
   });
 
   describe("Google's daily quota", () => {
@@ -204,7 +107,6 @@ describe('BigQueryApiAdapter (OWOX Storage)', () => {
 
       expect(error).toBeInstanceOf(OwoxStorageQueryLimitException);
       expect(error.message).toBe(GOOGLE_QUOTA);
-      expect(release).toHaveBeenCalledTimes(1);
     });
 
     it("answers Google's daily quota refusal of the dry run with the OWOX Storage message", async () => {
@@ -218,7 +120,7 @@ describe('BigQueryApiAdapter (OWOX Storage)', () => {
 
       expect(error).toBeInstanceOf(OwoxStorageQueryLimitException);
       expect(error.message).toBe(GOOGLE_QUOTA);
-      expect(reserve).not.toHaveBeenCalled();
+      expect(jobConfigs()).toEqual([]);
     });
 
     it("answers Google's daily quota refusal of a finished job with the OWOX Storage message", async () => {
@@ -258,16 +160,6 @@ describe('BigQueryApiAdapter (OWOX Storage)', () => {
     });
   });
 
-  it('creates no job when the reservation is refused', async () => {
-    reserve.mockRejectedValue(OwoxStorageQueryLimitException.tooLarge());
-
-    await expect(new BigQueryApiAdapter(managed, config).executeQuery('SELECT 1')).rejects.toThrow(
-      OwoxStorageQueryLimitException
-    );
-    expect(jobConfigs()).toEqual([]);
-    expect(release).not.toHaveBeenCalled();
-  });
-
   it('leaves a regular storage unchanged', async () => {
     await new BigQueryApiAdapter(serviceAccount, config).executeQuery('SELECT 1');
 
@@ -276,15 +168,14 @@ describe('BigQueryApiAdapter (OWOX Storage)', () => {
     expect(createQueryJob.mock.calls[0][0]).not.toHaveProperty('dryRun');
   });
 
-  it('executeViewDdl skips the SELECT check but keeps the budget', async () => {
+  it('executeViewDdl skips the SELECT check', async () => {
     await new BigQueryApiAdapter(managed, config).executeViewDdl('CREATE OR REPLACE VIEW v AS 1');
 
     expect(createQueryJob).toHaveBeenCalledTimes(1);
     expect(createQueryJob.mock.calls[0][0]).toMatchObject({
       query: 'CREATE OR REPLACE VIEW v AS 1',
-      maximumBytesBilled: '5368709120',
     });
-    expect(reserve).not.toHaveBeenCalled();
+    expect(createQueryJob.mock.calls[0][0]).not.toHaveProperty('maximumBytesBilled');
   });
 
   it('executeDryRunQuery returns statementType', async () => {
@@ -293,22 +184,18 @@ describe('BigQueryApiAdapter (OWOX Storage)', () => {
     const result = await new BigQueryApiAdapter(managed, config).executeDryRunQuery('x');
 
     expect(result.statementType).toBe('CREATE_VIEW');
-    expect(remainingBytes).not.toHaveBeenCalled();
-    expect(reserve).not.toHaveBeenCalled();
   });
 
-  it('budgets the shard metadata read without a dry run', async () => {
+  it('reads the shard metadata without a dry run or a byte cap', async () => {
     await new BigQueryApiAdapter(managed, config).getMaxShardLastModified('p', 'ds', 'events_');
 
     expect(createQueryJob).not.toHaveBeenCalled();
-    expect(query.mock.calls[0][0]).toMatchObject({ maximumBytesBilled: '5368709120' });
+    expect(query.mock.calls[0][0]).not.toHaveProperty('maximumBytesBilled');
   });
 
-  it('checks access without the budget', async () => {
+  it('checks access without a dry run', async () => {
     await new BigQueryApiAdapter(managed, config).checkAccess();
 
-    expect(remainingBytes).not.toHaveBeenCalled();
-    expect(reserve).not.toHaveBeenCalled();
     expect(createQueryJob).not.toHaveBeenCalled();
   });
 

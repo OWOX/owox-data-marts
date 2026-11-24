@@ -37,9 +37,6 @@ export class ManagedStorage {
   @Column({ type: 'bigint', nullable: true, transformer: bytes })
   storageLimitBytes: number | null;
 
-  @Column({ type: 'bigint', nullable: true, transformer: bytes })
-  queryLimitBytesPerDay: number | null;
-
   @Column({ type: 'datetime', nullable: true })
   notPaidSince: Date | null;
 

@@ -37,7 +37,6 @@ describe('ManagedStorageService.recordUse', () => {
       internalDatasetId: 'owox_aaaaaaaaaaaa_internal',
       serviceAccountEmail: 'sa@gcp-1.iam.gserviceaccount.com',
       storageLimitBytes: null,
-      queryLimitBytesPerDay: null,
       notPaidSince: null,
       lastActivityAt,
       deprovisionedAt,
