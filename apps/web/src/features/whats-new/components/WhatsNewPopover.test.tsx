@@ -132,7 +132,9 @@ describe('WhatsNewPopover', () => {
     render(<WhatsNewPopoverContent />);
     const link = screen.getByRole('link', { name: /Read the changelog/ });
 
-    expect(link.getAttribute('href')).toMatch(/^https:\/\/www\.owox\.com\/product\/changelog\?.*#v0\.41\.0$/);
+    expect(link.getAttribute('href')).toMatch(
+      /^https:\/\/www\.owox\.com\/product\/changelog\?.*#v0\.41\.0$/
+    );
     expect(link.getAttribute('target')).toBe('_blank');
   });
 
