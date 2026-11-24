@@ -15,39 +15,41 @@ describe('readOwoxStorageSettings', () => {
   it('reads a full configuration with defaults', () => {
     expect(readOwoxStorageSettings(ENABLED)).toEqual({
       engine: 'bigquery',
-      freeQueryLimitBytesPerDay: 10 * 2 ** 30,
-      paidQueryLimitBytesPerDay: 100 * 2 ** 30,
-      freeStorageLimitBytes: 2 ** 30,
-      paidIncludedStorageBytes: 10 * 2 ** 30,
+      queryLimitBytesPerDay: 100 * 2 ** 30,
+      storageLimitBytes: 100 * 2 ** 30,
       notPaidDeletionDays: 30,
       inactivityDeletionDays: 30,
     });
   });
 
-  describe('size limits', () => {
+  describe('limits', () => {
     const base = ENABLED;
 
-    it('reads OWOX_STORAGE_FREE_STORAGE_LIMIT_GIB', () => {
+    it('reads OWOX_STORAGE_QUERY_LIMIT_GIB_PER_DAY', () => {
       expect(
-        readOwoxStorageSettings({ ...base, OWOX_STORAGE_FREE_STORAGE_LIMIT_GIB: '0.5' })
-          ?.freeStorageLimitBytes
-      ).toBe(2 ** 29);
+        readOwoxStorageSettings({ ...base, OWOX_STORAGE_QUERY_LIMIT_GIB_PER_DAY: '0.5' })
+          ?.queryLimitBytesPerDay
+      ).toBe(0.5 * 2 ** 30);
     });
 
-    it('reads OWOX_STORAGE_PAID_INCLUDED_STORAGE_GIB', () => {
+    it('reads OWOX_STORAGE_STORAGE_LIMIT_GIB', () => {
       expect(
-        readOwoxStorageSettings({ ...base, OWOX_STORAGE_PAID_INCLUDED_STORAGE_GIB: 20 })
-          ?.paidIncludedStorageBytes
-      ).toBe(20 * 2 ** 30);
+        readOwoxStorageSettings({ ...base, OWOX_STORAGE_STORAGE_LIMIT_GIB: '250' })
+          ?.storageLimitBytes
+      ).toBe(250 * 2 ** 30);
     });
 
-    it('throws on a non-positive size limit', () => {
-      expect(() =>
-        readOwoxStorageSettings({ ...base, OWOX_STORAGE_FREE_STORAGE_LIMIT_GIB: '0' })
-      ).toThrow(/OWOX_STORAGE_FREE_STORAGE_LIMIT_GIB/);
-      expect(() =>
-        readOwoxStorageSettings({ ...base, OWOX_STORAGE_PAID_INCLUDED_STORAGE_GIB: '-1' })
-      ).toThrow(/OWOX_STORAGE_PAID_INCLUDED_STORAGE_GIB/);
+    it('throws on a non-positive limit', () => {
+      for (const name of [
+        'OWOX_STORAGE_QUERY_LIMIT_GIB_PER_DAY',
+        'OWOX_STORAGE_STORAGE_LIMIT_GIB',
+      ]) {
+        for (const value of ['0', '-1']) {
+          expect(() => readOwoxStorageSettings({ ...base, [name]: value })).toThrow(
+            `${name} must be a positive number.`
+          );
+        }
+      }
     });
   });
 

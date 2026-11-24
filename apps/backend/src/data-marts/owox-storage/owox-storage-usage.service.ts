@@ -17,7 +17,7 @@ import { OwoxStoragePlanService } from './owox-storage-plan.service';
 export interface OwoxStorageUsage {
   plan: ProjectPlanType;
   usedBytes: number;
-  /** The FREE limit, or the volume included in PAID. */
+  /** The size limit of the storage, the same on every plan unless support changed it. */
   limitBytes: number;
   tables: ManagedTable[];
   /** The scheduled deletion; an inactivity one only shows after IDLE_NOTICE_DAYS idle days. */
@@ -26,6 +26,9 @@ export interface OwoxStorageUsage {
 }
 
 const IDLE_NOTICE_DAYS = 7;
+
+const sumSizes = (tables: ManagedTable[]) =>
+  tables.reduce((sum, table) => sum + table.sizeBytes, 0);
 const TABLES_TTL_MS = 60_000;
 
 @Injectable()
@@ -47,7 +50,7 @@ export class OwoxStorageUsageService {
         // A deleted storage shows only its notice, so the plan is display-only here.
         plan: plan ?? ProjectPlanType.FREE,
         usedBytes: 0,
-        limitBytes: this.limitFor(record, plan ?? ProjectPlanType.FREE),
+        limitBytes: this.limitFor(record),
         tables: [],
         deletion: null,
         deletedAt: record.deprovisionedAt,
@@ -57,7 +60,7 @@ export class OwoxStorageUsageService {
     return this.measure(record, plan);
   }
 
-  /** Refuses a load into a deleted or NOT_PAID storage, or a FREE one that is full; PAID, no record and an unreadable size let it go. */
+  /** Refuses a load into a deleted, NOT_PAID or full storage; no record and an unreadable size let it go. */
   async assertCanLoad(storageId: string): Promise<void> {
     const record = await this.managedStorages.findByStorageId(storageId);
     if (!record) return;
@@ -67,37 +70,29 @@ export class OwoxStorageUsageService {
     const plan = await this.plans.planFor(record.projectId);
     if (!plan) {
       this.logger.warn(
-        `Could not read the plan of the project for OWOX Storage ${record.datasetId}; the connector run goes ahead.`
+        `Could not read the plan of the project for OWOX Storage ${record.datasetId}; only its size is checked.`
       );
-      return;
     }
     if (plan === ProjectPlanType.NOT_PAID) {
       throw new ProjectOperationBlockedException([ProjectBlockedReason.OWOX_STORAGE_NOT_PAID]);
     }
-    if (plan === ProjectPlanType.PAID) return;
 
-    let usage: OwoxStorageUsage;
+    let tables: ManagedTable[];
     try {
-      usage = await this.measure(record, plan, true);
+      tables = await this.listTables(record, true);
     } catch (error) {
       this.logger.warn(
         `Could not read the size of OWOX Storage ${record.datasetId}${describeGoogleError(error)}; the connector run goes ahead.`
       );
       return;
     }
-    if (usage.usedBytes >= usage.limitBytes) {
+    if (sumSizes(tables) >= this.limitFor(record)) {
       throw new ProjectOperationBlockedException([ProjectBlockedReason.OWOX_STORAGE_FULL]);
     }
   }
 
-  private limitFor(record: ManagedStorage, plan: ProjectPlanType): number {
-    const settings = this.config.getSettings();
-    return (
-      record.storageLimitBytes ??
-      (plan === ProjectPlanType.PAID
-        ? settings.paidIncludedStorageBytes
-        : settings.freeStorageLimitBytes)
-    );
+  private limitFor(record: ManagedStorage): number {
+    return record.storageLimitBytes ?? this.config.getSettings().storageLimitBytes;
   }
 
   /** Drops the cached table list, so the panel shows a change at once. */
@@ -114,12 +109,8 @@ export class OwoxStorageUsageService {
     return value;
   }
 
-  private async measure(
-    record: ManagedStorage,
-    plan: ProjectPlanType,
-    fresh = false
-  ): Promise<OwoxStorageUsage> {
-    const tables = await this.listTables(record, fresh);
+  private async measure(record: ManagedStorage, plan: ProjectPlanType): Promise<OwoxStorageUsage> {
+    const tables = await this.listTables(record, false);
     const now = new Date();
     const settings = this.config.getSettings();
     const deletion = scheduledDeletion(record, plan, settings, now);
@@ -130,8 +121,8 @@ export class OwoxStorageUsageService {
         IDLE_NOTICE_DAYS * DAY_MS;
     return {
       plan,
-      usedBytes: tables.reduce((sum, table) => sum + table.sizeBytes, 0),
-      limitBytes: this.limitFor(record, plan),
+      usedBytes: sumSizes(tables),
+      limitBytes: this.limitFor(record),
       tables,
       deletion: deletion?.reason === 'INACTIVE' && !idleLongEnough ? null : deletion,
       deletedAt: null,

@@ -13,15 +13,15 @@ describe('OwoxStorageConfigService', () => {
         BALANCE_ENDPOINT_BASE_URL: 'https://ib.example/internal-api/bi-project/',
         BALANCE_ENDPOINT_AUTH_SERVICE_ACCOUNT: 'c2c@secure.iam.gserviceaccount.com',
         BALANCE_ENDPOINT_TARGET_AUDIENCE: 'integrated-backend/api',
-        OWOX_STORAGE_FREE_QUERY_LIMIT_GIB_PER_DAY: 10,
-        OWOX_STORAGE_PAID_QUERY_LIMIT_GIB_PER_DAY: 100,
+        OWOX_STORAGE_QUERY_LIMIT_GIB_PER_DAY: 50,
+        OWOX_STORAGE_STORAGE_LIMIT_GIB: 200,
       })
     );
 
     expect(service.isEnabled()).toBe(true);
     expect(service.getSettings()).toMatchObject({
-      freeQueryLimitBytesPerDay: 10 * 2 ** 30,
-      paidQueryLimitBytesPerDay: 100 * 2 ** 30,
+      queryLimitBytesPerDay: 50 * 2 ** 30,
+      storageLimitBytes: 200 * 2 ** 30,
     });
   });
 

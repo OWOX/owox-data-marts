@@ -2,9 +2,7 @@ import { Injectable, Logger } from '@nestjs/common';
 import { describeGoogleError } from './engine/bigquery-managed-storage.engine';
 import type { ManagedStorage } from '../entities/managed-storage.entity';
 import type { ScanBudget } from '../data-storage-types/bigquery/schemas/bigquery-credentials.schema';
-import { ProjectPlanType } from '../enums/project-plan-type.enum';
 import { OwoxStorageConfigService } from './owox-storage-config.service';
-import { OwoxStoragePlanService } from './owox-storage-plan.service';
 import { OwoxStorageIdentity } from './owox-storage-identity.service';
 import type { OwoxStorageScanBudgetFactory } from './owox-storage-scan-budget.token';
 import {
@@ -33,8 +31,7 @@ export class OwoxStorageScanBudgetService implements OwoxStorageScanBudgetFactor
 
   constructor(
     private readonly identity: OwoxStorageIdentity,
-    private readonly config: OwoxStorageConfigService,
-    private readonly plans: OwoxStoragePlanService
+    private readonly config: OwoxStorageConfigService
   ) {}
 
   forStorage(record: ManagedStorage): ScanBudget {
@@ -69,7 +66,7 @@ export class OwoxStorageScanBudgetService implements OwoxStorageScanBudgetFactor
   }
 
   private async allowance(record: ManagedStorage): Promise<number> {
-    return (await this.limitFor(record)) - (await this.usedToday(record));
+    return this.limitFor(record) - (await this.usedToday(record));
   }
 
   private remaining(storageId: string, allowance: number): number {
@@ -79,13 +76,8 @@ export class OwoxStorageScanBudgetService implements OwoxStorageScanBudgetFactor
     return remaining;
   }
 
-  private async limitFor(record: ManagedStorage): Promise<number> {
-    if (record.queryLimitBytesPerDay != null) return record.queryLimitBytesPerDay;
-    const settings = this.config.getSettings();
-    const plan = await this.plans.planFor(record.projectId);
-    return plan === ProjectPlanType.PAID
-      ? settings.paidQueryLimitBytesPerDay
-      : settings.freeQueryLimitBytesPerDay;
+  private limitFor(record: ManagedStorage): number {
+    return record.queryLimitBytesPerDay ?? this.config.getSettings().queryLimitBytesPerDay;
   }
 
   private async usedToday(record: ManagedStorage): Promise<number> {

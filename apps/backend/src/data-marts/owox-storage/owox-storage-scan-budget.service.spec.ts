@@ -4,7 +4,6 @@ import {
   OwoxStorageQueryLimitException,
   OwoxStorageUsageUnavailableException,
 } from './owox-storage.exceptions';
-import { ProjectPlanType } from '../enums/project-plan-type.enum';
 import type { ManagedStorage } from '../entities/managed-storage.entity';
 
 const GIB = 2 ** 30;
@@ -16,12 +15,8 @@ const TOO_LARGE =
 describe('OwoxStorageScanBudgetService', () => {
   const query = jest.fn();
   const identity = { bigQuery: jest.fn(() => ({ query })) };
-  const plans = { planFor: jest.fn() };
   const config = {
-    getSettings: () => ({
-      freeQueryLimitBytesPerDay: 10 * GIB,
-      paidQueryLimitBytesPerDay: 100 * GIB,
-    }),
+    getSettings: () => ({ queryLimitBytesPerDay: 10 * GIB }),
   };
   const record = {
     storageId: 's1',
@@ -34,14 +29,12 @@ describe('OwoxStorageScanBudgetService', () => {
 
   let service: OwoxStorageScanBudgetService;
   const used = (bytes: unknown) => query.mockResolvedValue([[{ used: bytes }]]);
-  const plan = (type: ProjectPlanType) => plans.planFor.mockResolvedValue(type);
 
   beforeEach(() => {
     jest.clearAllMocks();
     jest.spyOn(Logger.prototype, 'warn').mockImplementation(() => undefined);
-    service = new OwoxStorageScanBudgetService(identity as never, config as never, plans as never);
+    service = new OwoxStorageScanBudgetService(identity as never, config as never);
     used(0);
-    plan(ProjectPlanType.FREE);
   });
 
   it("reads the storage account's usage in its region since midnight Pacific Time", async () => {
@@ -150,28 +143,15 @@ describe('OwoxStorageScanBudgetService', () => {
     );
   });
 
-  it('uses the PAID limit and the record override', async () => {
-    plan(ProjectPlanType.PAID);
-    await expect(service.forStorage(record).remainingBytes()).resolves.toBe(100 * GIB);
-
-    plans.planFor.mockClear();
-    const overridden = {
-      ...record,
-      storageId: 's2',
-      projectId: 'project-2',
-      queryLimitBytesPerDay: GIB,
-    };
-    await expect(service.forStorage(overridden).remainingBytes()).resolves.toBe(GIB);
-    expect(plans.planFor).not.toHaveBeenCalled();
+  it("prefers the record's queryLimitBytesPerDay", async () => {
+    await expect(
+      service.forStorage({ ...record, queryLimitBytesPerDay: GIB }).remainingBytes()
+    ).resolves.toBe(GIB);
   });
 
   it('returns a whole number of bytes under a fractional limit', async () => {
-    const fractional = { getSettings: () => ({ freeQueryLimitBytesPerDay: 0.1 * GIB }) };
-    service = new OwoxStorageScanBudgetService(
-      identity as never,
-      fractional as never,
-      plans as never
-    );
+    const fractional = { getSettings: () => ({ queryLimitBytesPerDay: 0.1 * GIB }) };
+    service = new OwoxStorageScanBudgetService(identity as never, fractional as never);
 
     await expect(service.forStorage(record).remainingBytes()).resolves.toBe(107374182);
   });
@@ -182,18 +162,6 @@ describe('OwoxStorageScanBudgetService', () => {
     await expect(service.forStorage(record).remainingBytes()).rejects.toThrow(
       OwoxStorageUsageUnavailableException
     );
-  });
-
-  it('NOT_PAID uses the FREE limit', async () => {
-    plan(ProjectPlanType.NOT_PAID);
-
-    await expect(service.forStorage(record).remainingBytes()).resolves.toBe(10 * GIB);
-  });
-
-  it('uses the FREE limit when the plan cannot be read', async () => {
-    plans.planFor.mockResolvedValue(null);
-
-    await expect(service.forStorage(record).remainingBytes()).resolves.toBe(10 * GIB);
   });
 
   it('reuses the usage read for 60 s', async () => {
@@ -213,11 +181,10 @@ describe('OwoxStorageScanBudgetService', () => {
     }
   });
 
-  it('asks for the plan of the storage project and reads usage per storage', async () => {
+  it('reads usage per storage', async () => {
     await service.forStorage(record).remainingBytes();
     await service.forStorage({ ...record, storageId: 's2' }).remainingBytes();
 
-    expect(plans.planFor).toHaveBeenCalledWith('project-1');
     expect(query).toHaveBeenCalledTimes(2);
   });
 

@@ -3,10 +3,8 @@ export const OWOX_STORAGE_LOCATIONS: readonly OwoxStorageLocation[] = ['US', 'EU
 
 export interface OwoxStorageSettings {
   engine: 'bigquery';
-  freeQueryLimitBytesPerDay: number;
-  paidQueryLimitBytesPerDay: number;
-  freeStorageLimitBytes: number;
-  paidIncludedStorageBytes: number;
+  queryLimitBytesPerDay: number;
+  storageLimitBytes: number;
   notPaidDeletionDays: number;
   inactivityDeletionDays: number;
 }
@@ -64,10 +62,8 @@ export function readOwoxStorageSettings(env: Record<string, unknown>): OwoxStora
 
   return {
     engine,
-    freeQueryLimitBytesPerDay: limitGib('OWOX_STORAGE_FREE_QUERY_LIMIT_GIB_PER_DAY', 10) * GIB,
-    paidQueryLimitBytesPerDay: limitGib('OWOX_STORAGE_PAID_QUERY_LIMIT_GIB_PER_DAY', 100) * GIB,
-    freeStorageLimitBytes: limitGib('OWOX_STORAGE_FREE_STORAGE_LIMIT_GIB', 1) * GIB,
-    paidIncludedStorageBytes: limitGib('OWOX_STORAGE_PAID_INCLUDED_STORAGE_GIB', 10) * GIB,
+    queryLimitBytesPerDay: limitGib('OWOX_STORAGE_QUERY_LIMIT_GIB_PER_DAY', 100) * GIB,
+    storageLimitBytes: limitGib('OWOX_STORAGE_STORAGE_LIMIT_GIB', 100) * GIB,
     notPaidDeletionDays: days('OWOX_STORAGE_NOT_PAID_DELETION_DAYS'),
     inactivityDeletionDays: days('OWOX_STORAGE_INACTIVITY_DELETION_DAYS'),
   };

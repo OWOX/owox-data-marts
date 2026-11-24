@@ -13,8 +13,7 @@ describe('OwoxStorageUsageService', () => {
   const managed = { findByStorageId: jest.fn() };
   const config = {
     getSettings: () => ({
-      freeStorageLimitBytes: GIB,
-      paidIncludedStorageBytes: 10 * GIB,
+      storageLimitBytes: GIB,
       notPaidDeletionDays: 30,
       inactivityDeletionDays: 30,
     }),
@@ -89,7 +88,7 @@ describe('OwoxStorageUsageService', () => {
   });
 
   describe('getUsage', () => {
-    it('sums table sizes against the FREE limit', async () => {
+    it('sums table sizes against the storage limit', async () => {
       await expect(service.getUsage(record)).resolves.toMatchObject({
         plan: ProjectPlanType.FREE,
         usedBytes: 300,
@@ -101,19 +100,12 @@ describe('OwoxStorageUsageService', () => {
       });
     });
 
-    it('reports the PAID included volume', async () => {
-      plans.planFor.mockResolvedValue(ProjectPlanType.PAID);
+    it('reports the one storage limit on every plan', async () => {
+      for (const plan of [ProjectPlanType.FREE, ProjectPlanType.PAID, ProjectPlanType.NOT_PAID]) {
+        plans.planFor.mockResolvedValue(plan);
 
-      await expect(service.getUsage(record)).resolves.toMatchObject({
-        plan: ProjectPlanType.PAID,
-        limitBytes: 10 * GIB,
-      });
-    });
-
-    it('gives NOT_PAID the FREE limit', async () => {
-      plans.planFor.mockResolvedValue(ProjectPlanType.NOT_PAID);
-
-      await expect(service.getUsage(record)).resolves.toMatchObject({ limitBytes: GIB });
+        await expect(service.getUsage(record)).resolves.toMatchObject({ plan, limitBytes: GIB });
+      }
     });
 
     it("prefers the record's storageLimitBytes", async () => {
@@ -229,11 +221,14 @@ describe('OwoxStorageUsageService', () => {
   });
 
   describe('assertCanLoad', () => {
-    it('lets the run go when the plan cannot be read', async () => {
+    it('checks the size when the plan cannot be read', async () => {
       plans.planFor.mockResolvedValue(null);
+      tables(GIB);
 
-      await expect(service.assertCanLoad('s1')).resolves.toBeUndefined();
-      expect(engine.listTables).not.toHaveBeenCalled();
+      const error = await service.assertCanLoad('s1').catch(e => e);
+
+      expect(error).toBeInstanceOf(ProjectOperationBlockedException);
+      expect(error.blockedReasons).toEqual([ProjectBlockedReason.OWOX_STORAGE_FULL]);
       expect(warn).toHaveBeenCalledTimes(1);
       expect(warn.mock.calls[0][0]).not.toContain('@');
     });
@@ -245,9 +240,14 @@ describe('OwoxStorageUsageService', () => {
       expect(engine.listTables).not.toHaveBeenCalled();
     });
 
-    it('refuses a FREE storage at its limit', async () => {
+    it('refuses a storage at its limit on every plan', async () => {
       tables(GIB);
+      plans.planFor.mockResolvedValue(ProjectPlanType.PAID);
+      const paid = await service.assertCanLoad('s1').catch(e => e);
+      expect(paid).toBeInstanceOf(ProjectOperationBlockedException);
+      expect(paid.blockedReasons).toEqual([ProjectBlockedReason.OWOX_STORAGE_FULL]);
 
+      plans.planFor.mockResolvedValue(ProjectPlanType.FREE);
       const error = await service.assertCanLoad('s1').catch(e => e);
 
       expect(error).toBeInstanceOf(ProjectOperationBlockedException);
@@ -257,18 +257,10 @@ describe('OwoxStorageUsageService', () => {
       );
     });
 
-    it('lets a FREE storage below its limit load', async () => {
+    it('lets a storage below its limit load', async () => {
       tables(GIB - 1);
 
       await expect(service.assertCanLoad('s1')).resolves.toBeUndefined();
-    });
-
-    it('never refuses PAID', async () => {
-      plans.planFor.mockResolvedValue(ProjectPlanType.PAID);
-      tables(50 * GIB);
-
-      await expect(service.assertCanLoad('s1')).resolves.toBeUndefined();
-      expect(engine.listTables).not.toHaveBeenCalled();
     });
 
     it('refuses a load on NOT_PAID without reading sizes', async () => {
