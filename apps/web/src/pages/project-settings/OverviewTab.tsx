@@ -10,6 +10,7 @@ import {
   Settings,
 } from 'lucide-react';
 import { Button } from '@owox/ui/components/button';
+import { LoadingSpinner } from '@owox/ui/components/common/loading-spinner';
 import {
   CollapsibleCard,
   CollapsibleCardContent,
@@ -18,7 +19,11 @@ import {
   CollapsibleCardHeaderTitle,
 } from '../../shared/components/CollapsibleCard';
 import { useUser } from '../../features/idp/hooks/useAuthState';
-import { MY_ACCOUNT_PROJECTS_PATH } from '../../features/idp/utils/my-account-path';
+import {
+  MY_ACCOUNT_PATH,
+  MY_ACCOUNT_PROJECTS_PATH,
+} from '../../features/idp/utils/my-account-path';
+import { getAccountApiOrigin } from '../../features/my-account/use-account-api-origin';
 import { useFlags } from '../../app/store/hooks';
 import { useProjectRoute } from '../../shared/hooks';
 import { checkVisible } from '../../utils/check-visible';
@@ -172,8 +177,8 @@ export function OverviewTab() {
   const canManage = Boolean(origin && projectSession && isAdmin && !user?.viewOnly);
 
   function onProjectDeletion(status: 'removed' | 'removing') {
-    setDeletion({ sessionKey, status });
     void loadProjects({ force: true });
+    setDeletion({ sessionKey, status });
     if (status === 'removed') toast.success('Project deleted');
   }
 
@@ -190,8 +195,22 @@ export function OverviewTab() {
   const mcpServerUrl = user?.mcpServerUrl ?? '';
 
   if (origin && projectStatus === 'removed') {
+    if (callState === RequestStatus.LOADING || callState === RequestStatus.IDLE) {
+      return <LoadingSpinner message='Loading projects…' />;
+    }
+    const hasRemainingProjects = projects.some(
+      project => project.id !== projectId && project.status !== 'removed'
+    );
+    const openProfile =
+      callState === RequestStatus.LOADED &&
+      !hasRemainingProjects &&
+      getAccountApiOrigin(flags) !== null;
     return (
-      <Navigate to={MY_ACCOUNT_PROJECTS_PATH} replace state={{ deletedProjectId: projectId }} />
+      <Navigate
+        to={openProfile ? MY_ACCOUNT_PATH : MY_ACCOUNT_PROJECTS_PATH}
+        replace
+        state={{ deletedProjectId: projectId }}
+      />
     );
   }
 

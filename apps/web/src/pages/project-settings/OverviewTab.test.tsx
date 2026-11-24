@@ -301,27 +301,58 @@ describe('OverviewTab project status', () => {
     expect(screen.queryByRole('button', { name: 'Delete project' })).not.toBeInTheDocument();
   });
 
-  it.each(['other projects', 'only the deleted project'])(
-    'opens My profile Projects after deletion with %s',
-    async scenario => {
-      enableCloudManagement();
-      if (scenario === 'other projects') {
-        projectsContext.value.projects.push({
-          id: 'next-project',
-          title: 'Analytics',
-          status: 'active',
-          roles: ['viewer'],
-        });
-      }
-      projectManagement.delete.mockResolvedValue('removed');
-      renderOverview();
-      confirmDeletion();
-
-      expect(await screen.findByRole('heading', { name: 'My projects' })).toBeVisible();
-      expect(projectsContext.value.loadProjects).toHaveBeenCalledWith({ force: true });
-      expect(projectManagement.signIn).not.toHaveBeenCalled();
+  it.each([
+    { scenario: 'other projects', remaining: true, profileEnabled: true, heading: 'My projects' },
+    {
+      scenario: 'the last project',
+      remaining: false,
+      profileEnabled: true,
+      heading: 'My profile',
+    },
+    {
+      scenario: 'the last project with profile disabled',
+      remaining: false,
+      profileEnabled: false,
+      heading: 'My projects',
+    },
+  ])('opens $heading after deleting $scenario', async ({ remaining, profileEnabled, heading }) => {
+    enableCloudManagement();
+    if (profileEnabled) settingsFlags.value.CLOUD_ACCOUNT_API_ORIGIN = 'https://ib.example.test';
+    if (remaining) {
+      projectsContext.value.projects.push({
+        id: 'next-project',
+        title: 'Analytics',
+        status: 'active',
+        roles: ['viewer'],
+      });
     }
-  );
+    projectManagement.delete.mockResolvedValue('removed');
+    renderOverview();
+    confirmDeletion();
+
+    expect(await screen.findByRole('heading', { name: heading })).toBeVisible();
+    expect(projectsContext.value.loadProjects).toHaveBeenCalledWith({ force: true });
+    expect(projectManagement.signIn).not.toHaveBeenCalled();
+  });
+
+  it('waits for the refreshed project list before deciding where to go', async () => {
+    enableCloudManagement();
+    settingsFlags.value.CLOUD_ACCOUNT_API_ORIGIN = 'https://ib.example.test';
+    vi.mocked(projectsContext.value.loadProjects).mockImplementationOnce(async () => {
+      projectsContext.value.callState = RequestStatus.LOADING;
+    });
+    projectManagement.delete.mockResolvedValue('removed');
+    const { rerender } = renderOverview();
+    confirmDeletion();
+
+    expect(await screen.findByText('Loading projects…')).toBeVisible();
+    projectsContext.value = projectContext({
+      projects: [{ id: 'next-project', title: 'Analytics', status: 'active', roles: ['viewer'] }],
+    });
+    rerender(<OverviewTestRoutes />);
+
+    expect(await screen.findByRole('heading', { name: 'My projects' })).toBeVisible();
+  });
 
   it('does not render a client-built MCP server URL when auth context has no URL', () => {
     currentUser.value = {
@@ -408,14 +439,22 @@ function projectContext(overrides: Partial<ProjectsContextType> = {}): ProjectsC
 }
 
 function renderOverview() {
-  return render(
-    <QueryClientProvider client={new QueryClient()}>
-      <MemoryRouter>
-        <Routes>
-          <Route path='/' element={<OverviewTab />} />
-          <Route path='/ui/me/projects' element={<h1>My projects</h1>} />
-        </Routes>
-      </MemoryRouter>
-    </QueryClientProvider>
+  const client = new QueryClient();
+  return render(<OverviewTestRoutes />, {
+    wrapper: ({ children }) => (
+      <QueryClientProvider client={client}>
+        <MemoryRouter>{children}</MemoryRouter>
+      </QueryClientProvider>
+    ),
+  });
+}
+
+function OverviewTestRoutes() {
+  return (
+    <Routes>
+      <Route path='/' element={<OverviewTab />} />
+      <Route path='/ui/me/projects' element={<h1>My projects</h1>} />
+      <Route path='/ui/me/profile' element={<h1>My profile</h1>} />
+    </Routes>
   );
 }
