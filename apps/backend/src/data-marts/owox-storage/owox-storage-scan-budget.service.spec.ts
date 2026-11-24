@@ -8,9 +8,9 @@ import type { ManagedStorage } from '../entities/managed-storage.entity';
 
 const GIB = 2 ** 30;
 const LIMIT_USED =
-  "This project has used today's OWOX Storage query limit. It resets at midnight Pacific Time.";
+  "This project has used today's OWOX Storage query limit. It resets at midnight Pacific Time. To get a higher limit, contact support.";
 const TOO_LARGE =
-  "This query would scan more than what is left of today's OWOX Storage query limit. It resets at midnight Pacific Time.";
+  "This query would scan more than what is left of today's OWOX Storage query limit. It resets at midnight Pacific Time. To get a higher limit, contact support.";
 
 describe('OwoxStorageScanBudgetService', () => {
   const query = jest.fn();

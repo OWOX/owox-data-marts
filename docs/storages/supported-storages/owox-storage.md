@@ -43,9 +43,9 @@ A connector Data Mart on an OWOX Storage writes into the storage's one dataset. 
 
 Each OWOX Storage can scan up to 100 GiB of data a day with its queries. The limit is the same on every plan.
 
-Connector loads count toward the limit, with at least 10 MiB for each load. OWOX Data Marts does not stop them at the limit, but BigQuery stops the queries and connector loads of a storage when they reach 100 GiB in a day. BigQuery also stops all OWOX Storages for the rest of the day when together they use their shared daily capacity. A query that is already running can take usage past the limit, and new queries are then refused until midnight Pacific Time.
+Connector loads count toward the limit, with at least 10 MiB for each load. OWOX Data Marts does not stop them at the limit, but BigQuery stops the queries and connector loads of a storage when they reach 100 GiB in a day. BigQuery also stops all OWOX Storages for the rest of the day when together they use their shared daily capacity. Queries that BigQuery stops fail with the error "OWOX Storage has used its query capacity for today. It resets at midnight Pacific Time. If you need it sooner, contact support." Connector runs that it stops show BigQuery's own error in Run History. A query that is already running can take usage past the limit, and new queries are then refused until midnight Pacific Time.
 
-The limit resets at midnight Pacific Time. When a project has used it, queries fail with the error "This project has used today's OWOX Storage query limit. It resets at midnight Pacific Time." A query that would scan more than what is left today is refused before it runs.
+The limit resets at midnight Pacific Time. When a project has used it, queries fail with the error "This project has used today's OWOX Storage query limit. It resets at midnight Pacific Time. To get a higher limit, contact support." A query that would scan more than what is left today is refused before it runs.
 
 To get a higher limit, contact support.
 
@@ -53,7 +53,7 @@ To get a higher limit, contact support.
 
 Each OWOX Storage can hold up to 100 GiB. The limit is the same on every plan.
 
-When a storage reaches its limit, new connector runs are refused. They show as RESTRICTED in Run History with the message "This project's OWOX Storage has reached its size limit. Delete tables in the storage or upgrade the plan to load more data."
+When a storage reaches its limit, new connector runs are refused. They show as RESTRICTED in Run History with the message "This project's OWOX Storage has reached its size limit. Delete tables in the storage to load more data, or contact support to get a higher limit."
 
 Reads, reports and table deletion keep working when the storage is full.
 

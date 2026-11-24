@@ -25,7 +25,7 @@ export class ProjectOperationBlockedException extends BusinessViolationException
     }
     if (blockedReasons.includes(ProjectBlockedReason.OWOX_STORAGE_FULL)) {
       message +=
-        " This project's OWOX Storage has reached its size limit. Delete tables in the storage or upgrade the plan to load more data.";
+        " This project's OWOX Storage has reached its size limit. Delete tables in the storage to load more data, or contact support to get a higher limit.";
     }
     if (blockedReasons.includes(ProjectBlockedReason.OWOX_STORAGE_NOT_PAID)) {
       message +=

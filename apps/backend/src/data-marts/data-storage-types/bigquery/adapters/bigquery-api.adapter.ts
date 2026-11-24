@@ -18,10 +18,18 @@ import {
   GBQ_SHARD_SUFFIX_MAX_DIGITS,
   GBQ_SHARD_SUFFIX_MIN_DIGITS,
 } from '../services/bigquery-sharded-tables.util';
-import { OwoxStorageStatementException } from '../../../owox-storage/owox-storage.exceptions';
+import {
+  OwoxStorageQueryLimitException,
+  OwoxStorageStatementException,
+} from '../../../owox-storage/owox-storage.exceptions';
 
 // BigQuery bills at least 10 MB per query and per referenced table.
 const MIN_BILLED_BYTES = 10 * 2 ** 20;
+
+// Google words a refusal by the per-user or the project query-usage quota this way; rate and
+// concurrency limits share the reason but not the words.
+const isDailyQuotaRefusal = (reason?: string, message?: string) =>
+  reason === 'quotaExceeded' && /custom quota exceeded/i.test(message ?? '');
 
 /** Fully-qualified BigQuery table coordinates, as returned by a dry run's `referencedTables`. */
 export interface BigQueryTableReference {
@@ -171,7 +179,16 @@ export class BigQueryApiAdapter {
   }
 
   private async runJob(queryConfig: Query, signal?: AbortSignal): Promise<{ jobId: string }> {
-    const [job] = await this.bigQuery.createQueryJob(queryConfig);
+    let job: Job;
+    try {
+      [job] = await this.bigQuery.createQueryJob(queryConfig);
+    } catch (error) {
+      const { errors, message } = error as { errors?: { reason?: string }[]; message?: string };
+      if (this.scanBudget && isDailyQuotaRefusal(errors?.[0]?.reason, message)) {
+        throw OwoxStorageQueryLimitException.googleQuota();
+      }
+      throw error;
+    }
 
     // Best-effort warehouse cancel: on abort, ask BigQuery to cancel the job. The poll loop below
     // then sees the job finish (cancelled) and throws, so we stop billing compute for a gone client.
@@ -211,6 +228,9 @@ export class BigQueryApiAdapter {
       if (metadata?.status?.state === 'DONE') {
         const errorResult = metadata.status.errorResult;
         if (errorResult) {
+          if (this.scanBudget && isDailyQuotaRefusal(errorResult.reason, errorResult.message)) {
+            throw OwoxStorageQueryLimitException.googleQuota();
+          }
           throw new Error(
             errorResult.message ?? 'BigQuery query job failed without an error message'
           );

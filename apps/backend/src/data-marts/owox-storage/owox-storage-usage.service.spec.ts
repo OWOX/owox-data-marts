@@ -253,7 +253,7 @@ describe('OwoxStorageUsageService', () => {
       expect(error).toBeInstanceOf(ProjectOperationBlockedException);
       expect(error.blockedReasons).toEqual([ProjectBlockedReason.OWOX_STORAGE_FULL]);
       expect(error.message).toBe(
-        "This project's OWOX Storage has reached its size limit. Delete tables in the storage or upgrade the plan to load more data."
+        "This project's OWOX Storage has reached its size limit. Delete tables in the storage to load more data, or contact support to get a higher limit."
       );
     });
 

@@ -8,14 +8,21 @@ export class OwoxStorageStatementException extends BusinessViolationException {
 
 export class OwoxStorageQueryLimitException extends BusinessViolationException {
   constructor(
-    message = "This project has used today's OWOX Storage query limit. It resets at midnight Pacific Time."
+    message = "This project has used today's OWOX Storage query limit. It resets at midnight Pacific Time. To get a higher limit, contact support."
   ) {
     super(message);
   }
 
   static tooLarge(): OwoxStorageQueryLimitException {
     return new OwoxStorageQueryLimitException(
-      "This query would scan more than what is left of today's OWOX Storage query limit. It resets at midnight Pacific Time."
+      "This query would scan more than what is left of today's OWOX Storage query limit. It resets at midnight Pacific Time. To get a higher limit, contact support."
+    );
+  }
+
+  /** Google's own daily quota stopped the job: of this storage, or of all storages together. */
+  static googleQuota(): OwoxStorageQueryLimitException {
+    return new OwoxStorageQueryLimitException(
+      'OWOX Storage has used its query capacity for today. It resets at midnight Pacific Time. If you need it sooner, contact support.'
     );
   }
 }

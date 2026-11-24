@@ -172,6 +172,78 @@ describe('BigQueryApiAdapter (OWOX Storage)', () => {
     expect(reserve).toHaveBeenCalledWith(expected);
   });
 
+  describe("Google's daily quota", () => {
+    const GOOGLE_QUOTA =
+      'OWOX Storage has used its query capacity for today. It resets at midnight Pacific Time. If you need it sooner, contact support.';
+    const customQuota =
+      'Custom quota exceeded: Your usage exceeded the custom quota for QueryUsagePerUserPerDay, which is set by your administrator.';
+    const refuseJobCreation = (error: Error) =>
+      createQueryJob.mockImplementation(async (cfg: { dryRun?: boolean }) => {
+        if (!cfg.dryRun) throw error;
+        return [
+          {
+            metadata: {
+              statistics: { totalBytesProcessed: '0', query: { statementType: 'SELECT' } },
+            },
+          },
+        ];
+      });
+    const failJob = (reason: string, message: string) =>
+      job.getMetadata.mockResolvedValue([
+        { status: { state: 'DONE', errorResult: { reason, message } } },
+      ]);
+
+    it("answers Google's daily quota refusal at job creation with the OWOX Storage message", async () => {
+      refuseJobCreation(
+        Object.assign(new Error(customQuota), { code: 403, errors: [{ reason: 'quotaExceeded' }] })
+      );
+
+      const error = await new BigQueryApiAdapter(managed, config)
+        .executeQuery('SELECT 1')
+        .catch(e => e);
+
+      expect(error).toBeInstanceOf(OwoxStorageQueryLimitException);
+      expect(error.message).toBe(GOOGLE_QUOTA);
+      expect(release).toHaveBeenCalledTimes(1);
+    });
+
+    it("answers Google's daily quota refusal of a finished job with the OWOX Storage message", async () => {
+      failJob(
+        'quotaExceeded',
+        'Custom quota exceeded: Your usage exceeded the custom quota for QueryUsagePerDay, which is set by your administrator.'
+      );
+
+      const error = await new BigQueryApiAdapter(managed, config)
+        .executeQuery('SELECT 1')
+        .catch(e => e);
+
+      expect(error).toBeInstanceOf(OwoxStorageQueryLimitException);
+      expect(error.message).toBe(GOOGLE_QUOTA);
+    });
+
+    it('keeps other quota errors as they are', async () => {
+      failJob('quotaExceeded', 'Exceeded rate limits: too many concurrent queries');
+
+      const error = await new BigQueryApiAdapter(managed, config)
+        .executeQuery('SELECT 1')
+        .catch(e => e);
+
+      expect(error).not.toBeInstanceOf(OwoxStorageQueryLimitException);
+      expect(error.message).toBe('Exceeded rate limits: too many concurrent queries');
+    });
+
+    it("leaves a regular storage's quota error as it is", async () => {
+      failJob('quotaExceeded', customQuota);
+
+      const error = await new BigQueryApiAdapter(serviceAccount, config)
+        .executeQuery('SELECT 1')
+        .catch(e => e);
+
+      expect(error).not.toBeInstanceOf(OwoxStorageQueryLimitException);
+      expect(error.message).toBe(customQuota);
+    });
+  });
+
   it('creates no job when the reservation is refused', async () => {
     reserve.mockRejectedValue(OwoxStorageQueryLimitException.tooLarge());
 
