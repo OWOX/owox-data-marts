@@ -1,6 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { In, IsNull, LessThan, LessThanOrEqual, Not, Or, Repository } from 'typeorm';
+import { In, IsNull, LessThan, Not, Or, Repository } from 'typeorm';
 import { ManagedStorage } from '../entities/managed-storage.entity';
 
 @Injectable()
@@ -25,48 +25,23 @@ export class ManagedStorageService {
     return this.repository.findOne({ where: { projectId } });
   }
 
-  findActive(): Promise<ManagedStorage[]> {
-    return this.repository.find({ where: { deprovisionedAt: IsNull() } });
-  }
-
   findPendingDeprovision(): Promise<ManagedStorage[]> {
     return this.repository.find({ where: { deprovisionPending: true } });
-  }
-
-  // An update, never an insert: a record the customer deleted meanwhile stays deleted.
-  async updateActive(
-    storageId: string,
-    changes: Partial<Pick<ManagedStorage, 'notPaidSince' | 'lastActivityAt'>>
-  ): Promise<boolean> {
-    const { affected } = await this.repository.update(
-      { storageId, deprovisionedAt: IsNull() },
-      changes
-    );
-    return affected === 1;
   }
 
   // False when the record is not deleted, so a restore that lost a race changes nothing.
   async markRestored(storageId: string, now: Date): Promise<boolean> {
     const { affected } = await this.repository.update(
       { storageId, deprovisionedAt: Not(IsNull()) },
-      { deprovisionedAt: null, deprovisionPending: false, notPaidSince: null, lastActivityAt: now }
+      { deprovisionedAt: null, deprovisionPending: false, lastActivityAt: now }
     );
     return affected === 1;
   }
 
   // Before the first destructive call, so a deletion that fails partway stays deleted and retryable.
-  // With activityAtMost, a use recorded after the decision (<=: datetime keeps whole seconds) blocks it.
-  async markDeleting(storageId: string, now: Date, activityAtMost?: Date | null): Promise<boolean> {
+  async markDeleting(storageId: string, now: Date): Promise<boolean> {
     const { affected } = await this.repository.update(
-      {
-        storageId,
-        deprovisionedAt: IsNull(),
-        ...(activityAtMost === undefined
-          ? {}
-          : {
-              lastActivityAt: activityAtMost === null ? IsNull() : LessThanOrEqual(activityAtMost),
-            }),
-      },
+      { storageId, deprovisionedAt: IsNull() },
       { deprovisionedAt: now, deprovisionPending: true }
     );
     return affected === 1;
@@ -79,7 +54,7 @@ export class ManagedStorageService {
     );
   }
 
-  // At most one write an hour per storage: the inactivity rule counts days.
+  // At most one write an hour per storage: a cleanup of unused storages would count days.
   async recordUse(storageId: string, at: Date): Promise<void> {
     await this.repository.update(
       {

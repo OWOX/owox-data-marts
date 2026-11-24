@@ -27,6 +27,6 @@ export class OwoxStorageLifecycleProcessor extends BaseSystemTaskProcessor {
   }
 
   async process(_trigger: SystemTrigger, options?: { signal?: AbortSignal }): Promise<void> {
-    await this.lifecycle.runDaily(new Date(), options?.signal);
+    await this.lifecycle.runDaily(options?.signal);
   }
 }

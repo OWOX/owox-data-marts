@@ -1,17 +1,16 @@
 import { ForbiddenException, Logger, NotFoundException } from '@nestjs/common';
 import { BusinessViolationException } from '../../common/exceptions/business-violation.exception';
 import { GetOwoxStorageUsageCommand } from '../dto/domain/get-owox-storage-usage.command';
-import { ProjectPlanType } from '../enums/project-plan-type.enum';
 import { OwoxStorageUsageReadException } from '../owox-storage/owox-storage.exceptions';
 import { Action, EntityType } from '../services/access-decision';
 import { GetOwoxStorageUsageService } from './get-owox-storage-usage.service';
 
 const record = { storageId: 'storage-1', datasetId: 'owox_abc', projectId: 'proj-1' };
 const usage = {
-  plan: ProjectPlanType.FREE,
   usedBytes: 5,
   limitBytes: 100,
   tables: [{ name: 't', sizeBytes: 5, rowCount: 1 }],
+  deletedAt: null,
 };
 
 function makeService(managed: unknown = record, canSee = true) {

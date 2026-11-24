@@ -37,10 +37,7 @@ export class ManagedStorage {
   @Column({ type: 'bigint', nullable: true, transformer: bytes })
   storageLimitBytes: number | null;
 
-  @Column({ type: 'datetime', nullable: true })
-  notPaidSince: Date | null;
-
-  // Newest known use of the storage; deletion for inactivity counts from it.
+  // Newest known use of the storage, for a future cleanup of unused storages.
   @Column({ type: 'datetime', nullable: true })
   lastActivityAt: Date | null;
 

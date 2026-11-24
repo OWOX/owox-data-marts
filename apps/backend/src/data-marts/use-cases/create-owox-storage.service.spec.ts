@@ -9,7 +9,6 @@ import { BusinessViolationException } from '../../common/exceptions/business-vio
 import { DataStorageType } from '../data-storage-types/enums/data-storage-type.enum';
 import { CreateOwoxStorageCommand } from '../dto/domain/create-owox-storage.command';
 import { DataStorageDto } from '../dto/domain/data-storage.dto';
-import { ProjectPlanType } from '../enums/project-plan-type.enum';
 import { StorageConfigSetEvent } from '../events/storage-config-set.event';
 import { CreateOwoxStorageService } from './create-owox-storage.service';
 
@@ -33,9 +32,8 @@ describe('CreateOwoxStorageService', () => {
   );
   const command = new CreateOwoxStorageCommand('p1', 'Mine', 'EU', 'u1', false, ['u1']);
 
-  function setup(plan = ProjectPlanType.FREE) {
+  function setup() {
     const configService = { getSettings: jest.fn() };
-    const billing = { getBalance: jest.fn().mockResolvedValue({ subscriptionPlanType: plan }) };
     const managed = {
       findByProjectId: jest.fn().mockResolvedValue(null),
       create: jest.fn().mockResolvedValue({}),
@@ -52,7 +50,6 @@ describe('CreateOwoxStorageService', () => {
     const eventDispatcher = { publishExternal: jest.fn().mockResolvedValue(undefined) };
     const service = new CreateOwoxStorageService(
       configService as never,
-      billing as never,
       managed as never,
       engine as never,
       createDataStorage as never,
@@ -64,7 +61,6 @@ describe('CreateOwoxStorageService', () => {
       service,
       eventDispatcher,
       configService,
-      billing,
       managed,
       engine,
       createDataStorage,
@@ -92,7 +88,6 @@ describe('CreateOwoxStorageService', () => {
       projectId: 'p1',
       ...provisioned,
       storageLimitBytes: null,
-      notPaidSince: null,
       lastActivityAt: null,
       deprovisionedAt: null,
       deprovisionPending: false,
@@ -122,21 +117,6 @@ describe('CreateOwoxStorageService', () => {
     await expect(
       s.service.run(new CreateOwoxStorageCommand('p1', 'Mine', 'EU', 'u1', true))
     ).rejects.toBeInstanceOf(ForbiddenException);
-    expect(s.engine.provision).not.toHaveBeenCalled();
-  });
-
-  it('refuses NOT_PAID before provisioning', async () => {
-    const s = setup(ProjectPlanType.NOT_PAID);
-    await expect(s.service.run(command)).rejects.toThrow(
-      'A project with an unpaid subscription cannot create an OWOX Storage.'
-    );
-    expect(s.engine.provision).not.toHaveBeenCalled();
-  });
-
-  it('refuses when the plan cannot be read', async () => {
-    const s = setup();
-    s.billing.getBalance.mockRejectedValue(new Error('balance down'));
-    await expect(s.service.run(command)).rejects.toThrow('balance down');
     expect(s.engine.provision).not.toHaveBeenCalled();
   });
 

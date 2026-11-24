@@ -4,7 +4,6 @@ import { BusinessViolationException } from '../../common/exceptions/business-vio
 import { ConnectorStateService } from '../connector-types/connector-message/services/connector-state.service';
 import { RestoreOwoxStorageCommand } from '../dto/domain/restore-owox-storage.command';
 import { ManagedStorage } from '../entities/managed-storage.entity';
-import { ProjectPlanType } from '../enums/project-plan-type.enum';
 import { describeGoogleError } from '../owox-storage/engine/bigquery-managed-storage.engine';
 import {
   MANAGED_STORAGE_ENGINE,
@@ -15,7 +14,6 @@ import { OwoxStorageRestoreException } from '../owox-storage/owox-storage.except
 import { AccessDecisionService, Action, EntityType } from '../services/access-decision';
 import { DataMartService } from '../services/data-mart.service';
 import { DataStorageService } from '../services/data-storage.service';
-import { InternalProjectBillingService } from '../services/project-billing/internal-project-billing.service';
 
 @Injectable()
 export class RestoreOwoxStorageService {
@@ -26,7 +24,6 @@ export class RestoreOwoxStorageService {
     private readonly accessDecisionService: AccessDecisionService,
     private readonly managedStorages: ManagedStorageService,
     @Inject(MANAGED_STORAGE_ENGINE) private readonly engine: ManagedStorageEngine,
-    private readonly billing: InternalProjectBillingService,
     private readonly dataMartService: DataMartService,
     private readonly connectorStates: ConnectorStateService
   ) {}
@@ -60,13 +57,6 @@ export class RestoreOwoxStorageService {
       throw new BusinessViolationException('This storage is not an OWOX Storage.');
     }
     if (!record.deprovisionedAt) return;
-
-    const { subscriptionPlanType } = await this.billing.getBalance(command.projectId);
-    if (subscriptionPlanType === ProjectPlanType.NOT_PAID) {
-      throw new BusinessViolationException(
-        "Pay for this project's subscription before restoring its OWOX Storage."
-      );
-    }
 
     // Keeps the daily retry from deleting what this restore creates.
     await this.managedStorages.setDeprovisionPending(record.storageId, false);

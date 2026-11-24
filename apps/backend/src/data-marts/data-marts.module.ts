@@ -139,7 +139,6 @@ import { OwoxStorageIdentity } from './owox-storage/owox-storage-identity.servic
 import { OwoxStorageProvisioningClient } from './owox-storage/engine/owox-storage-provisioning.client';
 import { BigQueryManagedStorageEngine } from './owox-storage/engine/bigquery-managed-storage.engine';
 import { MANAGED_STORAGE_ENGINE } from './owox-storage/engine/managed-storage-engine';
-import { OwoxStoragePlanService } from './owox-storage/owox-storage-plan.service';
 import { OwoxStorageUsageService } from './owox-storage/owox-storage-usage.service';
 import { OwoxStorageLifecycleService } from './owox-storage/owox-storage-lifecycle.service';
 import { OwoxStorageLifecycleProcessor } from './system-triggers/processors/owox-storage-lifecycle.processor';
@@ -714,7 +713,6 @@ import { McpCredentialsFacadeImpl } from './credentials/facades/mcp-credentials.
     OwoxStorageIdentity,
     OwoxStorageProvisioningClient,
     { provide: MANAGED_STORAGE_ENGINE, useClass: BigQueryManagedStorageEngine },
-    OwoxStoragePlanService,
     OwoxStorageUsageService,
     OwoxStorageLifecycleService,
     CredentialConsumerBindingFacadeImpl,

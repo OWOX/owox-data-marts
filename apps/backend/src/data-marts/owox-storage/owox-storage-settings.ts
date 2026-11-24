@@ -4,8 +4,6 @@ export const OWOX_STORAGE_LOCATIONS: readonly OwoxStorageLocation[] = ['US', 'EU
 export interface OwoxStorageSettings {
   engine: 'bigquery';
   storageLimitBytes: number;
-  notPaidDeletionDays: number;
-  inactivityDeletionDays: number;
 }
 
 const GIB = 2 ** 30;
@@ -51,18 +49,8 @@ export function readOwoxStorageSettings(env: Record<string, unknown>): OwoxStora
     return gib;
   };
 
-  const days = (name: string) => {
-    const value = read(name);
-    if (value === undefined) return 30;
-    const n = Number(value);
-    if (!Number.isInteger(n) || n <= 0) throw new Error(`${name} must be a positive integer.`);
-    return n;
-  };
-
   return {
     engine,
     storageLimitBytes: limitGib('OWOX_STORAGE_STORAGE_LIMIT_GIB', 100) * GIB,
-    notPaidDeletionDays: days('OWOX_STORAGE_NOT_PAID_DELETION_DAYS'),
-    inactivityDeletionDays: days('OWOX_STORAGE_INACTIVITY_DELETION_DAYS'),
   };
 }

@@ -17,11 +17,9 @@ vi.mock('react-hot-toast', () => ({
 }));
 
 const usage = (patch: Partial<OwoxStorageUsageResponseDto> = {}): OwoxStorageUsageResponseDto => ({
-  plan: 'FREE',
   usedBytes: 512 * 2 ** 20,
   limitBytes: 2 ** 30,
   tables: [],
-  deletion: null,
   deletedAt: null,
   ...patch,
 });
@@ -39,7 +37,7 @@ describe('OwoxStorageUsage', () => {
     restoreOwoxStorage.mockResolvedValue(undefined);
   });
 
-  it('shows FREE usage', async () => {
+  it('shows usage against the limit', async () => {
     getOwoxStorageUsage.mockResolvedValue(usage());
     render(<OwoxStorageUsage storageId='s1' />);
 
@@ -47,9 +45,9 @@ describe('OwoxStorageUsage', () => {
     expect(screen.queryByText(FULL)).toBeNull();
   });
 
-  it('shows PAID usage against the same limit', async () => {
+  it('shows a larger limit set by support', async () => {
     getOwoxStorageUsage.mockResolvedValue(
-      usage({ plan: 'PAID', usedBytes: 12 * 2 ** 30, limitBytes: 100 * 2 ** 30 })
+      usage({ usedBytes: 12 * 2 ** 30, limitBytes: 100 * 2 ** 30 })
     );
     render(<OwoxStorageUsage storageId='s1' />);
 
@@ -58,9 +56,9 @@ describe('OwoxStorageUsage', () => {
     expect(screen.queryByText(FULL)).toBeNull();
   });
 
-  it('warns when a PAID storage is above the limit', async () => {
+  it('warns when a storage is above the limit', async () => {
     getOwoxStorageUsage.mockResolvedValue(
-      usage({ plan: 'PAID', usedBytes: 120 * 2 ** 30, limitBytes: 100 * 2 ** 30 })
+      usage({ usedBytes: 120 * 2 ** 30, limitBytes: 100 * 2 ** 30 })
     );
     render(<OwoxStorageUsage storageId='s1' />);
 
@@ -68,49 +66,20 @@ describe('OwoxStorageUsage', () => {
     expect(screen.getByText(FULL)).toBeInTheDocument();
   });
 
-  it('warns when a FREE storage is full', async () => {
+  it('warns when a storage is full', async () => {
     getOwoxStorageUsage.mockResolvedValue(usage({ usedBytes: 2 ** 30 }));
     render(<OwoxStorageUsage storageId='s1' />);
 
     expect(await screen.findByText(FULL)).toBeInTheDocument();
   });
 
-  it('shows no deletion notice when nothing is scheduled', async () => {
+  it('shows no deletion notice for an active storage', async () => {
     getOwoxStorageUsage.mockResolvedValue(usage());
     render(<OwoxStorageUsage storageId='s1' />);
 
     await screen.findByText('512 MB of 1 GB used');
     expect(screen.queryByText(/will be deleted/)).toBeNull();
     expect(screen.queryByText(/were deleted/)).toBeNull();
-  });
-
-  it('announces the deletion date of a NOT_PAID storage', async () => {
-    getOwoxStorageUsage.mockResolvedValue(
-      usage({
-        plan: 'NOT_PAID',
-        deletion: { reason: 'NOT_PAID', date: '2026-12-05T12:00:00.000Z' },
-      })
-    );
-    render(<OwoxStorageUsage storageId='s1' />);
-
-    expect(
-      await screen.findByText(
-        `This project's subscription is not paid. Connector runs into this storage are stopped, and the storage and its data will be deleted on ${DATE}. Pay for the subscription before then to keep them.`
-      )
-    ).toBeInTheDocument();
-  });
-
-  it('announces the deletion date of an unused storage', async () => {
-    getOwoxStorageUsage.mockResolvedValue(
-      usage({ deletion: { reason: 'INACTIVE', date: '2026-12-05T12:00:00.000Z' } })
-    );
-    render(<OwoxStorageUsage storageId='s1' />);
-
-    expect(
-      await screen.findByText(
-        `This storage has not been used recently. It and its data will be deleted on ${DATE} unless a query or a connector run uses it before then.`
-      )
-    ).toBeInTheDocument();
   });
 
   it('shows only the deleted notice for a deleted storage', async () => {

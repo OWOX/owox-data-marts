@@ -10,7 +10,6 @@ import { CreateOwoxStorageCommand } from '../dto/domain/create-owox-storage.comm
 import { DataStorageDto } from '../dto/domain/data-storage.dto';
 import { DataStorage } from '../entities/data-storage.entity';
 import { StorageConfigSetEvent } from '../events/storage-config-set.event';
-import { ProjectPlanType } from '../enums/project-plan-type.enum';
 import {
   MANAGED_STORAGE_ENGINE,
   ManagedStorageEngine,
@@ -18,7 +17,6 @@ import {
 } from '../owox-storage/engine/managed-storage-engine';
 import { ManagedStorageService } from '../owox-storage/managed-storage.service';
 import { OwoxStorageConfigService } from '../owox-storage/owox-storage-config.service';
-import { InternalProjectBillingService } from '../services/project-billing/internal-project-billing.service';
 import { IdpProjectionsFacade } from '../../idp/facades/idp-projections.facade';
 import { describeGoogleError } from '../owox-storage/engine/bigquery-managed-storage.engine';
 import { assertProjectMembers } from '../utils/sync-owners';
@@ -32,7 +30,6 @@ export class CreateOwoxStorageService {
 
   constructor(
     private readonly configService: OwoxStorageConfigService,
-    private readonly billing: InternalProjectBillingService,
     private readonly managedStorageService: ManagedStorageService,
     @Inject(MANAGED_STORAGE_ENGINE) private readonly engine: ManagedStorageEngine,
     private readonly createDataStorageService: CreateDataStorageService,
@@ -48,12 +45,6 @@ export class CreateOwoxStorageService {
     }
     this.configService.getSettings();
 
-    const { subscriptionPlanType } = await this.billing.getBalance(command.projectId);
-    if (subscriptionPlanType === ProjectPlanType.NOT_PAID) {
-      throw new BusinessViolationException(
-        'A project with an unpaid subscription cannot create an OWOX Storage.'
-      );
-    }
     if (await this.managedStorageService.findByProjectId(command.projectId)) {
       throw new BusinessViolationException(ALREADY_HAS);
     }
@@ -112,7 +103,6 @@ export class CreateOwoxStorageService {
       storageId: created.id,
       projectId: command.projectId,
       storageLimitBytes: null,
-      notPaidSince: null,
       lastActivityAt: null,
       deprovisionedAt: null,
       deprovisionPending: false,

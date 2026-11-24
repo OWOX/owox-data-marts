@@ -69,20 +69,6 @@ export function OwoxStorageUsage({ storageId }: { storageId: string }) {
       <p className='text-sm'>
         {formatBytes(usage.usedBytes)} of {formatBytes(usage.limitBytes)} used
       </p>
-      {usage.deletion?.reason === 'NOT_PAID' && (
-        <p className='bg-warning-bg text-warning rounded-md px-3 py-2 text-sm'>
-          This project&apos;s subscription is not paid. Connector runs into this storage are
-          stopped, and the storage and its data will be deleted on{' '}
-          {formatDateOnly(usage.deletion.date)}. Pay for the subscription before then to keep them.
-        </p>
-      )}
-      {usage.deletion?.reason === 'INACTIVE' && (
-        <p className='bg-warning-bg text-warning rounded-md px-3 py-2 text-sm'>
-          This storage has not been used recently. It and its data will be deleted on{' '}
-          {formatDateOnly(usage.deletion.date)} unless a query or a connector run uses it before
-          then.
-        </p>
-      )}
       {full && (
         <p className='bg-warning-bg text-warning rounded-md px-3 py-2 text-sm'>
           This storage is full. New connector runs are refused until you delete tables. To get more

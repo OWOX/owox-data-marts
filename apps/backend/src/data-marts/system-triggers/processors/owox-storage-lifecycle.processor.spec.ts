@@ -28,6 +28,6 @@ describe('OwoxStorageLifecycleProcessor', () => {
     const { processor, lifecycle } = make(true);
     const signal = new AbortController().signal;
     await processor.process({} as never, { signal });
-    expect(lifecycle.runDaily).toHaveBeenCalledWith(expect.any(Date), signal);
+    expect(lifecycle.runDaily).toHaveBeenCalledWith(signal);
   });
 });

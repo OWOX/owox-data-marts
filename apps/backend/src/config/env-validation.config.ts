@@ -95,12 +95,6 @@ const configSchema = z
     // OWOX Storage is read as a whole by readOwoxStorageSettings; these keys only validate types.
     OWOX_STORAGE_ENGINE: blankAsUnset(z.enum(['bigquery']).optional()),
     OWOX_STORAGE_STORAGE_LIMIT_GIB: blankAsUnset(z.coerce.number().positive().optional()),
-    OWOX_STORAGE_NOT_PAID_DELETION_DAYS: blankAsUnset(
-      z.coerce.number().int().positive().optional()
-    ),
-    OWOX_STORAGE_INACTIVITY_DELETION_DAYS: blankAsUnset(
-      z.coerce.number().int().positive().optional()
-    ),
     // Plugin schedules; unset keeps the defaults in PluginHostConfigService.
     PLUGIN_HOST_MAX_SCHEDULES_PER_INSTALLATION: blankAsUnset(
       z.coerce.number().int().min(1).max(1000).optional()

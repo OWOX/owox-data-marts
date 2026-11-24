@@ -24,7 +24,6 @@ Click **Create**. OWOX creates the storage and its BigQuery dataset.
 ## Who can create one
 
 - Each project can have one OWOX Storage.
-- A project with an unpaid subscription cannot create one. It shows the error "A project with an unpaid subscription cannot create an OWOX Storage."
 - If the project already has one, the error is "This project already has an OWOX Storage."
 
 ## No Credential
@@ -74,17 +73,9 @@ To delete a table, click its delete button and confirm. A connector that loads i
 
 ## When an OWOX Storage is deleted
 
-OWOX deletes an OWOX Storage and its data in two cases:
+OWOX does not delete an OWOX Storage on its own. Only you can delete it, as described in [Deleting an OWOX Storage](#deleting-an-owox-storage).
 
-- **Unpaid subscription.** Connector runs into the storage stop at once and show as RESTRICTED in Run History. The storage and its data are deleted 30 days after the subscription became unpaid. Pay for the subscription before then to keep them.
-- **No use.** A storage that is not used for 30 days is deleted, on every plan. Any query, report run (Google Sheets, Looker Studio and others) or connector run counts as use, scheduled ones included. A connector run that stops because the storage is full counts too. After an unpaid period, the 30 days count from the day the subscription is paid again.
-
-The storage panel shows the deletion date:
-
-- For an unpaid subscription: "This project's subscription is not paid. Connector runs into this storage are stopped, and the storage and its data will be deleted on `<date>`. Pay for the subscription before then to keep them."
-- For an unused storage, once it has been idle for 7 days: "This storage has not been used recently. It and its data will be deleted on `<date>` unless a query or a connector run uses it before then."
-
-OWOX sends no emails about deletion. Check the panel.
+If the deletion fails partway, OWOX shows the error "OWOX Storage could not be deleted. Try again later." The storage stays in the list, but its data can be partly deleted. OWOX tries again to delete the data once a day. To remove the storage from the list, delete it again.
 
 ### After deletion
 
@@ -94,9 +85,8 @@ Until you restore the storage, connector runs end as RESTRICTED, and queries fai
 
 ### Restore a deleted storage
 
-1. Pay for the subscription if it is unpaid. A storage cannot be restored while the subscription is unpaid: "Pay for this project's subscription before restoring its OWOX Storage."
-2. Open **Storages**, then open the OWOX Storage.
-3. Click **Restore storage** in the notice. Only editors can restore a storage.
+1. Open **Storages**, then open the OWOX Storage.
+2. Click **Restore storage** in the notice. Only editors can restore a storage.
 
 Restoring brings the storage back empty, under the same names. The deleted data does not come back.
 

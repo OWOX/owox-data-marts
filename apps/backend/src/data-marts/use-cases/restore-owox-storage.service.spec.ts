@@ -6,7 +6,6 @@ jest.mock('typeorm-transactional', () => ({
 import { ForbiddenException, Logger } from '@nestjs/common';
 import { BusinessViolationException } from '../../common/exceptions/business-violation.exception';
 import { RestoreOwoxStorageCommand } from '../dto/domain/restore-owox-storage.command';
-import { ProjectPlanType } from '../enums/project-plan-type.enum';
 import { OwoxStorageRestoreException } from '../owox-storage/owox-storage.exceptions';
 import { Action, EntityType } from '../services/access-decision';
 import { RestoreOwoxStorageService } from './restore-owox-storage.service';
@@ -19,15 +18,10 @@ const deletedRecord = () => ({
   serviceAccountEmail: 'owox-st-abc@sa-project.iam.gserviceaccount.com',
   deprovisionedAt: new Date('2026-10-01T03:00:00Z'),
   deprovisionPending: false,
-  notPaidSince: new Date('2026-08-30T03:00:00Z'),
   lastActivityAt: new Date('2026-08-01T00:00:00Z'),
 });
 
-function makeService({
-  record = deletedRecord() as unknown,
-  canEdit = true,
-  plan = ProjectPlanType.FREE,
-} = {}) {
+function makeService({ record = deletedRecord() as unknown, canEdit = true } = {}) {
   const dataStorageService = { getByProjectIdAndId: jest.fn().mockResolvedValue(storage) };
   const accessDecisionService = { canAccess: jest.fn().mockResolvedValue(canEdit) };
   const managedStorages = {
@@ -39,7 +33,6 @@ function makeService({
     restore: jest.fn().mockResolvedValue(undefined),
     deprovision: jest.fn().mockResolvedValue(undefined),
   };
-  const billing = { getBalance: jest.fn().mockResolvedValue({ subscriptionPlanType: plan }) };
   const dataMartService = {
     findByStorage: jest.fn().mockResolvedValue([{ id: 'dm-1' }, { id: 'dm-2' }]),
   };
@@ -49,7 +42,6 @@ function makeService({
     accessDecisionService as never,
     managedStorages as never,
     engine as never,
-    billing as never,
     dataMartService as never,
     connectorStates as never
   );
@@ -59,7 +51,6 @@ function makeService({
     accessDecisionService,
     managedStorages,
     engine,
-    billing,
     dataMartService,
     connectorStates,
   };
@@ -128,18 +119,6 @@ describe('RestoreOwoxStorageService', () => {
     expect(s.managedStorages.setDeprovisionPending).not.toHaveBeenCalled();
     expect(s.managedStorages.markRestored).not.toHaveBeenCalled();
     expect(s.connectorStates.deleteByDataMartIds).not.toHaveBeenCalled();
-  });
-
-  it('refuses a NOT_PAID project before any engine call', async () => {
-    const s = makeService({ plan: ProjectPlanType.NOT_PAID });
-
-    await expect(s.service.run(command)).rejects.toThrow(
-      new BusinessViolationException(
-        "Pay for this project's subscription before restoring its OWOX Storage."
-      )
-    );
-    expect(s.billing.getBalance).toHaveBeenCalledWith('proj-1');
-    expect(s.engine.restore).not.toHaveBeenCalled();
   });
 
   it('restores the storage, clears its Data Marts connector states and marks it active', async () => {
