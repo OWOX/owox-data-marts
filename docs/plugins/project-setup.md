@@ -17,7 +17,10 @@ make a choice.
 
 ## Before you begin
 
-You need an OWOX Data Marts project, a GitHub account, Node.js and npm, and a coding agent.
+You need an OWOX Data Marts project, a GitHub account, npm, and a coding agent.
+Use Node.js 24.22 or later in the 24.x line, or Node.js 26.12 or later, to run Void.
+The authoring guide's [scaffold](./authoring-guide.md#scaffold-with-void-and-vite) sets up
+Void and Vite+ in the plugin repository using npm.
 
 ## Set up the GitHub CLI
 
@@ -63,11 +66,12 @@ cd PLUGIN_NAME
 git branch -M main
 ```
 
-This keeps the later Pages workflow and release commands consistent by naming the branch `main`.
+To create a private repository, replace `--public` with `--private` in the `gh repo create`
+command and grant the OWOX Data Marts GitHub App access when you publish the plugin. The
+deployed page must be publicly reachable in either case.
 
-As a fallback, use GitHub's **New repository** flow, then clone it with its HTTPS URL. Public
-repositories are recommended for the simplest free Pages path. Pages from a private repository
-requires an eligible paid plan, and the deployed page must remain public.
+You can also create the repository in GitHub and clone it with its HTTPS URL.
+The example deployment workflows and release commands use `main`.
 
 ## Save the agent instructions
 
@@ -87,9 +91,10 @@ about the OWOX plugin contract.
 
 ## Hosting
 
-- The plugin is a static Vite build. The GitHub Actions workflow deploys `dist` to GitHub Pages.
-- Vite `base` matches the deployed path: `/PLUGIN_NAME/` for a project site, `/` for a domain
-  root.
+- Build the plugin with Void and Vite+. Use the repository's locked dependencies.
+- Use one host for the page, its assets, and any backend action endpoint. OWOX-hosted plugins
+  at owox.app are recommended for authors with private preview access. Use the Void CLI to
+  manage and deploy there. Follow the hosting instructions and HTML cache policy in the authoring guide.
 - `delivery.url` in `plugin.json` is the public HTTPS address of the deployed page.
 - Every deployment to that address changes what installed members run, even before a release.
   Treat it as a production change.
@@ -127,4 +132,5 @@ Before you begin, confirm that you have:
 - an empty local repository
 - a root `AGENTS.md`
 
-Continue to the [plugin authoring guide](./authoring-guide.md).
+Continue to [Scaffold with Void and Vite+](./authoring-guide.md#scaffold-with-void-and-vite).
+If you plan to deploy to owox.app, [request a preview invitation](./authoring-guide.md#request-a-preview-invitation).
