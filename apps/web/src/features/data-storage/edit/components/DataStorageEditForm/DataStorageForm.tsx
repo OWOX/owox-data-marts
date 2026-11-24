@@ -314,7 +314,7 @@ export function DataStorageForm({
                     )}
                   </FormControl>
                   <FormDescription>
-                    {selectedType === DataStorageType.GOOGLE_BIGQUERY && (
+                    {selectedType === DataStorageType.GOOGLE_BIGQUERY && !owoxStorage && (
                       <StorageTypeBigQueryDescription />
                     )}
                     {selectedType === DataStorageType.LEGACY_GOOGLE_BIGQUERY && (

@@ -654,6 +654,16 @@ describe('DataStorageForm — OWOX Storage', () => {
     expect(screen.queryByText('Usage and Tables')).toBeNull();
   });
 
+  it('shows the BigQuery API help for a regular storage and not for an OWOX Storage', async () => {
+    renderForm(vi.fn(), storage(null));
+    expect(await screen.findByText('How do I enable the BigQuery API?')).toBeInTheDocument();
+    cleanup();
+
+    renderForm(vi.fn(), owoxStorage());
+    await screen.findByDisplayValue('OWOX Storage');
+    expect(screen.queryByText('How do I enable the BigQuery API?')).toBeNull();
+  });
+
   it('saves an OWOX Storage without a Credential', async () => {
     const onSubmit = vi.fn().mockResolvedValue(undefined);
     renderForm(onSubmit, owoxStorage());
