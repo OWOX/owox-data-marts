@@ -18,7 +18,7 @@ type Input = z.input<typeof updateDataMartSchemaSchema>;
 export class UpdateDataMartSchemaTool implements McpToolDefinition<Input> {
   readonly name = 'update_data_mart_schema';
   readonly description =
-    'Replace the complete saved Data Mart schema. Read get_data_mart_setup first. Preserve fields you are not changing. The tool uses OWOX field, formula, inheritance and warehouse validation. Review returned warning reasons. OWOX shows details and warnings beyond the first 50.';
+    'Replace the complete saved Data Mart schema. Read get_data_mart_setup first. Preserve fields you are not changing. The tool uses OWOX field, formula, inheritance and warehouse validation. On Google BigQuery, a save sets the type of a new or changed calculated field to the type its formula returns, and returns a warning. Review returned warning reasons. OWOX shows details and warnings beyond the first 50.';
   readonly zodSchema = updateDataMartSchemaSchema;
   readonly outputSchema = {
     ...dataMartSummaryOutputSchema.shape,

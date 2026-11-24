@@ -183,6 +183,11 @@ export interface FormulaValidationResult {
    * when the warehouse rejected the formula (the resulting `errors` already say why).
    */
   warehouseValidation?: 'passed' | 'skipped';
+  /**
+   * The warehouse type of each calculated field, set only together with
+   * `warehouseValidation: 'passed'` when the dry run reported types.
+   */
+  resultTypes?: ReadonlyMap<string, string>;
 }
 
 @Injectable()
@@ -352,7 +357,7 @@ export class CalculatedFieldValidatorService {
       return { errors, warnings, warehouseValidation: 'skipped' };
     }
     if (combined.isValid) {
-      return { errors, warnings, warehouseValidation: 'passed' };
+      return { errors, warnings, warehouseValidation: 'passed', resultTypes: combined.columnTypes };
     }
 
     for (const field of calculated) {
@@ -463,6 +468,7 @@ export class CalculatedFieldValidatorService {
   ): Promise<SqlDryRunResult | 'unreachable'> {
     let unreachable = false;
     let accepted: SqlDryRunResult | 'unreachable' = 'unreachable';
+    let merged: Map<string, string> | undefined;
 
     for (const batch of dryRunBatches(fields)) {
       const result = await this.dryRunBatch(batch, ctx, joinTree, blendableSchema, tableReferences);
@@ -472,9 +478,14 @@ export class CalculatedFieldValidatorService {
       }
       if (!result.isValid) return result;
       accepted = result;
+      if (result.columnTypes) {
+        const target = (merged ??= new Map());
+        result.columnTypes.forEach((type, name) => target.set(name, type));
+      }
     }
 
-    return unreachable ? 'unreachable' : accepted;
+    if (unreachable || accepted === 'unreachable') return 'unreachable';
+    return SqlDryRunResult.success(accepted.bytes, merged);
   }
 
   private async dryRunBatch(

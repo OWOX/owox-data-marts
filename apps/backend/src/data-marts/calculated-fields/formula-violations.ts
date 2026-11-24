@@ -585,4 +585,9 @@ export const FormulaViolations = {
       `Saved without checking ${fields.map(f => `\`${f}\``).join(', ')} against the warehouse — ` +
       `it was unreachable. The check runs again on the next save.`,
   }),
+  typeSetFromResult: (field: string, declared: string, result: string): FormulaViolation => ({
+    code: 'FORMULA_TYPE_SET_FROM_RESULT',
+    field,
+    message: `The formula of \`${field}\` returns ${result}, but its type was ${declared}. OWOX changed the type to ${result}.`,
+  }),
 };

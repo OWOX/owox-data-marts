@@ -2302,6 +2302,9 @@ async function provisionMart(
 function registerSuite(storage: StorageCase): void {
   const describeIfCredentials = storage.available ? describe : describe.skip;
 
+  // Only the BigQuery dry run returns result types, so only a BigQuery save retypes a field.
+  const isBigQuery = storage.storageType === DataStorageType.GOOGLE_BIGQUERY;
+
   describeIfCredentials(`Row-level Calculated Field on real ${storage.label}`, () => {
     let dataMartId: string;
     let aggDataMartId: string;
@@ -2560,6 +2563,7 @@ function registerSuite(storage: StorageCase): void {
       const bigStringFormula = storage.concat(REF('big_prefix'), REF('big_suffix'));
       const ambiguousFormula = storage.concat(REF('amb_prefix'), REF('amb_suffix'));
       // The declared type is the analyst's free choice and never checked against the formula,
+      // except on BigQuery, where a save sets a new field's type from its result (asserted below),
       // so these are stated outright rather than copied off an actualized field: what the four
       // arithmetic tests measure is exactly what each declaration makes the warehouse do.
       const declaring = (name: string, type: string, formula: string) => ({
@@ -2618,7 +2622,19 @@ function registerSuite(storage: StorageCase): void {
       }
       // And the declaration really is what the analyst asked for, read back off the save.
       expect(bucketField(NUM_FLOAT).type).toBe(storage.floatType);
-      expect(bucketField(NUM_INT).type).toBe(storage.integerType);
+      if (isBigQuery) {
+        // CONCAT returns STRING: an INTEGER or TIMESTAMP declaration over it is rewritten, with a
+        // warning. A FLOAT or exact declaration over text stays, and so does a number over a number.
+        const retyped = (bucketSchemaRes.body.warnings as { code: string; field: string }[]).map(
+          w => `${w.field}:${w.code}`
+        );
+        for (const name of [NUM_INT, AMBIGUOUS_TS]) {
+          expect(`${name}: ${bucketField(name).type}`).toBe(`${name}: STRING`);
+          expect(retyped).toContain(`${name}:FORMULA_TYPE_SET_FROM_RESULT`);
+        }
+      } else {
+        expect(bucketField(NUM_INT).type).toBe(storage.integerType);
+      }
       expect(bucketField(EVENT_MONTH).calculated!.warehouseValidation).toBe('passed');
       expect(bucketField(NUM_FLOAT).calculated!.warehouseValidation).toBe('passed');
 
@@ -3646,7 +3662,9 @@ function registerSuite(storage: StorageCase): void {
       // The one named COST, measured rather than argued: the same declaration over TEXT keeps
       // doing exactly what it did before the slice — raising on the two strict dialects, and
       // truncating on Redshift, where a FLOAT declaration now returns the true total instead.
-      if (storage.integerOverTextSum === 'error') {
+      if (isBigQuery) {
+        // The save made NUM_INT a STRING, so there is no integer declaration over text to run.
+      } else if (storage.integerOverTextSum === 'error') {
         await expect(sumOfCalculatedField(NUM_INT)).rejects.toThrow();
       } else {
         expect(await sumOfCalculatedField(NUM_INT)).toBeCloseTo(storage.integerOverTextSum, 6);
@@ -3699,32 +3717,39 @@ function registerSuite(storage: StorageCase): void {
     // disagree about the same report. The product owner ruled the leg refused on all five storages,
     // so the shape can no longer reach a warehouse and there is nothing left to measure.
     // The value stays written down here because the rule exists for it, not out of caution.
-    it('refuses the day-ambiguous time-zone shape before it reaches the warehouse', async () => {
-      const report = await buildBucketReport({
-        columnConfig: [AMBIGUOUS_TS, 'amount'],
-        aggregationConfig: [{ column: 'amount', function: 'SUM' }],
-        dateTruncConfig: [{ column: AMBIGUOUS_TS, unit: 'MONTH', timeZone: AMBIGUOUS_TIME_ZONE }],
-      });
+    // On BigQuery the save made the field a STRING, so no TIMESTAMP declaration reaches the bucket.
+    (isBigQuery ? it.skip : it)(
+      'refuses the day-ambiguous time-zone shape before it reaches the warehouse',
+      async () => {
+        const report = await buildBucketReport({
+          columnConfig: [AMBIGUOUS_TS, 'amount'],
+          aggregationConfig: [{ column: 'amount', function: 'SUM' }],
+          dateTruncConfig: [{ column: AMBIGUOUS_TS, unit: 'MONTH', timeZone: AMBIGUOUS_TIME_ZONE }],
+        });
 
-      expect(await validationCodesOf(report)).toContain('DATE_TRUNC_TIMEZONE_ON_CALCULATED_FIELD');
-      // The run path, not only the save: `resolveBlendingDecision` validates before it composes any
-      // SQL, so this rejects without a warehouse round trip. That is the assertion — the query is
-      // never built, so no dialect gets the chance to read the string its own way.
-      await expect(readReportRows(storage.storageType, report)).rejects.toThrow();
+        expect(await validationCodesOf(report)).toContain(
+          'DATE_TRUNC_TIMEZONE_ON_CALCULATED_FIELD'
+        );
+        // The run path, not only the save: `resolveBlendingDecision` validates before it composes any
+        // SQL, so this rejects without a warehouse round trip. That is the assertion — the query is
+        // never built, so no dialect gets the chance to read the string its own way.
+        await expect(readReportRows(storage.storageType, report)).rejects.toThrow();
 
-      // The scope of the refusal, on the same field and the same warehouse: only the zone goes. A
-      // MONTH bucket on the identical TIMESTAMP-declared formula is the feature this branch
-      // shipped, and it still saves.
-      expect(
-        await validationCodesOf(
-          await buildBucketReport({
-            columnConfig: [AMBIGUOUS_TS, 'amount'],
-            aggregationConfig: [{ column: 'amount', function: 'SUM' }],
-            dateTruncConfig: [{ column: AMBIGUOUS_TS, unit: 'MONTH' }],
-          })
-        )
-      ).toEqual([]);
-    }, 300000);
+        // The scope of the refusal, on the same field and the same warehouse: only the zone goes. A
+        // MONTH bucket on the identical TIMESTAMP-declared formula is the feature this branch
+        // shipped, and it still saves.
+        expect(
+          await validationCodesOf(
+            await buildBucketReport({
+              columnConfig: [AMBIGUOUS_TS, 'amount'],
+              aggregationConfig: [{ column: 'amount', function: 'SUM' }],
+              dateTruncConfig: [{ column: AMBIGUOUS_TS, unit: 'MONTH' }],
+            })
+          )
+        ).toEqual([]);
+      },
+      300000
+    );
 
     // ── Item 15: FILTERS on a Calculated Field, executed ──────────────────────────────────
     //
