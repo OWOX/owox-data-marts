@@ -62,15 +62,12 @@ export function OwoxStorageUsage({ storageId }: { storageId: string }) {
     );
   }
 
-  const paid = usage.plan === 'PAID';
-  const full = !paid && usage.usedBytes >= usage.limitBytes;
+  const full = usage.usedBytes >= usage.limitBytes;
 
   return (
     <div className='space-y-3'>
       <p className='text-sm'>
-        {paid
-          ? `${formatBytes(usage.usedBytes)} used, ${formatBytes(usage.limitBytes)} included`
-          : `${formatBytes(usage.usedBytes)} of ${formatBytes(usage.limitBytes)} used`}
+        {formatBytes(usage.usedBytes)} of {formatBytes(usage.limitBytes)} used
       </p>
       {usage.deletion?.reason === 'NOT_PAID' && (
         <p className='bg-warning-bg text-warning rounded-md px-3 py-2 text-sm'>
@@ -88,8 +85,8 @@ export function OwoxStorageUsage({ storageId }: { storageId: string }) {
       )}
       {full && (
         <p className='bg-warning-bg text-warning rounded-md px-3 py-2 text-sm'>
-          This storage is full. New connector runs are refused until you delete tables or upgrade
-          the plan.
+          This storage is full. New connector runs are refused until you delete tables. To get more
+          space, contact support.
         </p>
       )}
       {usage.tables.length === 0 ? (

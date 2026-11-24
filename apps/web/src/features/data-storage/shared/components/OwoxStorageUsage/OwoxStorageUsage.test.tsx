@@ -27,7 +27,7 @@ const usage = (patch: Partial<OwoxStorageUsageResponseDto> = {}): OwoxStorageUsa
 });
 
 const FULL =
-  'This storage is full. New connector runs are refused until you delete tables or upgrade the plan.';
+  'This storage is full. New connector runs are refused until you delete tables. To get more space, contact support.';
 
 // Noon UTC stays on the same calendar day in every time zone the tests may run in.
 const DATE = formatDateOnly('2026-12-05T12:00:00.000Z');
@@ -47,14 +47,25 @@ describe('OwoxStorageUsage', () => {
     expect(screen.queryByText(FULL)).toBeNull();
   });
 
-  it('shows PAID usage with the included volume', async () => {
+  it('shows PAID usage against the same limit', async () => {
     getOwoxStorageUsage.mockResolvedValue(
-      usage({ plan: 'PAID', usedBytes: 12 * 2 ** 30, limitBytes: 10 * 2 ** 30 })
+      usage({ plan: 'PAID', usedBytes: 12 * 2 ** 30, limitBytes: 100 * 2 ** 30 })
     );
     render(<OwoxStorageUsage storageId='s1' />);
 
-    expect(await screen.findByText('12 GB used, 10 GB included')).toBeInTheDocument();
+    expect(await screen.findByText('12 GB of 100 GB used')).toBeInTheDocument();
+    expect(screen.queryByText(/included/)).toBeNull();
     expect(screen.queryByText(FULL)).toBeNull();
+  });
+
+  it('warns when a PAID storage is above the limit', async () => {
+    getOwoxStorageUsage.mockResolvedValue(
+      usage({ plan: 'PAID', usedBytes: 120 * 2 ** 30, limitBytes: 100 * 2 ** 30 })
+    );
+    render(<OwoxStorageUsage storageId='s1' />);
+
+    expect(await screen.findByText('120 GB of 100 GB used')).toBeInTheDocument();
+    expect(screen.getByText(FULL)).toBeInTheDocument();
   });
 
   it('warns when a FREE storage is full', async () => {

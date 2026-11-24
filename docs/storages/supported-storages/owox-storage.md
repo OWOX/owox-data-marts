@@ -65,7 +65,7 @@ To get a larger storage, contact support.
 
 Open **Storages**, then open the OWOX Storage. The **Usage and Tables** section of the edit sheet shows:
 
-- **Usage**: "`<used>` of `<limit>` used" on the Free plan, or "`<used>` used, `<included>` included" on the Paid plan. A full Free storage also shows the warning "This storage is full. New connector runs are refused until you delete tables or upgrade the plan."
+- **Usage**: "`<used>` of `<limit>` used". A full storage also shows the warning "This storage is full. New connector runs are refused until you delete tables. To get more space, contact support."
 - **Tables**: a list of the tables in the storage's dataset with their **Table**, **Rows** and **Size**. Sizes are read live.
 
 To delete a table, click its delete button and confirm. A connector that loads incrementally continues from its last loaded date, so running it again after a delete does not bring back the deleted rows.
