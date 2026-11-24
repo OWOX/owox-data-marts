@@ -532,7 +532,7 @@ export default function PluginDetailsPage({
                           className='shrink-0'
                           disabled={isUpdating}
                           aria-label={CHECK_AND_UPDATE_LABEL}
-                          onClick={() => void checkNow(plugin.pluginId)}
+                          onClick={() => void checkNow(plugin.pluginId, plugin.displayName)}
                         >
                           <RefreshCw className={isUpdating ? 'size-4 animate-spin' : 'size-4'} />
                         </Button>

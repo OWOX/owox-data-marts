@@ -109,7 +109,7 @@ describe('PluginCard', () => {
       expect(service.checkNow).toHaveBeenCalledWith('p1');
     });
     await waitFor(() => {
-      expect(toast).toHaveBeenCalledWith("You're up to date — v1.2.3");
+      expect(toast).toHaveBeenCalledWith('Example Plugin is up to date — v1.2.3');
     });
     expect(screen.queryByText('Plugin page')).toBeNull();
   });
@@ -137,6 +137,8 @@ describe('PluginCard', () => {
     const button = screen.getByRole('button', { name: 'Check and Update Example Plugin' });
 
     expect(button).toHaveClass('opacity-0', 'group-hover:opacity-100', 'focus-visible:opacity-100');
+    // Touch screens have no hover: hidden, the button must not take a tap meant for the card.
+    expect(button).toHaveClass('pointer-events-none', 'group-hover:pointer-events-auto');
     // group-hover needs the card itself to be the group.
     expect(button.closest('.group')).toHaveClass('cursor-pointer');
 
@@ -156,8 +158,27 @@ describe('PluginCard', () => {
     }
   );
 
-  it('keeps Check and Update on a suspended installed plugin', () => {
+  it('keeps Check and Update on a suspended installed plugin, after the Unavailable badge', () => {
     renderCards(plugin({ installationState: 'installed', suspended: true }));
-    expect(screen.getByRole('button', { name: 'Check and Update Example Plugin' })).toBeEnabled();
+    const button = screen.getByRole('button', { name: 'Check and Update Example Plugin' });
+
+    expect(button).toBeEnabled();
+    // The hidden button must not push the badge away from the version.
+    expect(
+      screen.getByText('Unavailable').compareDocumentPosition(button) &
+        Node.DOCUMENT_POSITION_FOLLOWING
+    ).toBeTruthy();
+  });
+
+  // The tooltip renders in a portal, but React still sends its click up to the card.
+  it('does not open the plugin page on a click on the tooltip', async () => {
+    renderCards(plugin({ installationState: 'installed' }));
+
+    fireEvent.focus(screen.getByRole('button', { name: 'Check and Update Example Plugin' }));
+    const [tooltip] = await screen.findAllByText('Check and Update');
+    fireEvent.click(tooltip);
+
+    expect(screen.queryByText('Plugin page')).toBeNull();
+    expect(service.checkNow).not.toHaveBeenCalled();
   });
 });

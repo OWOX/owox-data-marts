@@ -155,10 +155,10 @@ describe('usePluginActions', () => {
     const { result } = renderHook(() => usePluginActions(), { wrapper });
 
     await act(async () => {
-      await result.current.checkNow('p1');
+      await result.current.checkNow('p1', 'Alpha');
     });
 
-    expect(toast).toHaveBeenCalledWith("You're up to date — v1.0.0");
+    expect(toast).toHaveBeenCalledWith('Alpha is up to date — v1.0.0');
     expect(toast.error).not.toHaveBeenCalled();
   });
 
@@ -173,11 +173,11 @@ describe('usePluginActions', () => {
     const { result } = renderHook(() => usePluginActions(), { wrapper });
 
     await act(async () => {
-      await result.current.checkNow('p1');
+      await result.current.checkNow('p1', 'Alpha');
     });
 
     expect(toast.error).toHaveBeenCalledWith(
-      "Couldn't check for updates. v1.0.0 remains active and OWOX will try again automatically."
+      "Couldn't check Alpha for updates. v1.0.0 remains active and OWOX will try again automatically."
     );
     // The member cannot act on which host was unreachable, and it is a publisher
     // diagnostic besides.
@@ -193,21 +193,21 @@ describe('usePluginActions', () => {
     const { result } = renderHook(() => usePluginActions(), { wrapper });
 
     await act(async () => {
-      await result.current.checkNow('p1');
+      await result.current.checkNow('p1', 'Alpha');
     });
 
-    expect(toast).toHaveBeenCalledWith('An update check is already running');
+    expect(toast).toHaveBeenCalledWith('An update check for Alpha is already running');
   });
 
   it('names the new version when one was activated', async () => {
     const { result } = renderHook(() => usePluginActions(), { wrapper });
 
     await act(async () => {
-      await result.current.checkNow('p1');
+      await result.current.checkNow('p1', 'Alpha');
     });
 
     expect(toast.success).toHaveBeenCalledWith(
-      'Updated to v2.0.0. Everyone using this plugin now has this version.'
+      'Alpha updated to v2.0.0. Everyone using this plugin now has this version.'
     );
   });
 
@@ -218,15 +218,15 @@ describe('usePluginActions', () => {
     [
       true,
       'success' as const,
-      'Updated to v3.0.0. Everyone using this plugin now has this version.',
+      'Alpha updated to v3.0.0. Everyone using this plugin now has this version.',
     ],
-    [false, 'plain' as const, "You're up to date — v3.0.0"],
+    [false, 'plain' as const, 'Alpha is up to date — v3.0.0'],
   ])('reads a response with no outcome field (updated=%s)', async (updated, channel, expected) => {
     service.checkNow.mockResolvedValue({ updated, currentSemver: '3.0.0' });
     const { result } = renderHook(() => usePluginActions(), { wrapper });
 
     await act(async () => {
-      await result.current.checkNow('p1');
+      await result.current.checkNow('p1', 'Alpha');
     });
 
     expect(channel === 'success' ? toast.success : toast).toHaveBeenCalledWith(expected);
@@ -245,7 +245,7 @@ describe('usePluginActions', () => {
     });
 
     await act(async () => {
-      await result.current.checkNow('p1');
+      await result.current.checkNow('p1', 'Alpha');
     });
 
     expect(invalidated).toHaveBeenCalledWith({ queryKey: ['plugin-publications', 'project-1'] });
@@ -292,11 +292,11 @@ describe('usePluginActions', () => {
     const { result } = renderHook(() => usePluginActions(), { wrapper });
 
     await act(async () => {
-      await result.current.checkNow('p1');
+      await result.current.checkNow('p1', 'Alpha');
     });
 
     expect(toast.error).toHaveBeenCalledWith(
-      'v0.1.1 was rejected (COLLECTIONS_INCOMPATIBLE). v0.1.0 stays active — see Release issues for details.'
+      "Alpha v0.1.1 was rejected (COLLECTIONS_INCOMPATIBLE). v0.1.0 stays active — see Release issues on the plugin's page."
     );
   });
 
@@ -315,10 +315,10 @@ describe('usePluginActions', () => {
     const { result } = renderHook(() => usePluginActions(), { wrapper });
 
     await act(async () => {
-      await result.current.checkNow('p1');
+      await result.current.checkNow('p1', 'Alpha');
     });
 
-    expect(toast).toHaveBeenCalledWith("You're up to date — v1.0.0");
+    expect(toast).toHaveBeenCalledWith('Alpha is up to date — v1.0.0');
     expect(toast.error).not.toHaveBeenCalled();
   });
 });

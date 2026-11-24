@@ -36,8 +36,11 @@ export function PluginCard({ plugin, onInstall }: PluginCardProps) {
     <div
       className='group hover:border-foreground/20 bg-card flex cursor-pointer flex-col gap-3 rounded-lg border p-4 transition-colors'
       onClick={event => {
-        // Buttons and links own their clicks; everything else opens the plugin.
-        if (!(event.target as HTMLElement).closest('button, a')) {
+        // Buttons, links and portalled tooltips own their clicks; everything else opens the plugin.
+        if (
+          event.currentTarget.contains(event.target as Node) &&
+          !(event.target as HTMLElement).closest('button, a')
+        ) {
           open();
         }
       }}
@@ -109,17 +112,20 @@ export function PluginCard({ plugin, onInstall }: PluginCardProps) {
       <div className='flex min-h-9 items-center justify-between gap-2'>
         <div className='flex flex-wrap items-center gap-1.5'>
           {plugin.currentSemver && <Badge variant='secondary'>v{plugin.currentSemver}</Badge>}
-          {/* Shown on hover, focus or while it runs; pointer-events-auto keeps a click on the running check off the card. */}
+          {/* Suspended plugins stay listed rather than vanishing: a member who has one
+              installed needs to see why it stopped working. */}
+          {plugin.suspended && <Badge variant='destructive'>Unavailable</Badge>}
+          {/* Shown on hover, focus or while it runs. Hidden, it takes no taps; running, it keeps a click off the card. */}
           {isInstalled && (
             <Tooltip>
               <TooltipTrigger asChild>
                 <Button
                   variant='ghost'
                   size='icon-sm'
-                  className={`text-muted-foreground hover:text-foreground size-5.5 shrink-0 transition-opacity focus-visible:opacity-100 disabled:pointer-events-auto ${isUpdating ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'}`}
+                  className={`text-muted-foreground hover:text-foreground size-5.5 shrink-0 transition-opacity focus-visible:opacity-100 disabled:pointer-events-auto ${isUpdating ? 'opacity-100' : 'pointer-events-none opacity-0 group-hover:pointer-events-auto group-hover:opacity-100'}`}
                   disabled={isUpdating}
                   aria-label={`Check and Update ${plugin.displayName}`}
-                  onClick={() => void checkNow(plugin.pluginId)}
+                  onClick={() => void checkNow(plugin.pluginId, plugin.displayName)}
                 >
                   <RefreshCw className={isUpdating ? 'size-3.5 animate-spin' : 'size-3.5'} />
                 </Button>
@@ -127,9 +133,6 @@ export function PluginCard({ plugin, onInstall }: PluginCardProps) {
               <TooltipContent>Check and Update</TooltipContent>
             </Tooltip>
           )}
-          {/* Suspended plugins stay listed rather than vanishing: a member who has one
-              installed needs to see why it stopped working. */}
-          {plugin.suspended && <Badge variant='destructive'>Unavailable</Badge>}
         </div>
 
         {/*

@@ -210,10 +210,10 @@ export function usePluginActions() {
    * is told the current version stays active rather than shown a raw error.
    */
   const checkNow = useCallback(
-    async (pluginId: string) => {
+    async (pluginId: string, pluginName: string) => {
       try {
         const result = await updateMutation.mutateAsync(pluginId);
-        reportOutcome(result);
+        reportOutcome(result, pluginName);
         return result;
       } catch (caught) {
         toast.error(errorMessage(caught));
@@ -247,20 +247,24 @@ export function usePluginActions() {
  *
  * Falls back to `updated` when the response predates the outcome field, so the older
  * half of a rolling deploy still says something true.
+ *
+ * Every message names the plugin: the Plugins page can run checks on several cards at once.
  */
-function reportOutcome(result: PluginUpdateResult): void {
+function reportOutcome(result: PluginUpdateResult, pluginName: string): void {
   const outcome = result.outcome ?? (result.updated ? 'updated' : 'up_to_date');
   const version = result.currentSemver ? `v${result.currentSemver}` : 'the current version';
 
   if (outcome === 'updated') {
     const activated = result.currentSemver ? `v${result.currentSemver}` : 'a newer version';
-    toast.success(`Updated to ${activated}. Everyone using this plugin now has this version.`);
+    toast.success(
+      `${pluginName} updated to ${activated}. Everyone using this plugin now has this version.`
+    );
     return;
   }
 
   if (outcome === 'failed') {
     toast.error(
-      `Couldn't check for updates. ${version} remains active and OWOX will try again automatically.`
+      `Couldn't check ${pluginName} for updates. ${version} remains active and OWOX will try again automatically.`
     );
     return;
   }
@@ -269,9 +273,9 @@ function reportOutcome(result: PluginUpdateResult): void {
     const rejected = actionableRejections(result.diagnostics?.rejections ?? []);
     if (rejected.length > 0) {
       // The report is newest-first, so the first entry is the release that just failed
-      // to become current. The card below the fold carries the full detail.
+      // to become current. The plugin page's Release issues card carries the full detail.
       toast.error(
-        `${rejected[0].tagName} was rejected (${rejected[0].code}). ${version} stays active — see Release issues for details.`
+        `${pluginName} ${rejected[0].tagName} was rejected (${rejected[0].code}). ${version} stays active — see Release issues on the plugin's page.`
       );
       return;
     }
@@ -279,8 +283,8 @@ function reportOutcome(result: PluginUpdateResult): void {
 
   toast(
     outcome === 'already_running'
-      ? 'An update check is already running'
-      : `You're up to date — ${version}`
+      ? `An update check for ${pluginName} is already running`
+      : `${pluginName} is up to date — ${version}`
   );
 }
 

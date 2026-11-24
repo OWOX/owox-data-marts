@@ -279,7 +279,7 @@ describe('PluginDetailsPage', () => {
     expect(screen.queryByRole('button', { name: 'Check now' })).toBeNull();
 
     fireEvent.click(screen.getByRole('button', { name: 'Check and Update' }));
-    expect(checkNow).toHaveBeenCalledWith('p1');
+    expect(checkNow).toHaveBeenCalledWith('p1', 'Example Plugin');
   });
 
   // The label is the point of the rename: the visible tooltip has to say what the button
@@ -437,7 +437,7 @@ describe('PluginDetailsPage', () => {
     renderPage();
 
     fireEvent.click(screen.getByRole('button', { name: 'Check and Update' }));
-    expect(checkNow).toHaveBeenCalledWith('p1');
+    expect(checkNow).toHaveBeenCalledWith('p1', 'Example Plugin');
   });
 
   // The member never chose this version and cannot pin it, so the Version tooltip has to
