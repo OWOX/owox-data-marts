@@ -1,10 +1,12 @@
 import { useEffect, useMemo, useState } from 'react';
 import type { ColumnDef } from '@tanstack/react-table';
+import { FolderOpen, Plus } from 'lucide-react';
 import { Button } from '@owox/ui/components/button';
 import { LoadingSpinner } from '@owox/ui/components/common/loading-spinner';
 import { useProjects } from '../idp/hooks/useProjects';
 import type { Project } from '../idp/types';
 import { getRoleDisplayName } from '../idp/utils/role-display-name';
+import { useCloudProjectCreation } from '../project-settings/management/useCloudProjectCreation';
 import { BaseTable, SortableHeader, TableColumnSearch } from '../../shared/components/Table';
 import { StatusLabel, StatusTypeEnum } from '../../shared/components/StatusLabel';
 import {
@@ -70,6 +72,7 @@ const columns: ColumnDef<Project>[] = [
 
 export function AccountProjectsCard() {
   const { projects, callState, loadProjects } = useProjects();
+  const creation = useCloudProjectCreation();
   const [appliedFilters, setAppliedFilters] = useState(DEFAULT_FILTERS_STATE);
 
   useEffect(() => {
@@ -93,6 +96,16 @@ export function AccountProjectsCard() {
     enableRowSelection: false,
     getRowId: project => project.id,
   });
+  const createAction = creation.canCreate && (
+    <Button
+      variant='outline'
+      disabled={creation.creating}
+      onClick={() => void creation.createProject()}
+    >
+      <Plus className='size-4' aria-hidden='true' />
+      {creation.label}
+    </Button>
+  );
 
   return (
     <section
@@ -105,36 +118,42 @@ export function AccountProjectsCard() {
           <Button size='sm' variant='outline' onClick={() => void loadProjects()}>
             Try again
           </Button>
+          {creation.hasCreatedProject && createAction}
         </div>
       ) : callState === RequestStatus.LOADED ? (
-        <BaseTable
-          tableId='account-projects-table'
-          table={table}
-          ariaLabel='My projects'
-          paginationProps={{ displaySelected: false }}
-          renderToolbarLeft={() => (
-            <>
-              <TableFilters
-                appliedState={appliedFilters}
-                onApply={setAppliedFilters}
-                onClear={() => {
-                  setAppliedFilters(DEFAULT_FILTERS_STATE);
-                }}
-              >
-                <TableFiltersTrigger />
-                <TableFiltersContent config={filters} />
-              </TableFilters>
-              <TableColumnSearch table={table} columnId='title' placeholder='Search projects' />
-            </>
-          )}
-          renderEmptyState={() => (
-            <span role='status'>
-              {projects.length === 0
-                ? 'You have no project memberships yet.'
-                : 'No projects found.'}
-            </span>
-          )}
-        />
+        projects.length === 0 ? (
+          <div className='dm-empty-state'>
+            <FolderOpen className='dm-empty-state-ico' strokeWidth={1} aria-hidden='true' />
+            <h2 className='dm-empty-state-title'>
+              {creation.hasCreatedProject ? 'Project created' : 'No projects yet'}
+            </h2>
+            {createAction}
+          </div>
+        ) : (
+          <BaseTable
+            tableId='account-projects-table'
+            table={table}
+            ariaLabel='My projects'
+            paginationProps={{ displaySelected: false }}
+            renderToolbarLeft={() => (
+              <>
+                <TableFilters
+                  appliedState={appliedFilters}
+                  onApply={setAppliedFilters}
+                  onClear={() => {
+                    setAppliedFilters(DEFAULT_FILTERS_STATE);
+                  }}
+                >
+                  <TableFiltersTrigger />
+                  <TableFiltersContent config={filters} />
+                </TableFilters>
+                <TableColumnSearch table={table} columnId='title' placeholder='Search projects' />
+                {creation.hasCreatedProject && createAction}
+              </>
+            )}
+            renderEmptyState={() => <span role='status'>No projects found.</span>}
+          />
+        )
       ) : (
         <LoadingSpinner message='Loading projects...' />
       )}

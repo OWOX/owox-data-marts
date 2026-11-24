@@ -26,6 +26,14 @@ vi.mock('../features/idp/hooks', () => ({
   useUser: () => currentUser.value,
 }));
 
+vi.mock('../features/idp/hooks/useAuthState', () => ({
+  useUser: () => currentUser.value,
+}));
+
+vi.mock('../app/store/hooks', () => ({
+  useFlags: () => ({ flags: null }),
+}));
+
 vi.mock('../features/whats-new', () => ({ WhatsNewAnnouncer: () => null }));
 
 vi.mock('../components/AppSidebar', () => ({

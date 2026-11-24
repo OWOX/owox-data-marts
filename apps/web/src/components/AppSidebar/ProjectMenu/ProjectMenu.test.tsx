@@ -2,6 +2,7 @@ import type { ReactNode } from 'react';
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { User } from '../../../features/idp/types';
+import { CloudProjectCreationProvider } from '../../../features/project-settings/management/CloudProjectCreationProvider';
 import { SidebarProjectMenu } from './ProjectMenu';
 
 const state = vi.hoisted(() => ({
@@ -73,7 +74,7 @@ describe('Create project in the sidebar', () => {
     state.signIn.mockImplementationOnce(() => {
       throw new Error('Could not start sign-in');
     });
-    render(<SidebarProjectMenu restricted />);
+    render(<SidebarProjectMenu restricted />, { wrapper: CloudProjectCreationProvider });
 
     fireEvent.click(screen.getByRole('button', { name: 'Create project' }));
     const retry = await screen.findByRole('button', { name: 'Open new project' });
@@ -102,7 +103,7 @@ describe('Create project in the sidebar', () => {
       projectTitle: 'New project',
       registrationPending: false,
     });
-    render(<SidebarProjectMenu />);
+    render(<SidebarProjectMenu />, { wrapper: CloudProjectCreationProvider });
     fireEvent.click(screen.getByRole('button', { name: 'Create project' }));
     fireEvent.click(await screen.findByRole('button', { name: 'Retry project setup' }));
 
@@ -120,10 +121,28 @@ describe('Create project in the sidebar', () => {
     );
   });
 
+  it('shares the in-flight creation state between actions in the same layout', () => {
+    state.create.mockReturnValue(new Promise(() => undefined));
+    render(
+      <>
+        <SidebarProjectMenu />
+        <SidebarProjectMenu />
+      </>,
+      { wrapper: CloudProjectCreationProvider }
+    );
+
+    const [first, second] = screen.getAllByRole('button', { name: 'Create project' });
+    fireEvent.click(first);
+
+    expect(second).toBeDisabled();
+    fireEvent.click(second);
+    expect(state.create).toHaveBeenCalledTimes(1);
+  });
+
   it.each(['view-only', 'better-auth', 'none'])('hides creation for %s', scenario => {
     if (scenario === 'view-only') state.user = { ...state.user!, viewOnly: true };
     else state.flags.IDP_PROVIDER = scenario;
-    render(<SidebarProjectMenu />);
+    render(<SidebarProjectMenu />, { wrapper: CloudProjectCreationProvider });
     expect(screen.queryByRole('button', { name: 'Create project' })).not.toBeInTheDocument();
   });
 });

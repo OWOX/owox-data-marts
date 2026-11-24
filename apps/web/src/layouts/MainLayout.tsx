@@ -29,6 +29,7 @@ import { ArchiveRestore, Box, DatabaseIcon, LockKeyhole } from 'lucide-react';
 import { HelpMenu } from '../components/AppSidebar/HelpMenu';
 import { UserMenu } from '../components/AppSidebar/UserMenu';
 import { SidebarProjectMenu } from '../components/AppSidebar/ProjectMenu';
+import { CloudProjectCreationProvider } from '../features/project-settings/management/CloudProjectCreationProvider';
 import { WhatsNewAnnouncer } from '../features/whats-new';
 
 // Constants
@@ -115,24 +116,26 @@ function MainLayoutContent({ accountOnly }: { accountOnly: boolean }) {
       <HotToaster />
       <GlobalLoader isLoading={isLoading} progress={progress} />
       <Guards>
-        {user && hasEmptyProjectRoles ? (
-          <>
-            <RestrictedProjectSidebar />
-            <SidebarInset className='min-w-0'>
-              {showTrigger && <SidebarTrigger />}
-              <Outlet />
-            </SidebarInset>
-          </>
-        ) : (
-          <>
-            <AppSidebar variant='inset' collapsible='icon' />
-            <WhatsNewAnnouncer />
-            <SidebarInset className='min-w-0'>
-              {showTrigger && <SidebarTrigger />}
-              <Outlet />
-            </SidebarInset>
-          </>
-        )}
+        <CloudProjectCreationProvider>
+          {user && hasEmptyProjectRoles ? (
+            <>
+              <RestrictedProjectSidebar />
+              <SidebarInset className='min-w-0'>
+                {showTrigger && <SidebarTrigger />}
+                <Outlet />
+              </SidebarInset>
+            </>
+          ) : (
+            <>
+              <AppSidebar variant='inset' collapsible='icon' />
+              <WhatsNewAnnouncer />
+              <SidebarInset className='min-w-0'>
+                {showTrigger && <SidebarTrigger />}
+                <Outlet />
+              </SidebarInset>
+            </>
+          )}
+        </CloudProjectCreationProvider>
       </Guards>
     </>
   );

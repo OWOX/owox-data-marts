@@ -33,7 +33,7 @@ Use **Project Settings → Overview → Description** to tell AI assistants your
 
 ## Manage Cloud projects
 
-Open the project menu and select **Create project** to start a new Cloud project. OWOX opens the new project's Data Marts after creation. You can also create a project while waiting for access to another project.
+Open the project menu and select **Create project** to start a new Cloud project. You can also create a project while waiting for access to another project or from **My profile → Projects** when your project list is empty. OWOX opens the new project's Data Marts after creation.
 
 A Project Admin can rename a project from **Project Settings → Overview → Project name**. The new name appears in the project menu and in **My profile → Projects**.
 
