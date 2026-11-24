@@ -253,6 +253,18 @@ describe('TargetSetupStep', () => {
     expect(screen.getByLabelText(/table name/i, { selector: 'input' })).toHaveValue('ad_insights');
   });
 
+  it('names an OWOX Storage, not Google BigQuery, in the step header', () => {
+    render(
+      <TargetSetupStepHarness
+        dataStorageType={DataStorageType.GOOGLE_BIGQUERY}
+        fixedDatasetName='owox_abc'
+      />
+    );
+
+    expect(screen.getByText('OWOX Storage')).toBeInTheDocument();
+    expect(screen.queryByText('Google BigQuery')).toBeNull();
+  });
+
   it('writes the target of an OWOX Storage into its dataset', () => {
     const onTargetChange = vi.fn();
     render(

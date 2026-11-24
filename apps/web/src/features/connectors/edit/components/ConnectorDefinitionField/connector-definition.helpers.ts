@@ -1,24 +1,4 @@
-import { DataStorageType } from '../../../../data-storage';
 import { type ConnectorDefinitionConfig } from '../../../../data-marts/edit/model/types/connector-definition-config.ts';
-
-export const getStorageDisplayName = (type: DataStorageType) => {
-  switch (type) {
-    case DataStorageType.GOOGLE_BIGQUERY:
-      return 'Google BigQuery';
-    case DataStorageType.AWS_ATHENA:
-      return 'AWS Athena';
-    case DataStorageType.SNOWFLAKE:
-      return 'Snowflake';
-    case DataStorageType.AWS_REDSHIFT:
-      return 'AWS Redshift';
-    case DataStorageType.DATABRICKS:
-      return 'Databricks';
-    case DataStorageType.DUCKDB:
-      return 'DuckDB';
-    default:
-      return type;
-  }
-};
 
 export const isConnectorDefinition = (value: ConnectorDefinitionConfig) => {
   return typeof value === 'object' && 'connector' in value;

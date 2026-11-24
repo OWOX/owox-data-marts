@@ -14,6 +14,7 @@ import { type AzureSynapseIcon } from './azure-synapse-icon';
 import { type DuckDBIcon } from './duckdb-icon';
 import { type RawBase64Icon } from './raw-base64-icon';
 import { type OWOXBIIcon } from './owox-bi-icon';
+import { type OwoxStorageIcon } from './owox-storage-icon';
 import { type SlackIcon } from './slack-icon';
 import { type DataMartPlusIcon } from './data-mart-plus-icon';
 import { type XAdsIcon } from './x-ads-icon';
@@ -48,6 +49,7 @@ export type LocalIcon =
   | typeof AzureSynapseIcon
   | typeof DuckDBIcon
   | typeof OWOXBIIcon
+  | typeof OwoxStorageIcon
   | typeof SlackIcon
   | typeof DataMartPlusIcon
   | typeof XAdsIcon

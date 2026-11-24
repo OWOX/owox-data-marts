@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { DataStorageTypeModel } from './data-storage-type.model';
 import { DataStorageType, DataStorageStatus } from '../model/types';
+import { OwoxStorageIcon } from '../../../../shared';
 
 describe('DataStorageTypeModel', () => {
   it('should return correct info for Google BigQuery', () => {
@@ -20,6 +21,22 @@ describe('DataStorageTypeModel', () => {
     expect(info.displayName).toBe('DuckDB');
     expect(info.type).toBe(DataStorageType.DUCKDB);
     expect(info.status).toBe(DataStorageStatus.ACTIVE);
+  });
+
+  it('shows an OWOX Storage under its own name and the OWOX mark', () => {
+    const info = DataStorageTypeModel.getStorageInfo({
+      type: DataStorageType.GOOGLE_BIGQUERY,
+      owoxStorage: { location: 'US', datasetId: 'owox_abc' },
+    });
+
+    expect(info.displayName).toBe('OWOX Storage');
+    expect(info.icon).toBe(OwoxStorageIcon);
+  });
+
+  it('shows any other storage as its type', () => {
+    expect(DataStorageTypeModel.getStorageInfo({ type: DataStorageType.GOOGLE_BIGQUERY })).toBe(
+      DataStorageTypeModel.getInfo(DataStorageType.GOOGLE_BIGQUERY)
+    );
   });
 
   it('should return all types', () => {

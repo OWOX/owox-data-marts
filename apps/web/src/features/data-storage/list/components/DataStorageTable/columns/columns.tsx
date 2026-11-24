@@ -101,12 +101,15 @@ export const getDataStorageColumns = ({
     ),
     cell: ({ row }) => {
       const type = row.getValue<DataStorageType>(DataStorageColumnKey.TYPE);
-      const { displayName, icon: Icon } = DataStorageTypeModel.getInfo(type);
+      const { displayName, icon: Icon } = DataStorageTypeModel.getStorageInfo({
+        type,
+        owoxStorage: row.original.owoxStorage,
+      });
 
       return (
         <div className='text-muted-foreground flex items-center gap-2'>
           <Icon size={18} />
-          {row.original.owoxStorage ? 'OWOX Storage' : displayName}
+          {displayName}
         </div>
       );
     },

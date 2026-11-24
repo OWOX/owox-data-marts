@@ -15,6 +15,7 @@ export * from './azure-synapse-icon';
 export * from './duckdb-icon';
 export * from './raw-base64-icon';
 export * from './owox-bi-icon';
+export * from './owox-storage-icon';
 export * from './slack-icon';
 export * from './data-mart-plus-icon';
 export * from './x-ads-icon';

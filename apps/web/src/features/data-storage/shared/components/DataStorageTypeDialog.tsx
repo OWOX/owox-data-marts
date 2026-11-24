@@ -13,7 +13,7 @@ import { useDuckDbStorageEnabled } from '../hooks/useDuckDbStorageEnabled';
 import { useActionLock } from '../../../../shared/hooks';
 import { useFlags } from '../../../../app/store/hooks';
 import { checkVisible } from '../../../../utils/check-visible';
-import { GoogleBigQueryIcon } from '../../../../shared';
+import { OwoxStorageIcon } from '../../../../shared';
 
 interface DataStorageTypeDialogProps {
   isOpen: boolean;
@@ -55,7 +55,7 @@ export const DataStorageTypeDialog = ({
               }}
             >
               <span className='flex flex-grow items-center gap-2'>
-                <GoogleBigQueryIcon size={24} />
+                <OwoxStorageIcon size={24} />
                 <span className='font-medium'>OWOX Storage</span>
               </span>
             </Button>

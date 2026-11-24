@@ -11,6 +11,7 @@ import {
 } from '@owox/ui/components/common/wizard';
 import {
   GoogleBigQueryIcon,
+  OwoxStorageIcon,
   AwsAthenaIcon,
   SnowflakeIcon,
   AwsRedshiftIcon,
@@ -421,12 +422,21 @@ export function TargetSetupStep({
     <AppWizardStep>
       {dataStorageType === DataStorageType.GOOGLE_BIGQUERY && (
         <>
-          <AppWizardStepHero
-            icon={<GoogleBigQueryIcon />}
-            title='Google BigQuery'
-            docUrl='https://docs.owox.com/docs/storages/supported-storages/google-bigquery/'
-            variant='compact'
-          />
+          {fixedDatasetName ? (
+            <AppWizardStepHero
+              icon={<OwoxStorageIcon />}
+              title='OWOX Storage'
+              docUrl='https://docs.owox.com/docs/storages/supported-storages/owox-storage/'
+              variant='compact'
+            />
+          ) : (
+            <AppWizardStepHero
+              icon={<GoogleBigQueryIcon />}
+              title='Google BigQuery'
+              docUrl='https://docs.owox.com/docs/storages/supported-storages/google-bigquery/'
+              variant='compact'
+            />
+          )}
           <AppWizardStepSection title='Choose where to store your data'>
             <AppWizardStepItem>
               <AppWizardStepLabel

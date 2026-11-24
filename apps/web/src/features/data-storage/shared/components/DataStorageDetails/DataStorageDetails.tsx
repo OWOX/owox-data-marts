@@ -41,11 +41,14 @@ export function DataStorageDetails({ dataStorage, isLoading = false }: DataStora
           <div>{dataStorage.title}</div>
           <Badge variant={'secondary'} className='flex h-7 items-center gap-2'>
             {(() => {
-              const { displayName, icon: Icon } = DataStorageTypeModel.getInfo(type);
+              const { displayName, icon: Icon } = DataStorageTypeModel.getStorageInfo({
+                type,
+                owoxStorage,
+              });
               return (
                 <>
                   <Icon />
-                  {owoxStorage ? 'OWOX Storage' : displayName}
+                  {displayName}
                 </>
               );
             })()}

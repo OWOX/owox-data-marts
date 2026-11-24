@@ -63,7 +63,7 @@ export const DataMartDataStorageView = ({
     />
   );
   const hasChangesRef = useRef(false);
-  const dataStorageInfo = DataStorageTypeModel.getInfo(dataStorage.type);
+  const dataStorageInfo = DataStorageTypeModel.getStorageInfo(dataStorage);
   const handleCardClick = () => {
     setIsEditSheetOpen(true);
   };
