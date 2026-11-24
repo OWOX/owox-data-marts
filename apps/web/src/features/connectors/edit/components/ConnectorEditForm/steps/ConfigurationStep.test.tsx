@@ -1769,9 +1769,8 @@ describe('ConfigurationStep Credential', () => {
       );
 
       const alert = await screen.findByRole('alert');
-      expect(alert).toHaveTextContent(
-        "Could not load Credentials. Custom connector 'MyApi' not found"
-      );
+      expect(within(alert).getByText('Could not load Credentials.')).toBeInTheDocument();
+      expect(within(alert).getByText("Custom connector 'MyApi' not found")).toBeInTheDocument();
 
       fireEvent.click(within(alert).getByRole('button', { name: 'Try again' }));
 
@@ -1797,7 +1796,8 @@ describe('ConfigurationStep Credential', () => {
       );
 
       const alert = await screen.findByRole('alert');
-      expect(alert).toHaveTextContent(`Could not load Credentials. ${reason}`);
+      expect(within(alert).getByText('Could not load Credentials.')).toBeInTheDocument();
+      expect(within(alert).getByText(reason)).toBeInTheDocument();
 
       fireEvent.click(within(alert).getByRole('button', { name: 'Try again' }));
 

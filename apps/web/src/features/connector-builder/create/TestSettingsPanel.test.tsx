@@ -1,6 +1,6 @@
 import { describe, it, expect, vi } from 'vitest';
 import type { ReactNode } from 'react';
-import { render, screen, fireEvent } from '@testing-library/react';
+import { render, screen, fireEvent, within } from '@testing-library/react';
 import { TestSettingsPanel } from './components/TestSettingsPanel';
 import type { ManifestParameter } from '../shared/model/manifest.types';
 
@@ -196,7 +196,9 @@ describe('TestSettingsPanel', () => {
       setup({
         credential: control({ mode: 'credential', state: { status: 'error', reason: REFUSAL } }),
       });
-      expect(screen.getByRole('alert')).toHaveTextContent(`Could not load Credentials. ${REFUSAL}`);
+      const alert = screen.getByRole('alert');
+      expect(within(alert).getByText('Could not load Credentials.')).toHaveClass('text-warning');
+      expect(within(alert).getByText(REFUSAL)).toBeInTheDocument();
       expect(screen.queryByRole('button', { name: 'Try again' })).toBeNull();
     });
 
