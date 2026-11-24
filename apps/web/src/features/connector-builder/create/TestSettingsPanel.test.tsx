@@ -20,6 +20,9 @@ vi.mock('../../credentials', () => ({
   },
 }));
 
+const REFUSAL =
+  'Invalid manifest: ManifestParser: node "items" uniqueKeys names "iid", which is not one of its fields';
+
 const params: [string, ManifestParameter][] = [
   ['Token', { requiredType: 'string', isRequired: true, attributes: ['SECRET'] }],
   ['Region', { requiredType: 'string', isRequired: false, default: 'us', label: 'Region label' }],
@@ -187,6 +190,14 @@ describe('TestSettingsPanel', () => {
       expect(screen.queryByText('Credential field')).not.toBeInTheDocument();
       fireEvent.click(screen.getByRole('button', { name: 'Try again' }));
       expect(credential.onRetry).toHaveBeenCalled();
+    });
+
+    it('shows why the server refused the lookup, without a retry', () => {
+      setup({
+        credential: control({ mode: 'credential', state: { status: 'error', reason: REFUSAL } }),
+      });
+      expect(screen.getByRole('alert')).toHaveTextContent(`Could not load Credentials. ${REFUSAL}`);
+      expect(screen.queryByRole('button', { name: 'Try again' })).toBeNull();
     });
 
     it('does not run until a Credential is chosen', () => {

@@ -1,6 +1,7 @@
 import { useContext, useState, type ReactNode } from 'react';
 import { MemoryRouter } from 'react-router';
 import { afterEach, beforeEach, describe, it, expect, vi } from 'vitest';
+import { AxiosError, type AxiosResponse } from 'axios';
 import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { ConfigurationStep } from './ConfigurationStep';
 import type { ConnectorSpecificationResponseApiDto } from '../../../../shared/api';
@@ -1743,6 +1744,65 @@ describe('ConfigurationStep Credential', () => {
       expect(screen.getByRole('textbox', { name: 'Account *' })).toBeInTheDocument();
       expect(screen.queryByRole('textbox', { name: 'API Token *' })).not.toBeInTheDocument();
       expect(screen.queryByRole('alert')).not.toBeInTheDocument();
+    });
+
+    const refused = (status: number, message: string) =>
+      new AxiosError(`Request failed with status code ${status}`, undefined, undefined, undefined, {
+        status,
+        data: { message },
+      } as AxiosResponse);
+
+    it('shows why the server refused the requirement, and offers to try again', async () => {
+      builderApi.credentialRequirement
+        .mockRejectedValueOnce(refused(404, "Custom connector 'MyApi' not found"))
+        .mockImplementation(requirementFor);
+      builderApi.fittingCredentials.mockResolvedValue([]);
+
+      render(
+        inDataMart(
+          <Harness
+            connectorItem={customConnector}
+            specification={customSpecification}
+            initial={{ _id: 'cfg-1', Mode: 'oauth' }}
+          />
+        )
+      );
+
+      const alert = await screen.findByRole('alert');
+      expect(alert).toHaveTextContent(
+        "Could not load Credentials. Custom connector 'MyApi' not found"
+      );
+
+      fireEvent.click(within(alert).getByRole('button', { name: 'Try again' }));
+
+      expect(await screen.findByRole('combobox', { name: 'Credential' })).toBeInTheDocument();
+    });
+
+    it('shows why the server refused the fitting Credentials, and offers to try again', async () => {
+      const reason =
+        'Invalid manifest: ManifestParser: node "items" uniqueKeys names "iid", which is not one of its fields';
+      builderApi.credentialRequirement.mockImplementation(requirementFor);
+      builderApi.fittingCredentials
+        .mockRejectedValueOnce(refused(400, reason))
+        .mockResolvedValue([]);
+
+      render(
+        inDataMart(
+          <Harness
+            connectorItem={customConnector}
+            specification={customSpecification}
+            initial={{ _id: 'cfg-1', Mode: 'oauth' }}
+          />
+        )
+      );
+
+      const alert = await screen.findByRole('alert');
+      expect(alert).toHaveTextContent(`Could not load Credentials. ${reason}`);
+
+      fireEvent.click(within(alert).getByRole('button', { name: 'Try again' }));
+
+      expect(await screen.findByRole('combobox', { name: 'Credential' })).toBeInTheDocument();
+      expect(builderApi.fittingCredentials).toHaveBeenCalledTimes(2);
     });
 
     it('offers to try again when the fitting Credentials fail to load', async () => {
