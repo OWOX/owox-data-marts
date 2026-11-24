@@ -116,7 +116,7 @@ export function PluginCard({ plugin, onInstall }: PluginCardProps) {
                 <Button
                   variant='ghost'
                   size='icon-sm'
-                  className={`text-muted-foreground hover:text-foreground shrink-0 transition-opacity focus-visible:opacity-100 disabled:pointer-events-auto ${isUpdating ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'}`}
+                  className={`text-muted-foreground hover:text-foreground size-5.5 shrink-0 transition-opacity focus-visible:opacity-100 disabled:pointer-events-auto ${isUpdating ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'}`}
                   disabled={isUpdating}
                   aria-label={`Check and Update ${plugin.displayName}`}
                   onClick={() => void checkNow(plugin.pluginId)}
