@@ -268,7 +268,6 @@ export default function PluginDetailsPage({
                 API reactivates the same installation row. */}
             {!isInstalled && (
               <Button
-                variant='outline'
                 disabled={isInstalling || plugin.suspended || !plugin.currentVersionId}
                 onClick={() => {
                   if (isInstalling) {

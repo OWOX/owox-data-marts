@@ -30,18 +30,19 @@ export function PluginCard({ plugin, onInstall }: PluginCardProps) {
   const canInstall = !plugin.suspended && plugin.currentVersionId !== null;
   const visibility = describeVisibility(plugin.visibleViaScopes, plugin.installationState);
 
-  const open = () => void navigate(scope(`/plugins/${plugin.pluginId}`));
+  const pluginPath = scope(`/plugins/${plugin.pluginId}`);
+  const openSettings = () => void navigate(pluginPath);
 
   return (
     <div
       className='group hover:border-foreground/20 bg-card flex cursor-pointer flex-col gap-3 rounded-lg border p-4 transition-colors'
       onClick={event => {
-        // Buttons, links and portalled tooltips own their clicks; everything else opens the plugin.
+        // Buttons, links and portalled tooltips own their clicks; the rest opens an installed plugin or the plugin page.
         if (
           event.currentTarget.contains(event.target as Node) &&
           !(event.target as HTMLElement).closest('button, a')
         ) {
-          open();
+          void navigate(isInstalled ? `${pluginPath}/open` : pluginPath);
         }
       }}
     >
@@ -69,7 +70,7 @@ export function PluginCard({ plugin, onInstall }: PluginCardProps) {
                 size='icon'
                 className='-mt-1 shrink-0'
                 aria-label={`Open ${plugin.displayName} settings`}
-                onClick={open}
+                onClick={openSettings}
               >
                 <Settings className='size-4' />
               </Button>
