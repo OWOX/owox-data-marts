@@ -34,7 +34,7 @@ export function PluginCard({ plugin, onInstall }: PluginCardProps) {
 
   return (
     <div
-      className='hover:border-foreground/20 bg-card flex cursor-pointer flex-col gap-3 rounded-lg border p-4 transition-colors'
+      className='group hover:border-foreground/20 bg-card flex cursor-pointer flex-col gap-3 rounded-lg border p-4 transition-colors'
       onClick={event => {
         // Buttons and links own their clicks; everything else opens the plugin.
         if (!(event.target as HTMLElement).closest('button, a')) {
@@ -109,19 +109,19 @@ export function PluginCard({ plugin, onInstall }: PluginCardProps) {
       <div className='flex min-h-9 items-center justify-between gap-2'>
         <div className='flex flex-wrap items-center gap-1.5'>
           {plugin.currentSemver && <Badge variant='secondary'>v{plugin.currentSemver}</Badge>}
-          {/* Keeps a click on the running check off the card, which would open the plugin. */}
+          {/* Shown on hover, focus or while it runs; pointer-events-auto keeps a click on the running check off the card. */}
           {isInstalled && (
             <Tooltip>
               <TooltipTrigger asChild>
                 <Button
                   variant='ghost'
-                  size='icon'
-                  className='shrink-0 disabled:pointer-events-auto'
+                  size='icon-sm'
+                  className={`text-muted-foreground hover:text-foreground shrink-0 transition-opacity focus-visible:opacity-100 disabled:pointer-events-auto ${isUpdating ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'}`}
                   disabled={isUpdating}
                   aria-label={`Check and Update ${plugin.displayName}`}
                   onClick={() => void checkNow(plugin.pluginId)}
                 >
-                  <RefreshCw className={isUpdating ? 'size-4 animate-spin' : 'size-4'} />
+                  <RefreshCw className={isUpdating ? 'size-3.5 animate-spin' : 'size-3.5'} />
                 </Button>
               </TooltipTrigger>
               <TooltipContent>Check and Update</TooltipContent>

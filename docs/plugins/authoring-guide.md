@@ -1928,8 +1928,9 @@ eligible release before sharing the plugin more broadly.
 
 For a normal update, change and test the plugin, deploy it, and create a higher production release
 such as `v0.1.1`. OWOX Data Marts checks relevant repositories daily. To check now, select
-**Check and Update** next to the version on the plugin's page. If you installed the plugin, its
-card on the **Plugins** page also has this button. You can also use the command line:
+**Check and Update** next to the version on the plugin's page. If you installed the plugin, this
+button also appears next to the version when you point to its card on the **Plugins** page. You can
+also use the command line:
 
 ```bash
 owox-ctl plugins update OWNER/PLUGIN_NAME

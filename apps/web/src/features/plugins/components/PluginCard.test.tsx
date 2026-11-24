@@ -131,6 +131,23 @@ describe('PluginCard', () => {
     expect(screen.getByRole('button', { name: 'Check and Update Other Plugin' })).toBeEnabled();
   });
 
+  it('shows Check and Update on hover or focus, and keeps it shown while the check runs', async () => {
+    service.checkNow.mockReturnValue(new Promise(() => {}));
+    renderCards(plugin({ installationState: 'installed' }));
+    const button = screen.getByRole('button', { name: 'Check and Update Example Plugin' });
+
+    expect(button).toHaveClass('opacity-0', 'group-hover:opacity-100', 'focus-visible:opacity-100');
+    // group-hover needs the card itself to be the group.
+    expect(button.closest('.group')).toHaveClass('cursor-pointer');
+
+    fireEvent.click(button);
+
+    await waitFor(() => {
+      expect(button).toHaveClass('opacity-100');
+    });
+    expect(button).not.toHaveClass('opacity-0');
+  });
+
   it.each(['not_installed', 'uninstalled'] as const)(
     'offers no Check and Update on a %s card',
     state => {
