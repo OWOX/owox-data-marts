@@ -178,10 +178,11 @@ export class BigQueryApiAdapter {
     });
   }
 
-  private async runJob(queryConfig: Query, signal?: AbortSignal): Promise<{ jobId: string }> {
-    let job: Job;
+  /** Creates a query job; on an OWOX Storage, Google's daily quota refusal gets the OWOX message. */
+  private async createJob(queryConfig: Query): Promise<Job> {
     try {
-      [job] = await this.bigQuery.createQueryJob(queryConfig);
+      const [job] = await this.bigQuery.createQueryJob(queryConfig);
+      return job;
     } catch (error) {
       const { errors, message } = error as { errors?: { reason?: string }[]; message?: string };
       if (this.scanBudget && isDailyQuotaRefusal(errors?.[0]?.reason, message)) {
@@ -189,6 +190,10 @@ export class BigQueryApiAdapter {
       }
       throw error;
     }
+  }
+
+  private async runJob(queryConfig: Query, signal?: AbortSignal): Promise<{ jobId: string }> {
+    const job = await this.createJob(queryConfig);
 
     // Best-effort warehouse cancel: on abort, ask BigQuery to cancel the job. The poll loop below
     // then sees the job finish (cancelled) and throws, so we stop billing compute for a gone client.
@@ -293,7 +298,7 @@ export class BigQueryApiAdapter {
       queryConfig.parameterMode = 'NAMED';
     }
 
-    const [job] = await this.bigQuery.createQueryJob(queryConfig);
+    const job = await this.createJob(queryConfig);
     this.setLocationFromJob(job);
     return {
       totalBytesProcessed: Number(job.metadata.statistics.totalBytesProcessed),

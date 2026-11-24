@@ -207,6 +207,20 @@ describe('BigQueryApiAdapter (OWOX Storage)', () => {
       expect(release).toHaveBeenCalledTimes(1);
     });
 
+    it("answers Google's daily quota refusal of the dry run with the OWOX Storage message", async () => {
+      createQueryJob.mockRejectedValue(
+        Object.assign(new Error(customQuota), { code: 403, errors: [{ reason: 'quotaExceeded' }] })
+      );
+
+      const error = await new BigQueryApiAdapter(managed, config)
+        .executeQuery('SELECT 1')
+        .catch(e => e);
+
+      expect(error).toBeInstanceOf(OwoxStorageQueryLimitException);
+      expect(error.message).toBe(GOOGLE_QUOTA);
+      expect(reserve).not.toHaveBeenCalled();
+    });
+
     it("answers Google's daily quota refusal of a finished job with the OWOX Storage message", async () => {
       failJob(
         'quotaExceeded',
