@@ -322,6 +322,36 @@ describe('OverviewTab project status', () => {
     });
   });
 
+  it('lets the user search and select from a long list after project deletion', async () => {
+    enableCloudManagement();
+    const context = projectContext();
+    for (let number = 1; number <= 24; number++) {
+      context.projects.push({
+        id: `remaining-${String(number)}`,
+        title: `Project ${String(number)}`,
+        status: 'active',
+        roles: ['viewer'],
+      });
+    }
+    projectsContext.value = context;
+    projectManagement.delete.mockResolvedValue('removed');
+    renderOverview();
+    confirmDeletion();
+
+    fireEvent.click(await screen.findByRole('combobox', { name: 'Select a project' }));
+    const search = screen.getByPlaceholderText('Search...');
+    fireEvent.change(search, { target: { value: 'unmatched project' } });
+    expect(await screen.findByText('No projects found.')).toBeVisible();
+    fireEvent.change(search, { target: { value: 'project 24' } });
+    expect(screen.queryByRole('option', { name: 'Project 1' })).not.toBeInTheDocument();
+    fireEvent.click(await screen.findByRole('option', { name: 'Project 24' }));
+
+    expect(projectManagement.signIn).toHaveBeenCalledWith({
+      projectId: 'remaining-24',
+      redirect: '/ui/remaining-24/data-marts',
+    });
+  });
+
   it('continues without a target project when the last project is deleted', async () => {
     enableCloudManagement();
     projectManagement.delete.mockResolvedValue('removed');

@@ -1,9 +1,12 @@
 import { Button } from '@owox/ui/components/button';
 import { LoadingSpinner } from '@owox/ui/components/common/loading-spinner';
+import { Combobox } from '../../../shared/components/Combobox/combobox';
 import { RequestStatus } from '../../../shared/types/request-status';
 import { buildProjectPath } from '../../../utils/path';
 import { useProjects } from '../../idp/hooks/useProjects';
 import { signIn } from '../../idp/services';
+
+const projectTitleCollator = new Intl.Collator(undefined, { sensitivity: 'base', numeric: true });
 
 export function ProjectDeleted({ projectId }: { projectId: string }) {
   const { projects, callState, loadProjects } = useProjects();
@@ -14,6 +17,10 @@ export function ProjectDeleted({ projectId }: { projectId: string }) {
       !project.removalPending &&
       project.roles?.length
   );
+
+  function openProject(id: string) {
+    signIn({ projectId: id, redirect: buildProjectPath(id, '/data-marts') });
+  }
 
   return (
     <section className='dm-card flex flex-col items-start gap-3'>
@@ -37,23 +44,34 @@ export function ProjectDeleted({ projectId }: { projectId: string }) {
       ) : available.length > 0 ? (
         <>
           <p className='text-muted-foreground text-sm'>Choose a project to continue.</p>
-          <ul className='flex flex-col gap-2'>
-            {available.map(project => (
-              <li key={project.id}>
-                <Button
-                  variant='outline'
-                  onClick={() => {
-                    signIn({
-                      projectId: project.id,
-                      redirect: buildProjectPath(project.id, '/data-marts'),
-                    });
-                  }}
-                >
-                  {project.title}
-                </Button>
-              </li>
-            ))}
-          </ul>
+          {available.length > 10 ? (
+            <Combobox
+              ariaLabel='Select a project'
+              placeholder='Select a project'
+              emptyMessage='No projects found.'
+              className='max-w-sm'
+              options={available
+                .sort((first, second) => projectTitleCollator.compare(first.title, second.title))
+                .map(project => ({ value: project.id, label: project.title }))}
+              value=''
+              onValueChange={openProject}
+            />
+          ) : (
+            <ul className='flex flex-col gap-2'>
+              {available.map(project => (
+                <li key={project.id}>
+                  <Button
+                    variant='outline'
+                    onClick={() => {
+                      openProject(project.id);
+                    }}
+                  >
+                    {project.title}
+                  </Button>
+                </li>
+              ))}
+            </ul>
+          )}
         </>
       ) : (
         <>
