@@ -56,12 +56,20 @@ describe('BigQueryApiAdapter (OWOX Storage)', () => {
     dryRunReports('SELECT');
   });
 
-  it('refuses a non-SELECT statement on a managed storage before running it', async () => {
-    dryRunReports('SCRIPT');
+  it.each([
+    'SCRIPT',
+    'DELETE',
+    'INSERT',
+    'MERGE',
+    'CREATE_TABLE_AS_SELECT',
+    'EXPORT_DATA',
+    'DROP_TABLE',
+  ])('refuses a %s on a managed storage before running it', async statementType => {
+    dryRunReports(statementType);
 
     await expect(
       new BigQueryApiAdapter(managed, config).executeQuery('SELECT 1; DROP TABLE t')
-    ).rejects.toThrow(new OwoxStorageStatementException('SCRIPT'));
+    ).rejects.toThrow(new OwoxStorageStatementException(statementType));
     expect(createQueryJob).toHaveBeenCalledTimes(1);
   });
 

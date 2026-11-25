@@ -1,5 +1,6 @@
 import {
   Controller,
+  Delete,
   INestApplication,
   MiddlewareConsumer,
   Module,
@@ -51,6 +52,16 @@ class StubController {
 
   @Post('data-storages/:id/owox-storage/restore')
   restoreOwoxStorage(): string {
+    return 'ok';
+  }
+
+  @Delete('data-storages/:id')
+  deleteStorage(): string {
+    return 'ok';
+  }
+
+  @Delete('data-storages/:id/owox-storage/tables/:tableName')
+  deleteOwoxStorageTable(): string {
     return 'ok';
   }
 }
@@ -112,6 +123,20 @@ describe('configureOperationTimeouts', () => {
       .default(app.getHttpServer())
       .post('/api/data-storages/storage-1/owox-storage/restore')
       .expect('x-operation-timeout-ms', '180000');
+  });
+
+  it('gives a storage delete 180 seconds, because an OWOX Storage waits for Integrated Backend', async () => {
+    await supertest
+      .default(app.getHttpServer())
+      .delete('/api/data-storages/storage-1')
+      .expect('x-operation-timeout-ms', '180000');
+  });
+
+  it('keeps 30 seconds for an OWOX Storage table delete', async () => {
+    await supertest
+      .default(app.getHttpServer())
+      .delete('/api/data-storages/storage-1/owox-storage/tables/events')
+      .expect('x-operation-timeout-ms', '30000');
   });
 
   it('keeps 30 seconds for the create of other storages', async () => {

@@ -242,6 +242,23 @@ describe('DataStorageMapper', () => {
     });
   });
 
+  describe('toCreateOwoxStorageCommand', () => {
+    const context = { projectId: 'proj-1', userId: 'user-1', roles: ['editor'] };
+
+    it.each([
+      ['a member', undefined, false],
+      ['a plugin', 'plugin', true],
+    ])('marks whether %s calls', (_who, authFlow, fromPlugin) => {
+      const mapper = new DataStorageMapper(clsWith(), configWith(), noManaged);
+      const command = mapper.toCreateOwoxStorageCommand(
+        { ...context, authFlow } as AuthorizationContext,
+        { title: 'OWOX Storage', location: 'EU' }
+      );
+
+      expect(command.fromPlugin).toBe(fromPlugin);
+    });
+  });
+
   describe('toDeleteOwoxStorageTableCommand', () => {
     const context = { projectId: 'proj-1', userId: 'user-1', roles: ['editor'] };
 

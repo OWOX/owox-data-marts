@@ -698,6 +698,7 @@ Legacy BigQuery Storages cannot be created or deleted through these tools.
 Their titles and BigQuery project IDs stay unchanged when you update them.
 
 Create an [OWOX Storage](../../storages/supported-storages/owox-storage.md) with `create_owox_storage`, not with `create_storage`.
+OWOX Storage is available in OWOX Cloud only, so other deployments do not list `create_owox_storage`.
 It needs no configuration or Credential. `delete_storage` refuses an OWOX Storage,
 because its deletion also deletes its data. Delete it in the OWOX Data Marts web UI.
 `list_storages` and `get_storage` return `owox_storage` with the location and the dataset of an OWOX Storage,

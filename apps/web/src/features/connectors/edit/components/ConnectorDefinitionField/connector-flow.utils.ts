@@ -65,7 +65,7 @@ export function getStorageFlowParams(
             { label: 'Table', value: table, copyValue: pathTo(2) },
           ],
           secondary: [],
-          hint: "The dataset and table are automatically created during the first run of the data mart, if they don't already exist",
+          hint: 'The table is created during the first run of the data mart. OWOX Storage writes into its own dataset.',
         };
       }
       return {

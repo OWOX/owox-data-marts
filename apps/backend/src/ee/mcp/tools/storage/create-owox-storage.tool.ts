@@ -37,6 +37,10 @@ export class CreateOwoxStorageTool implements McpToolDefinition<Input> {
     private readonly publicOriginService: PublicOriginService
   ) {}
 
+  isAvailable(): boolean {
+    return this.storages.isOwoxStorageEnabled();
+  }
+
   async handler(input: Input, context: McpAuthContext): Promise<McpToolResult> {
     const parsed = createOwoxStorageSchema.parse(input);
     const storage = await storageToolCall(

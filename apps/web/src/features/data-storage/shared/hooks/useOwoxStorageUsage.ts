@@ -39,7 +39,8 @@ export function useOwoxStorageUsage(storageId: string) {
     try {
       await dataStorageApiService.deleteOwoxStorageTable(storageId, tableToDelete);
       setTableToDelete(null);
-      await load();
+      // Fresh: another backend server can still cache the deleted table.
+      await load(true);
     } catch {
       // The default error toast has already reported it; keep the dialog open to retry.
     } finally {
@@ -52,7 +53,7 @@ export function useOwoxStorageUsage(storageId: string) {
     try {
       await dataStorageApiService.restoreOwoxStorage(storageId);
       toast.success('Storage restored.');
-      await load();
+      await load(true);
     } catch {
       // The default error toast has already reported it.
     } finally {

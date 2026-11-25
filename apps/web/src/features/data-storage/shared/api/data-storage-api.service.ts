@@ -127,7 +127,8 @@ export class DataStorageApiService extends ApiService {
    * @return {Promise<void>} A promise that resolves when the data storage resource has been deleted.
    */
   async deleteDataStorage(id: string): Promise<void> {
-    return this.delete(`/${id}`);
+    // Deleting an OWOX Storage waits for Integrated Backend; the backend allows 180 s too.
+    return this.delete(`/${id}`, { timeout: 180000 } as AxiosRequestConfig);
   }
 
   /**

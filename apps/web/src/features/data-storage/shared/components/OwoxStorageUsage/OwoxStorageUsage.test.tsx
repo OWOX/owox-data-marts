@@ -140,7 +140,7 @@ describe('OwoxStorageUsage', () => {
 
     expect(await screen.findByText('512 MB of 1 GB used')).toBeInTheDocument();
     expect(restoreOwoxStorage).toHaveBeenCalledWith('s1');
-    expect(getOwoxStorageUsage).toHaveBeenCalledTimes(2);
+    expect(getOwoxStorageUsage).toHaveBeenNthCalledWith(2, 's1', true);
     expect(toastSuccess).toHaveBeenCalledWith('Storage restored.');
   });
 
@@ -221,8 +221,9 @@ describe('OwoxStorageUsage', () => {
     await waitFor(() => {
       expect(deleteOwoxStorageTable).toHaveBeenCalledWith('s1', 'holidays');
     });
+    // Another server can still cache the deleted table, so the reload skips the cache.
     await waitFor(() => {
-      expect(getOwoxStorageUsage).toHaveBeenCalledTimes(2);
+      expect(getOwoxStorageUsage).toHaveBeenNthCalledWith(2, 's1', true);
     });
   });
 

@@ -442,7 +442,11 @@ export function TargetSetupStep({
               <AppWizardStepLabel
                 required={!fixedDatasetName}
                 htmlFor='dataset-name'
-                tooltip='Enter dataset name for Google BigQuery where the connector data will be stored.'
+                tooltip={
+                  fixedDatasetName
+                    ? 'OWOX Storage writes into its own dataset.'
+                    : 'Enter dataset name for Google BigQuery where the connector data will be stored.'
+                }
               >
                 Dataset name
               </AppWizardStepLabel>

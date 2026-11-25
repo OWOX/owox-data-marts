@@ -44,6 +44,10 @@ describe('getStorageFlowParams', () => {
       { label: 'Dataset', value: 'owox_x', copyValue: 'owox_x' },
       { label: 'Table', value: 'daily', copyValue: 'owox_x.daily' },
     ]);
+    // OWOX creates the dataset with the storage; only the table comes with the first run.
+    expect(result.hint).toBe(
+      'The table is created during the first run of the data mart. OWOX Storage writes into its own dataset.'
+    );
   });
 
   it('shows Athena database and table', () => {

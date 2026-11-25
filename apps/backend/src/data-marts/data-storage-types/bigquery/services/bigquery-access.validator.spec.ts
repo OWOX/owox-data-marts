@@ -1,3 +1,4 @@
+import { Logger } from '@nestjs/common';
 import { BigQueryAccessValidator } from './bigquery-access.validator';
 import { BigQueryApiAdapter } from '../adapters/bigquery-api.adapter';
 import { BIGQUERY_OAUTH_TYPE } from '../schemas/bigquery-credentials.schema';
@@ -116,5 +117,25 @@ describe('BigQueryAccessValidator (managed)', () => {
 
     expect(result.valid).toBe(true);
     expect(checkAccess).toHaveBeenCalledTimes(1);
+  });
+
+  it('keeps the account email out of the result and the log', async () => {
+    const email = 'id-0123456789ab@owox-p-access-001.iam.gserviceaccount.com';
+    const checkAccess = jest
+      .fn()
+      .mockRejectedValue(new Error(`Gaia id not found for email ${email}`));
+    MockedAdapter.mockReset();
+    MockedAdapter.mockImplementation(() => ({ checkAccess }) as unknown as BigQueryApiAdapter);
+    const warn = jest.spyOn(Logger.prototype, 'warn').mockImplementation(() => undefined);
+
+    const result = await new BigQueryAccessValidator().validate(
+      { projectId: 'proj-abc' } as unknown as DataStorageConfig,
+      { type: 'bigquery_managed', authClient: {} } as unknown as DataStorageCredentials
+    );
+
+    expect(result.valid).toBe(false);
+    expect(JSON.stringify(result)).not.toContain(email);
+    expect(JSON.stringify(warn.mock.calls)).not.toContain(email);
+    warn.mockRestore();
   });
 });

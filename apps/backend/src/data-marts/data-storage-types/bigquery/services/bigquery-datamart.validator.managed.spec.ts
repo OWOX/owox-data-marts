@@ -1,3 +1,4 @@
+import { Logger } from '@nestjs/common';
 import { DataMartValidationCode } from '../../interfaces/data-mart-validator.interface';
 import { BigQueryDataMartValidator } from './bigquery-datamart.validator';
 import { DataMartDefinitionType } from '../../../enums/data-mart-definition-type.enum';
@@ -30,6 +31,19 @@ describe('BigQueryDataMartValidator (managed)', () => {
     expect(result.valid).toBe(false);
     expect(result.errorMessage).toContain('SELECT queries only');
     expect(result.code).toBe(DataMartValidationCode.STATEMENT_NOT_ALLOWED);
+  });
+
+  it('keeps the account email out of a failed dry run', async () => {
+    const email = 'id-0123456789ab@owox-p-access-001.iam.gserviceaccount.com';
+    executeDryRunQuery.mockRejectedValue(new Error(`Gaia id not found for email ${email}`));
+    const warn = jest.spyOn(Logger.prototype, 'warn').mockImplementation(() => undefined);
+
+    const result = await validator.validate(definition, config, credentials);
+
+    expect(result.valid).toBe(false);
+    expect(JSON.stringify(result)).not.toContain(email);
+    expect(JSON.stringify(warn.mock.calls)).not.toContain(email);
+    warn.mockRestore();
   });
 
   it('passes a SELECT definition', async () => {

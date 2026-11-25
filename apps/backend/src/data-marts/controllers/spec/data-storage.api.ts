@@ -45,8 +45,7 @@ export function CreateOwoxStorageSpec() {
     ApiResponse({ status: 201, type: DataStorageResponseApiDto }),
     ApiResponse({
       status: 400,
-      description:
-        'OWOX Storage is not available, the subscription is unpaid, or the project already has one',
+      description: 'OWOX Storage is not available, or the project already has one in this location',
     }),
     ApiResponse({ status: 403, description: 'A plugin-authenticated request' })
   );

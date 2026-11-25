@@ -1,3 +1,4 @@
+import { Logger } from '@nestjs/common';
 import { OAuth2Client } from 'google-auth-library';
 import { BIGQUERY_OAUTH_TYPE } from '../schemas/bigquery-credentials.schema';
 import { BigQueryApiAdapterFactory } from '../adapters/bigquery-api-adapter.factory';
@@ -108,6 +109,20 @@ describe('BigquerySqlDryRunExecutor (OWOX Storage)', () => {
 
     expect(result.isValid).toBe(true);
     expect(result.bytes).toBe(42);
+  });
+
+  it('keeps the account email out of a failed dry run on a managed storage', async () => {
+    const email = 'id-0123456789ab@owox-p-access-001.iam.gserviceaccount.com';
+    executeDryRunQuery.mockRejectedValue(new Error(`Gaia id not found for email ${email}`));
+    const debug = jest.spyOn(Logger.prototype, 'debug').mockImplementation(() => undefined);
+
+    const result = await executor.execute(managed, config, 'SELECT 1');
+
+    expect(result.isValid).toBe(false);
+    expect(result.error).toContain('Gaia id not found for email');
+    expect(result.error).not.toContain(email);
+    expect(JSON.stringify(debug.mock.calls)).not.toContain(email);
+    debug.mockRestore();
   });
 
   it('leaves a non-SELECT on a non-managed storage unchanged', async () => {

@@ -147,6 +147,10 @@ export class McpStorageManagementFacadeImpl implements McpStorageManagementFacad
     );
   }
 
+  isOwoxStorageEnabled() {
+    return this.owoxConfig.isEnabled();
+  }
+
   async getOwoxStorageOffer(actor: AuthorizationContext) {
     if (!this.owoxConfig.isEnabled() || !satisfiesRole(actor.roles ?? [], 'editor')) return null;
     const taken = await Promise.all(

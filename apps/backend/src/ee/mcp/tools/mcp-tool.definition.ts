@@ -31,5 +31,7 @@ export interface McpToolDefinition<TInput = unknown> {
    * its list, `only` lists a tool there alone. Other clients list every tool except `only`.
    */
   readonly chatgpt?: 'only' | 'hidden';
+  /** False leaves the tool out of the list on this deployment. */
+  isAvailable?(): boolean;
   handler(input: TInput, context: McpAuthContext, signal?: AbortSignal): Promise<McpToolResult>;
 }

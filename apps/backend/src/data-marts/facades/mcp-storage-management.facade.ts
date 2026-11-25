@@ -102,6 +102,8 @@ export interface McpStorageManagementFacade {
     input: McpListStorageResourcesInput
   ): Promise<ListStorageResourcesDto>;
   delete(actor: AuthorizationContext, id: string): Promise<void>;
+  /** False on a deployment without OWOX Storage, such as a self-managed one. */
+  isOwoxStorageEnabled(): boolean;
   /** Null when the deployment has no OWOX Storage, the actor is not an editor, or both locations are taken. */
   getOwoxStorageOffer(actor: AuthorizationContext): Promise<McpOwoxStorageOffer | null>;
 }

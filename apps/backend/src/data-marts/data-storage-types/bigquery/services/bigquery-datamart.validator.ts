@@ -14,6 +14,8 @@ import {
   DataMartValidationCode,
 } from '../../interfaces/data-mart-validator.interface';
 import { OwoxStorageStatementException } from '../../../owox-storage/owox-storage.exceptions';
+import { withoutServiceAccount } from '../../../owox-storage/without-service-account';
+import { castError } from '@owox/internal-helpers';
 import { BigQueryApiAdapterFactory } from '../adapters/bigquery-api-adapter.factory';
 import { BigQueryQueryBuilder } from './bigquery-query.builder';
 import {
@@ -86,6 +88,11 @@ export class BigQueryDataMartValidator implements DataMartValidator {
       }
       return ValidationResult.success(result);
     } catch (error) {
+      if (isBigQueryManagedCredentials(credentials)) {
+        const message = withoutServiceAccount(castError(error).message);
+        this.logger.warn(`Dry run failed: ${message}`);
+        return ValidationResult.failure(message);
+      }
       this.logger.warn('Dry run failed', error);
       return ValidationResult.failure(error instanceof Error ? error.message : String(error));
     }

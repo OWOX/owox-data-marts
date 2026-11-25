@@ -12,6 +12,8 @@ import { DataStorageCredentials } from '../../data-storage-credentials.type';
 import { DataStorageType } from '../../enums/data-storage-type.enum';
 import { SqlDryRunExecutor } from '../../interfaces/sql-dry-run-executor.interface';
 import { OwoxStorageStatementException } from '../../../owox-storage/owox-storage.exceptions';
+import { withoutServiceAccount } from '../../../owox-storage/without-service-account';
+import { castError } from '@owox/internal-helpers';
 import { BigQueryApiAdapterFactory } from '../adapters/bigquery-api-adapter.factory';
 import { BigQueryFieldType, parseBigQueryFieldType } from '../enums/bigquery-field-type.enum';
 
@@ -67,6 +69,11 @@ export class BigquerySqlDryRunExecutor implements SqlDryRunExecutor {
         bigQueryColumnTypes(result.schema)
       );
     } catch (error) {
+      if (isBigQueryManagedCredentials(dataStorageCredentials)) {
+        const message = withoutServiceAccount(castError(error).message);
+        this.logger.debug(`Dry run failed: ${message}`);
+        return SqlDryRunResult.failed(message);
+      }
       this.logger.debug('Dry run failed', error);
       return SqlDryRunResult.failed(error.message);
     }

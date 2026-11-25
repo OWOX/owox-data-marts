@@ -1,5 +1,6 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { castError } from '@owox/internal-helpers';
+import { withoutServiceAccount } from '../../../owox-storage/without-service-account';
 import { DataStorageType } from '../../enums/data-storage-type.enum';
 import { BigQueryConfigSchema } from '../schemas/bigquery-config.schema';
 import {
@@ -74,10 +75,9 @@ export class BigQueryAccessValidator implements DataStorageAccessValidator {
         await new BigQueryApiAdapter(credentials, bigQueryConfig).checkAccess();
         return new ValidationResult(true);
       } catch (error) {
-        this.logger.warn(`Access validation failed: ${castError(error).message}`);
-        return new ValidationResult(false, 'Access validation failed', {
-          error: error instanceof Error ? error.message : String(error),
-        });
+        const message = withoutServiceAccount(castError(error).message);
+        this.logger.warn(`Access validation failed: ${message}`);
+        return new ValidationResult(false, 'Access validation failed', { error: message });
       }
     }
 

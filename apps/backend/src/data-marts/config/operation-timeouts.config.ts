@@ -13,6 +13,8 @@ const LONG_OPERATION_ROUTES = [
   // An OWOX Storage create or restore waits up to 40 seconds for IB, then up to 40 seconds until ODM can use the project's account.
   { path: 'data-storages/owox-storage', method: RequestMethod.POST },
   { path: 'data-storages/:id/owox-storage/restore', method: RequestMethod.POST },
+  // Deleting an OWOX Storage waits for IB, which can retry up to about a minute when Google is slow.
+  { path: 'data-storages/:id', method: RequestMethod.DELETE },
 ];
 
 export function configureOperationTimeouts(consumer: MiddlewareConsumer): void {

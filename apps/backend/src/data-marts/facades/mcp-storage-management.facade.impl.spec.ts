@@ -295,6 +295,12 @@ describe('McpStorageManagementFacadeImpl', () => {
     });
   });
 
+  it.each([true, false])('reports whether OWOX Storage is on (%s)', enabled => {
+    const f = fixture();
+    f.owoxConfig.isEnabled.mockReturnValue(enabled);
+    expect(f.facade.isOwoxStorageEnabled()).toBe(enabled);
+  });
+
   describe('OWOX Storage offer', () => {
     it('offers an editor the locations where the project has no OWOX Storage', async () => {
       const f = fixture();

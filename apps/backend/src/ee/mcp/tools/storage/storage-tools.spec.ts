@@ -66,6 +66,7 @@ function facade() {
     listResources: jest.fn().mockResolvedValue({ namespaces: [{ id: 'my-project' }] }),
     delete: jest.fn().mockResolvedValue(undefined),
     getOwoxStorageOffer: jest.fn().mockResolvedValue(null),
+    isOwoxStorageEnabled: jest.fn().mockReturnValue(true),
   };
 }
 
@@ -148,6 +149,17 @@ describe('Storage MCP tools', () => {
       z.ZodError
     );
   });
+
+  it.each([true, false])(
+    'lists create_owox_storage only where OWOX Storage is on (%s)',
+    enabled => {
+      const api = facade();
+      api.isOwoxStorageEnabled.mockReturnValue(enabled);
+      expect(new CreateOwoxStorageTool(api as never, publicOrigin as never).isAvailable()).toBe(
+        enabled
+      );
+    }
+  );
 
   it.each([
     'This project already has an OWOX Storage in EU.',
