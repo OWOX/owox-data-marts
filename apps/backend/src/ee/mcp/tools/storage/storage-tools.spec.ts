@@ -62,6 +62,7 @@ function facade() {
     validate: jest.fn().mockResolvedValue({ valid: true, state: 'valid', message: 'Valid' }),
     listResources: jest.fn().mockResolvedValue({ namespaces: [{ id: 'my-project' }] }),
     delete: jest.fn().mockResolvedValue(undefined),
+    getOwoxStorageOffer: jest.fn().mockResolvedValue(null),
   };
 }
 
@@ -115,6 +116,22 @@ describe('Storage MCP tools', () => {
     const marked = { owox_storage: { location: 'EU', dataset_id: 'owox_eu_0123456789ab' } };
     expect(read).toMatchObject(marked);
     expect(listed.storages).toMatchObject([marked, { owox_storage: null }]);
+  });
+
+  it('offers OWOX Storage in list_storages with its free locations and the Storages page', async () => {
+    const api = facade();
+    api.getOwoxStorageOffer.mockResolvedValue({ locations: ['US', 'EU'] });
+    const tool = new ListStoragesTool(api as never, publicOrigin as never);
+
+    const output = z
+      .object(tool.outputSchema)
+      .parse((await tool.handler({} as never, context)).structuredContent);
+
+    expect(output.owox_storage_offer).toEqual({
+      locations: ['US', 'EU'],
+      url: 'https://app.example/ui/project/data-storages',
+    });
+    expect(api.getOwoxStorageOffer).toHaveBeenCalledWith(actor);
   });
 
   it('rejects Legacy creation', async () => {

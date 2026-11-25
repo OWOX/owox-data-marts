@@ -154,4 +154,10 @@ describe('MCP guides', () => {
     expect(guide).toContain('delete_storage refuses an OWOX Storage');
     expect(guide).toContain('SELECT queries only');
   });
+
+  it('offers OWOX Storage when the user has no usable Storage', () => {
+    for (const topic of ['data_mart_setup', 'storages_destinations'] as const) {
+      expect(MCP_GUIDES[topic]).toContain('owox_storage_offer');
+    }
+  });
 });

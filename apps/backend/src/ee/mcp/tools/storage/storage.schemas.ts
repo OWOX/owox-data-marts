@@ -144,6 +144,15 @@ const owoxStorageOutput = z
   .describe(
     'Set only for an OWOX Storage, which OWOX creates and manages: its location and its one dataset. null for every other Storage.'
   );
+export const owoxStorageOfferOutputSchema = z
+  .object({
+    locations: z.array(z.enum(['US', 'EU'])),
+    url: z.string().describe('URL of the Storages page, where the user creates the OWOX Storage.'),
+  })
+  .nullable()
+  .describe(
+    'Set when the user can create an OWOX Storage in one of these locations. OWOX hosts it, so it needs no data warehouse, Credential or cloud setup. null when the user cannot create one.'
+  );
 export const storageSummaryOutputSchema = {
   storage_id: z.string(),
   url: z.string().describe('URL of this Storage in the OWOX Data Marts web UI.'),

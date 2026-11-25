@@ -36,9 +36,11 @@ function fixture() {
       .mockResolvedValue({ namespaces: [{ id: 'my-project', secret: 'NEVER_EXPOSE' }] }),
   };
   const remove = { run: jest.fn() };
+  const owoxConfig = { isEnabled: jest.fn().mockReturnValue(true) };
   const managed = {
     findByStorageId: jest.fn().mockResolvedValue(null),
     findByStorageIds: jest.fn().mockResolvedValue(new Map()),
+    findByProjectAndLocation: jest.fn().mockResolvedValue(null),
   };
   const facade = new McpStorageManagementFacadeImpl(
     list as never,
@@ -49,9 +51,22 @@ function fixture() {
     resources as never,
     remove as never,
     new McpStorageMapper(),
-    managed as never
+    managed as never,
+    owoxConfig as never
   );
-  return { facade, storage, list, get, create, update, validate, resources, remove, managed };
+  return {
+    facade,
+    storage,
+    list,
+    get,
+    create,
+    update,
+    validate,
+    resources,
+    remove,
+    managed,
+    owoxConfig,
+  };
 }
 
 describe('McpStorageManagementFacadeImpl', () => {
@@ -246,5 +261,33 @@ describe('McpStorageManagementFacadeImpl', () => {
     const f = fixture();
     await f.facade.delete(actor, 'storage');
     expect(f.remove.run).toHaveBeenCalledWith(expect.objectContaining({ fromMcp: true }));
+  });
+  describe('OWOX Storage offer', () => {
+    it('offers an editor the locations where the project has no OWOX Storage', async () => {
+      const f = fixture();
+      f.managed.findByProjectAndLocation.mockImplementation(async (_project, location) =>
+        location === 'US' ? { location: 'US' } : null
+      );
+
+      expect(await f.facade.getOwoxStorageOffer(actor)).toEqual({ locations: ['EU'] });
+      expect(f.managed.findByProjectAndLocation).toHaveBeenCalledWith('project', 'EU');
+    });
+
+    it('offers nothing without OWOX Storage on the deployment', async () => {
+      const f = fixture();
+      f.owoxConfig.isEnabled.mockReturnValue(false);
+      expect(await f.facade.getOwoxStorageOffer(actor)).toBeNull();
+    });
+
+    it('offers nothing to a viewer, who cannot create a Storage', async () => {
+      const f = fixture();
+      expect(await f.facade.getOwoxStorageOffer({ ...actor, roles: ['viewer'] })).toBeNull();
+    });
+
+    it('offers nothing when the project has an OWOX Storage in both locations', async () => {
+      const f = fixture();
+      f.managed.findByProjectAndLocation.mockResolvedValue({});
+      expect(await f.facade.getOwoxStorageOffer(actor)).toBeNull();
+    });
   });
 });

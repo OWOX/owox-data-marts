@@ -18,6 +18,9 @@ import type {
 } from './mcp-storage-management.facade';
 import { McpStorageMapper } from '../mappers/mcp-storage.mapper';
 import { ManagedStorageService } from '../owox-storage/managed-storage.service';
+import { OwoxStorageConfigService } from '../owox-storage/owox-storage-config.service';
+import { OWOX_STORAGE_LOCATIONS } from '../owox-storage/owox-storage-settings';
+import { satisfiesRole } from '../../idp/utils/role-hierarchy';
 import { CreateDataStorageService } from '../use-cases/create-data-storage.service';
 import { DeleteDataStorageService } from '../use-cases/delete-data-storage.service';
 import { GetDataStorageService } from '../use-cases/get-data-storage.service';
@@ -38,7 +41,8 @@ export class McpStorageManagementFacadeImpl implements McpStorageManagementFacad
     private readonly listStorageResources: ListStorageResourcesService,
     private readonly deleteStorage: DeleteDataStorageService,
     private readonly mapper: McpStorageMapper,
-    private readonly managedStorages: ManagedStorageService
+    private readonly managedStorages: ManagedStorageService,
+    private readonly owoxConfig: OwoxStorageConfigService
   ) {}
 
   async list(actor: AuthorizationContext, input: McpListStoragesInput) {
@@ -124,5 +128,16 @@ export class McpStorageManagementFacadeImpl implements McpStorageManagementFacad
     await this.deleteStorage.run(
       new DeleteDataStorageCommand(id, actor.projectId, actor.userId, actor.roles, false, true)
     );
+  }
+
+  async getOwoxStorageOffer(actor: AuthorizationContext) {
+    if (!this.owoxConfig.isEnabled() || !satisfiesRole(actor.roles ?? [], 'editor')) return null;
+    const taken = await Promise.all(
+      OWOX_STORAGE_LOCATIONS.map(location =>
+        this.managedStorages.findByProjectAndLocation(actor.projectId, location)
+      )
+    );
+    const locations = OWOX_STORAGE_LOCATIONS.filter((_, index) => !taken[index]);
+    return locations.length > 0 ? { locations } : null;
   }
 }

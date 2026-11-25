@@ -674,7 +674,7 @@ a direct link to the Storage in the OWOX Data Marts web UI.
 
 | Tool                      | Inputs and behavior                                                                                                                                                                                                            |
 | ------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `list_storages`           | Optional `storage_type`, `owner_id`, and `owner_filter`. Returns visible Storage IDs, names, types, timestamps, and `owox_storage`. Use `get_storage` for details.                                                             |
+| `list_storages`           | Optional `storage_type`, `owner_id`, and `owner_filter`. Returns visible Storage IDs, names, types, timestamps, and `owox_storage`. Also returns `owox_storage_offer`. Use `get_storage` for details.                          |
 | `get_storage`             | Supply `storage_id`. Returns safe configuration, Credential state, owners, Contexts, sharing settings, and `owox_storage`.                                                                                                     |
 | `create_storage`          | Supply `storage_type`. An optional `title` names the Storage. Returns an unconfigured Storage with use sharing enabled and maintenance sharing disabled.                                                                       |
 | `update_storage`          | Supply `storage_id` and the changed `title`, `configuration`, or `credential_id`. Omitted fields stay unchanged. The Storage type cannot change.                                                                               |
@@ -700,6 +700,10 @@ Their titles and BigQuery project IDs stay unchanged when you update them.
 because the deletion of an OWOX Storage also deletes its data. Use the OWOX Data Marts web UI for both.
 `list_storages` and `get_storage` return `owox_storage` with the location and the dataset of an OWOX Storage,
 and `null` for every other Storage. The configuration and the Credential of an OWOX Storage cannot change.
+When an editor can create an OWOX Storage, `list_storages` returns `owox_storage_offer` with the free locations
+and the URL of the Storages page. An AI agent then offers OWOX Storage to a user who has no Storage to use.
+`owox_storage_offer` is `null` when OWOX Storage is off, when the user is not an editor,
+and when the project already has an OWOX Storage in each location.
 For access changes, use `list_project_members` and `list_contexts` to find valid IDs.
 Keep every owner or Context that the user still needs in a replacement list.
 

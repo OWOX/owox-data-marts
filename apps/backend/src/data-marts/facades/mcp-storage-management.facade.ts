@@ -66,6 +66,11 @@ export type McpStorageSummary = Pick<
   'id' | 'title' | 'type' | 'createdAt' | 'modifiedAt' | 'owoxStorage'
 >;
 
+/** Where an actor can create an OWOX Storage in the project. */
+export interface McpOwoxStorageOffer {
+  locations: OwoxStorageLocation[];
+}
+
 export const MCP_STORAGE_MANAGEMENT_FACADE = Symbol('MCP_STORAGE_MANAGEMENT_FACADE');
 
 export interface McpStorageManagementFacade {
@@ -89,4 +94,6 @@ export interface McpStorageManagementFacade {
     input: McpListStorageResourcesInput
   ): Promise<ListStorageResourcesDto>;
   delete(actor: AuthorizationContext, id: string): Promise<void>;
+  /** Null when the deployment has no OWOX Storage, the actor is not an editor, or both locations are taken. */
+  getOwoxStorageOffer(actor: AuthorizationContext): Promise<McpOwoxStorageOffer | null>;
 }
