@@ -775,7 +775,7 @@ interface FilterSeedRow {
   /** `bad_num` — one NULL row (for `IS NULL`) and one unparseable row (for the declared-type cast). */
   bad_prefix: string | null;
   bad_suffix: string;
-  /** `iso_date` = iso_prefix ++ iso_suffix — a STRING formula declared DATE. */
+  /** `iso_date` = iso_prefix ++ iso_suffix — a STRING formula declared DATE; BigQuery saves it as STRING. */
   iso_prefix: string;
   iso_suffix: string;
   /** `honest_date` = COALESCE(date_a, date_b) — a formula that genuinely returns a DATE. */
@@ -1445,8 +1445,8 @@ const bigQueryCase: StorageCase = {
   exactTypes: ['NUMERIC', 'BIGNUMERIC'],
   integerType: 'INTEGER',
   integerOverTextSum: 'error',
-  // `STRING >= DATE` has no signature here, and the DATE placeholder cast is what puts a DATE on
-  // the right-hand side of a formula the analyst declared DATE (probe BQ-E4).
+  // No test reads these two on BigQuery: the save sets the DATE fields over strings to STRING,
+  // and OWOX refuses `between`, MIN and `gte` on a STRING. They record the earlier BQ-E4 probe.
   misdeclaredIsoDateRange: 'error',
   functionDateHaving: 'error',
   unparseableComparison: 'error',
@@ -2746,11 +2746,22 @@ function registerSuite(storage: StorageCase): void {
       expect(`${FILTER_BONUS_TOTAL}: ${filterField(FILTER_BONUS_TOTAL).calculated!.level}`).toBe(
         `${FILTER_BONUS_TOTAL}: metric`
       );
-      // The declaration really is the analyst's free choice, read back off the save: nothing
-      // checked `iso_date`'s DATE against a formula that concatenates two strings, and nothing
-      // checked `num_text`'s float either. That is the premise every cell below measures.
+      // The declaration is read back off the save: DATE over a formula that concatenates two
+      // strings, and a float over text. That is the premise every cell below measures. Only
+      // BigQuery changes a declaration: it sets the two DATE fields to STRING, with a warning.
       expect(filterField(FILTER_NUM).type).toBe(storage.floatType);
-      expect(filterField(FILTER_ISO_DATE).type).toBe('DATE');
+      if (isBigQuery) {
+        const retyped = (filterSchemaRes.body.warnings as { code: string; field: string }[]).map(
+          w => `${w.field}:${w.code}`
+        );
+        for (const name of [FILTER_ISO_DATE, FILTER_AMB_DATE]) {
+          expect(`${name}: ${filterField(name).type}`).toBe(`${name}: STRING`);
+          expect(retyped).toContain(`${name}:FORMULA_TYPE_SET_FROM_RESULT`);
+        }
+      } else {
+        expect(filterField(FILTER_ISO_DATE).type).toBe('DATE');
+        expect(filterField(FILTER_AMB_DATE).type).toBe('DATE');
+      }
       expect(filterField(FILTER_RECENT_TS).type).toBe('TIMESTAMP');
       expect(filterField(FILTER_KEY).calculated!.warehouseValidation).toBe('passed');
       expect(filterField(FILTER_BONUS_TOTAL).calculated!.warehouseValidation).toBe('passed');
@@ -4092,31 +4103,37 @@ function registerSuite(storage: StorageCase): void {
       expect(FILTER_HONEST_DATE_AMOUNTS).not.toEqual(FILTER_HONEST_DATE_B_ONLY_AMOUNTS);
     }, 300000);
 
-    it('imposes the DATE declaration on a MIS-declared ISO-string formula', async () => {
-      const report = await buildFilterReport({
-        columnConfig: [FILTER_ISO_DATE, 'amount'],
-        filterConfig: [
-          {
-            column: FILTER_ISO_DATE,
-            operator: 'between',
-            value: { from: FILTER_DATE_FROM, to: FILTER_DATE_TO },
-          },
-        ],
-      });
+    // On BigQuery the save made the field a STRING, and OWOX refuses `between` on a STRING before
+    // any query runs, so there is no DATE declaration to impose.
+    (isBigQuery ? it.skip : it)(
+      'imposes the DATE declaration on a MIS-declared ISO-string formula',
+      async () => {
+        const report = await buildFilterReport({
+          columnConfig: [FILTER_ISO_DATE, 'amount'],
+          filterConfig: [
+            {
+              column: FILTER_ISO_DATE,
+              operator: 'between',
+              value: { from: FILTER_DATE_FROM, to: FILTER_DATE_TO },
+            },
+          ],
+        });
 
-      // The declaration now reaches the filter's type resolver, so the four dialects with a DATE
-      // placeholder cast emit one — which is what makes BigQuery and Athena refuse a comparison
-      // they used to answer (as text, right by coincidence on ISO values). Redshift emits no cast
-      // on either side and stays lexicographic; Snowflake and Databricks coerce and parse.
-      if (storage.misdeclaredIsoDateRange === 'error') {
-        await expect(readReportRows(storage.storageType, report)).rejects.toThrow();
-        return;
-      }
-      const rows = await readReportRows(storage.storageType, report);
-      expect(rows.map(row => Number(row.amount)).sort((a, b) => a - b)).toEqual(
-        FILTER_ISO_DATE_AMOUNTS
-      );
-    }, 300000);
+        // The declaration now reaches the filter's type resolver, so the four dialects with a DATE
+        // placeholder cast emit one — which is what makes BigQuery and Athena refuse a comparison
+        // they used to answer (as text, right by coincidence on ISO values). Redshift emits no cast
+        // on either side and stays lexicographic; Snowflake and Databricks coerce and parse.
+        if (storage.misdeclaredIsoDateRange === 'error') {
+          await expect(readReportRows(storage.storageType, report)).rejects.toThrow();
+          return;
+        }
+        const rows = await readReportRows(storage.storageType, report);
+        expect(rows.map(row => Number(row.amount)).sort((a, b) => a - b)).toEqual(
+          FILTER_ISO_DATE_AMOUNTS
+        );
+      },
+      300000
+    );
 
     it('leaves IS NULL uncast where a comparison raises on an unparseable row', async () => {
       // `is_null` is deliberately outside `COMPARISON_OPERATORS`: it looks at no value, and casting
@@ -4156,49 +4173,54 @@ function registerSuite(storage: StorageCase): void {
       }
     }, 300000);
 
-    it('carries the DATE declaration into a function-carrying HAVING', async () => {
-      // `MIN(<DATE-declared string formula>) >= …` over the day-ambiguous `05/08/2026`, at TWO
-      // thresholds, because one cannot separate the three readings: 2026-01-01 tells a real date
-      // comparison from a lexicographic one (`'0' < '2'`), and 2026-06-01 then tells MDY (8 May,
-      // fails) from the DMY the formula means (5 August, passes).
-      const havingReport = async (threshold: string): Promise<ReportLikeReadPlan> =>
-        buildFilterReport({
-          columnConfig: [FILTER_GRP, FILTER_AMB_DATE],
-          aggregationConfig: [{ column: FILTER_AMB_DATE, function: 'MIN' }],
-          filterConfig: [
-            { column: FILTER_AMB_DATE, function: 'MIN', operator: 'gte', value: threshold },
-          ],
-        });
+    // On BigQuery the save made the field a STRING, which allows neither MIN nor `gte`.
+    (isBigQuery ? it.skip : it)(
+      'carries the DATE declaration into a function-carrying HAVING',
+      async () => {
+        // `MIN(<DATE-declared string formula>) >= …` over the day-ambiguous `05/08/2026`, at TWO
+        // thresholds, because one cannot separate the three readings: 2026-01-01 tells a real date
+        // comparison from a lexicographic one (`'0' < '2'`), and 2026-06-01 then tells MDY (8 May,
+        // fails) from the DMY the formula means (5 August, passes).
+        const havingReport = async (threshold: string): Promise<ReportLikeReadPlan> =>
+          buildFilterReport({
+            columnConfig: [FILTER_GRP, FILTER_AMB_DATE],
+            aggregationConfig: [{ column: FILTER_AMB_DATE, function: 'MIN' }],
+            filterConfig: [
+              { column: FILTER_AMB_DATE, function: 'MIN', operator: 'gte', value: threshold },
+            ],
+          });
 
-      if (storage.functionDateHaving === 'error') {
-        await expect(
-          readReportRows(storage.storageType, await havingReport('2026-01-01'))
-        ).rejects.toThrow();
-        await expect(
-          readReportRows(storage.storageType, await havingReport('2026-06-01'))
-        ).rejects.toThrow();
-        return;
-      }
+        if (storage.functionDateHaving === 'error') {
+          await expect(
+            readReportRows(storage.storageType, await havingReport('2026-01-01'))
+          ).rejects.toThrow();
+          await expect(
+            readReportRows(storage.storageType, await havingReport('2026-06-01'))
+          ).rejects.toThrow();
+          return;
+        }
 
-      const wide = await readReportRows(storage.storageType, await havingReport('2026-01-01'));
-      const narrow = await readReportRows(storage.storageType, await havingReport('2026-06-01'));
+        const wide = await readReportRows(storage.storageType, await havingReport('2026-01-01'));
+        const narrow = await readReportRows(storage.storageType, await havingReport('2026-06-01'));
 
-      if (storage.functionDateHaving === 'lexicographic') {
-        // `'05/08/2026' >= '2026-01-01'` is FALSE as text, so no group clears either threshold —
-        // an empty report either way, silently.
-        expect(wide).toHaveLength(0);
+        if (storage.functionDateHaving === 'lexicographic') {
+          // `'05/08/2026' >= '2026-01-01'` is FALSE as text, so no group clears either threshold —
+          // an empty report either way, silently.
+          expect(wide).toHaveLength(0);
+          expect(narrow).toHaveLength(0);
+          return;
+        }
+
+        // The silent one. A real DATE comparison that reads the string as 8 MAY: every group clears
+        // 2026-01-01 where none did before, and none clears 2026-06-01 although 5 August does.
+        expect(wide.map(row => String(row[FILTER_GRP])).sort()).toEqual(FILTER_GROUP_KEYS);
+        expect(wide.map(row => String(row[FILTER_AMB_DATE_MIN])).length).toBe(
+          FILTER_GROUP_KEYS.length
+        );
         expect(narrow).toHaveLength(0);
-        return;
-      }
-
-      // The silent one. A real DATE comparison that reads the string as 8 MAY: every group clears
-      // 2026-01-01 where none did before, and none clears 2026-06-01 although 5 August does.
-      expect(wide.map(row => String(row[FILTER_GRP])).sort()).toEqual(FILTER_GROUP_KEYS);
-      expect(wide.map(row => String(row[FILTER_AMB_DATE_MIN])).length).toBe(
-        FILTER_GROUP_KEYS.length
-      );
-      expect(narrow).toHaveLength(0);
-    }, 300000);
+      },
+      300000
+    );
 
     it('resolves relative_date against a TIMESTAMP-declared formula', async () => {
       const report = await buildFilterReport({

@@ -30,8 +30,7 @@ import { UNIQUE_COUNT_FIELD_TOKEN } from '../dto/schemas/unique-count-sources';
 import { scanSql } from './sql-token-scanner';
 import {
   FormulaReferenceSyntaxError,
-  renderFormula,
-  serializeFormulaReference,
+  storedFormula,
   walkFormulaDependencies,
 } from './formula-reference';
 import {
@@ -322,10 +321,7 @@ export class CalculatedFieldValidatorService {
     if (errors.length === 0) {
       for (const { field, level } of analysed) {
         try {
-          field.calculated.formula = renderFormula(
-            field.calculated.formula,
-            serializeFormulaReference
-          );
+          field.calculated.formula = storedFormula(field.calculated.formula);
           field.calculated.level = level;
         } catch (e) {
           if (!(e instanceof FormulaReferenceSyntaxError)) throw e;

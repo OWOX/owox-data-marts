@@ -832,6 +832,19 @@ describe('UpdateDataMartSchemaService', () => {
         expect(r.types).toEqual({ flag: 'STRING', b: 'STRING', c: 'BOOLEAN' });
         expect(r.warnings).toEqual([WARNING, 'b:FORMULA_TYPE_SET_FROM_RESULT']);
       });
+
+      it('is not changed when only the type of the field it reads changed', async () => {
+        const r = await save(
+          [flag('STRING'), reader('STRING')],
+          [flag('FLOAT'), reader('STRING')],
+          [
+            ['flag', 'STRING'],
+            ['b', 'INTEGER'],
+          ]
+        );
+        expect(r.types).toEqual({ flag: 'FLOAT', b: 'STRING' });
+        expect(r.warnings).toEqual([]);
+      });
     });
   });
 

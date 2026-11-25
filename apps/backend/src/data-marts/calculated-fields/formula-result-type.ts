@@ -1,17 +1,17 @@
-import { categorizeFieldType } from '../dto/schemas/field-type-category';
+import { categorizeFieldType, isIntegerType } from '../dto/schemas/field-type-category';
 import type { CalculatedSchemaField } from './calculated-field.utils';
 import { FormulaViolations, type FormulaViolation } from './formula-violations';
 
-// These exclusions are BigQuery rules: only the BigQuery dry run returns result types.
-const CAST_TARGETS = new Set(['FLOAT', 'NUMERIC', 'BIGNUMERIC']);
-
-// Three declarations stay: number to number, a numeric cast target over STRING, and a result with no category.
+// Three declarations stay: number to number, a non-integer number over STRING (the cast rule), and a result with no category.
+// These are BigQuery rules: only the BigQuery dry run returns result types.
 function keepsDeclared(declared: string, result: string): boolean {
   const resultCategory = categorizeFieldType(result);
   return (
     resultCategory === 'other' ||
     (resultCategory === 'number' && categorizeFieldType(declared) === 'number') ||
-    (resultCategory === 'string' && CAST_TARGETS.has(declared))
+    (resultCategory === 'string' &&
+      categorizeFieldType(declared) === 'number' &&
+      !isIntegerType(declared))
   );
 }
 
@@ -27,6 +27,13 @@ export function applyResultTypes(
     if (!result || !changed.has(field.name) || field.type === result) continue;
     if (keepsDeclared(field.type, result)) continue;
     warnings.push(FormulaViolations.typeSetFromResult(field.name, field.type, result));
+    // A set limited to the old category's functions would leave no allowed function.
+    if (
+      categorizeFieldType(field.type) !== categorizeFieldType(result) &&
+      field.allowedAggregations?.length
+    ) {
+      delete field.allowedAggregations;
+    }
     field.type = result as typeof field.type;
   }
   return warnings;

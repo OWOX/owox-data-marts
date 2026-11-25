@@ -68,4 +68,25 @@ describe('applyResultTypes', () => {
     expect(applyResultTypes([f], new Map([['flag', 'BOOLEAN']]), new Set())).toEqual([]);
     expect(f.type).toBe('STRING');
   });
+
+  describe('allowed aggregations', () => {
+    const withAggs = (type: string, allowedAggregations: string[], result: string) => {
+      const f = { ...field(type), allowedAggregations } as unknown as CalculatedSchemaField;
+      applyResultTypes([f], new Map([['flag', result]]), new Set(['flag']));
+      return f.allowedAggregations;
+    };
+
+    it('drops a non-empty set when the category changes', () => {
+      expect(withAggs('STRING', ['COUNT', 'COUNT_DISTINCT'], 'INTEGER')).toBeUndefined();
+    });
+
+    it('keeps the set when the category stays', () => {
+      expect(withAggs('DATE', ['MIN', 'MAX'], 'TIMESTAMP')).toEqual(['MIN', 'MAX']);
+      expect(withAggs('INTEGER', ['SUM'], 'FLOAT')).toEqual(['SUM']);
+    });
+
+    it('keeps an explicit empty set', () => {
+      expect(withAggs('STRING', [], 'INTEGER')).toEqual([]);
+    });
+  });
 });

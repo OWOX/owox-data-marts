@@ -12,12 +12,17 @@ describe('bigQueryColumnTypes', () => {
           { name: 'n', type: 'INT64' },
           { name: 'f', type: 'FLOAT' },
           { name: 'ts', type: 'TIMESTAMP' },
+          // The API returns the legacy names.
+          { name: 'legacy_flag', type: 'BOOLEAN' },
+          { name: 'legacy_n', type: 'INTEGER' },
         ],
       })
     ).toEqual(
       new Map([
         ['flag', 'BOOLEAN'],
         ['n', 'INTEGER'],
+        ['legacy_flag', 'BOOLEAN'],
+        ['legacy_n', 'INTEGER'],
         ['f', 'FLOAT'],
         ['ts', 'TIMESTAMP'],
       ])

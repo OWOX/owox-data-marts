@@ -3,6 +3,7 @@ export class SqlDryRunResult {
     public readonly isValid: boolean,
     public readonly error?: string,
     public readonly bytes?: number,
+    /** Result column name to declared-type name. Only BigQuery fills it. */
     public readonly columnTypes?: ReadonlyMap<string, string>
   ) {}
 

@@ -12,7 +12,7 @@ import {
   DryRunContext,
 } from '../calculated-fields/calculated-field-validator.service';
 import { applyResultTypes } from '../calculated-fields/formula-result-type';
-import { renderFormula, serializeFormulaReference } from '../calculated-fields/formula-reference';
+import { storedFormula } from '../calculated-fields/formula-reference';
 import { FormulaViolations } from '../calculated-fields/formula-violations';
 import { withoutUntouchedJoinAdvisories } from '../calculated-fields/join-grain';
 import { DataStorageCredentialsResolver } from '../data-storage-types/data-storage-credentials-resolver.service';
@@ -296,46 +296,51 @@ function editedCalculatedFields(
   calculatedFields: ReturnType<typeof calculatedFieldsOf>
 ): Set<string> {
   const previous = new Map(
-    calculatedFieldsOf(previousFields).map(field => [field.name, field.calculated.formula])
+    calculatedFieldsOf(previousFields).map(field => [
+      field.name,
+      canonicalFormula(field.calculated.formula),
+    ])
   );
   return new Set(
     calculatedFields
-      .filter(field => previous.get(field.name) !== field.calculated.formula)
+      .filter(field => previous.get(field.name) !== canonicalFormula(field.calculated.formula))
       .map(field => field.name)
   );
 }
 
 /**
  * The calculated fields this save added, or whose formula or declared type it changed, and every
- * calculated field that reads one of them: its result type follows the field it reads.
+ * calculated field that reads a new or formula-changed one. A reader inlines the formula it reads
+ * with no cast, so a type-only change cannot change a reader's result type.
  */
 function changedCalculatedFields(
   previousFields: readonly DataMartSchemaField[],
   calculatedFields: ReturnType<typeof calculatedFieldsOf>
 ): Set<string> {
   const previous = new Map(calculatedFieldsOf(previousFields).map(field => [field.name, field]));
-  const changed = new Set(
-    calculatedFields
-      .filter(field => {
-        const before = previous.get(field.name);
-        return (
-          !before ||
-          canonicalFormula(before.calculated.formula) !== field.calculated.formula ||
-          before.type !== field.type
-        );
-      })
-      .map(field => field.name)
-  );
+  const formulaChanged = (field: (typeof calculatedFields)[number]): boolean => {
+    const before = previous.get(field.name);
+    return !before || canonicalFormula(before.calculated.formula) !== field.calculated.formula;
+  };
+  const seeds = calculatedFields.filter(formulaChanged).map(field => field.name);
+  const changed = new Set([
+    ...seeds,
+    ...calculatedFields
+      .filter(field => previous.get(field.name)?.type !== field.type)
+      .map(field => field.name),
+  ]);
 
   const reads = formulaDependencyGraph(
     calculatedFields,
     new Map(calculatedFields.map(field => [field.name, field]))
   );
-  // A name enters `changed` once, so a cycle cannot loop.
-  const queue = [...changed];
+  // A name enters `walked` once, so a cycle cannot loop.
+  const walked = new Set(seeds);
+  const queue = [...seeds];
   for (const name of queue) {
     for (const [reader, dependencies] of reads) {
-      if (dependencies.includes(name) && !changed.has(reader)) {
+      if (dependencies.includes(name) && !walked.has(reader)) {
+        walked.add(reader);
         changed.add(reader);
         queue.push(reader);
       }
@@ -344,10 +349,10 @@ function changedCalculatedFields(
   return changed;
 }
 
-/** The stored formula in the spelling `validate` gives the submitted one. */
+/** The stored spelling of a formula; falls back to the raw text when it does not parse. */
 function canonicalFormula(formula: string): string {
   try {
-    return renderFormula(formula.replace(/\r\n?/g, '\n'), serializeFormulaReference);
+    return storedFormula(formula);
   } catch {
     return formula;
   }
