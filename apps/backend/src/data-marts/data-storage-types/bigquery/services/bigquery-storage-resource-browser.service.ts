@@ -94,7 +94,7 @@ export class BigQueryStorageResourceBrowser implements IStorageResourceBrowserPr
 
   async listNamespaces(storage: DataStorage): Promise<StorageResourceNode[]> {
     const clients = await this.createClients(storage);
-    if (clients.managed) return [{ id: clients.managed.projectId }];
+    if (clients.managed) return [{ id: clients.managed.projectId, displayName: 'OWOX Storage' }];
     const projects = await this.listProjects(clients);
     return projects.map(p => ({ id: p.id, label: p.friendlyName }));
   }

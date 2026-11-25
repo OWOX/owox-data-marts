@@ -1,6 +1,8 @@
 export interface StorageNamespaceNodeDto {
   id: string;
   label?: string;
+  /** Shown instead of the id. Fully qualified names keep the id. */
+  displayName?: string;
 }
 
 export interface StorageResourceLeafDto {

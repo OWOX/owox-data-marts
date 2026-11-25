@@ -187,7 +187,7 @@ export function StorageResourceTree({
     if (!query) return sortedNamespaces;
     return sortedNamespaces.filter(ns => {
       const id = ns.id.toLowerCase();
-      const label = ns.label?.toLowerCase() ?? '';
+      const label = (ns.displayName ?? ns.label)?.toLowerCase() ?? '';
       if (id.includes(query) || label.includes(query)) return true;
       // In single-search mode the top input also acts as a resource filter; keep a namespace
       // visible if it has loaded resources whose names match the query — that way the user
@@ -293,8 +293,8 @@ export function StorageResourceTree({
                       )}
                       <Database className='size-4 shrink-0' />
                       <span className='truncate' title={ns.id}>
-                        {ns.id}
-                        {ns.label && ns.label !== ns.id && (
+                        {ns.displayName ?? ns.id}
+                        {!ns.displayName && ns.label && ns.label !== ns.id && (
                           <span className='text-muted-foreground ml-2'>{ns.label}</span>
                         )}
                       </span>

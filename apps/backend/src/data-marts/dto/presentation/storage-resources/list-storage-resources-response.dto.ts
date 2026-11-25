@@ -12,6 +12,12 @@ export class StorageNamespaceNodeDto {
     example: 'My GCP Project',
   })
   label?: string;
+
+  @ApiPropertyOptional({
+    description: 'Name shown instead of the id. Fully qualified names keep the id.',
+    example: 'OWOX Storage',
+  })
+  displayName?: string;
 }
 
 export class StorageResourceLeafDto {

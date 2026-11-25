@@ -35,8 +35,10 @@ describe('BigQueryStorageResourceBrowser (managed)', () => {
     mockDataset.mockReturnValue({ getTables: mockGetTables });
   });
 
-  it('lists only the storage project as the namespace', async () => {
-    expect(await browser.listNamespaces(storage)).toEqual([{ id: 'proj-abc' }]);
+  it('lists only the storage project as the namespace, named OWOX Storage', async () => {
+    expect(await browser.listNamespaces(storage)).toEqual([
+      { id: 'proj-abc', displayName: 'OWOX Storage' },
+    ]);
   });
 
   it('lists only the customer dataset of a managed storage', async () => {
