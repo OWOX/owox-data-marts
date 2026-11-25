@@ -133,6 +133,31 @@ export function StreamHttpDataSpec() {
       example: 'W3siY29sdW1uIjoiZGF0ZSIsInVuaXQiOiJNT05USCJ9XQ',
     }),
     ApiQuery({
+      name: 'havingGroupBy',
+      description:
+        'Optional base64url-encoded JSON object that sets a separate grouping for the metric ' +
+        'filters (`filter` rules with `function`, and rules on an aggregate-level Calculated ' +
+        'Field). The read finds the groups of this grouping that pass the metric filters, with ' +
+        'the other filters applied, keeps the rows of those groups, and then groups and ' +
+        'aggregates the kept rows by its own columns. ' +
+        'Shape: `{ "column": [<key>, ...], "dateTrunc"?: [{ column, unit, timeZone? }] }`. ' +
+        '`column` lists the grouping keys. A key can appear only once. An empty list makes one ' +
+        'group, so the metric filters apply to the total. A key is a native column, a visible ' +
+        'joined column (`<alias path>__<field>`) or a row-level Calculated Field, and it does ' +
+        'not have to be in the read’s `column` list. A Unique Count key, an aggregate-level ' +
+        'Calculated Field and a key of a type that cannot be grouped (for example ARRAY, STRUCT ' +
+        'or JSON) are rejected. Each `dateTrunc` rule names a different key from `column` and ' +
+        'follows the rules of the read’s own `dateTrunc`. The read’s own `dateTrunc` does not ' +
+        'apply to this grouping. The read must have at least one metric filter. `sort` and ' +
+        '`limit` apply to the read’s own result only. The run records the grouping as ' +
+        '`additionalParams.httpData.havingGroupBy`. Encode the JSON object with base64url ' +
+        '(URL-safe base64: `-`/`_` instead of `+`/`/`, no `=` padding). ' +
+        'Example JSON: `{"column":["status"]}` → base64url `eyJjb2x1bW4iOlsic3RhdHVzIl19`.',
+      required: false,
+      schema: ENCODED_HTTP_DATA_QUERY_SCHEMA,
+      example: 'eyJjb2x1bW4iOlsic3RhdHVzIl19',
+    }),
+    ApiQuery({
       name: 'uniqueCount',
       description:
         'Optional base64url-encoded non-empty JSON array of Unique Count sources: source alias ' +
@@ -209,12 +234,15 @@ export function StreamHttpDataSpec() {
     ApiResponse({
       status: 400,
       description:
-        'Invalid request: unknown column (including in an aggregation or dateTrunc rule), ' +
+        'Invalid request: unknown column (including in an aggregation, dateTrunc or ' +
+        'havingGroupBy rule), ' +
         'forbidden pagination parameter (`pageToken`/`offset`), malformed ' +
-        'filter/sort/aggregation/dateTrunc/uniqueCount/limit, an `includeTotalRowCount` value other than `true` or `false`, aggregation or dateTrunc without an ' +
+        'filter/sort/aggregation/dateTrunc/havingGroupBy/uniqueCount/limit, an `includeTotalRowCount` value other than `true` or `false`, aggregation or dateTrunc without an ' +
         'explicit `column` projection, an empty uniqueCount, uniqueCount with ' +
         '`columns=*`/`columns=**`, a Unique Count source without a primary key or not available ' +
-        'for reporting, a Unique Count key in `column`/filter/aggregation/dateTrunc, ' +
+        'for reporting, a Unique Count key in `column`/filter/aggregation/dateTrunc/havingGroupBy, ' +
+        'havingGroupBy without a metric filter (`HAVING_GROUP_BY_REQUIRES_METRIC_FILTER`) or ' +
+        'with a key that cannot be grouped (`HAVING_GROUP_BY_KEY_NOT_GROUPABLE`), ' +
         'unsupported storage type, ' +
         'or a project blocked because it is ' +
         'inactive or has exceeded its credit limit. Invalid query parameters create no run. ' +

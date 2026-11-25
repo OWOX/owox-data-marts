@@ -186,6 +186,11 @@ export type TraverseDataDateTruncRule = {
   timeZone?: string;
 };
 
+export type TraverseDataHavingGroupBy = {
+  column: string[];
+  dateTrunc?: TraverseDataDateTruncRule[];
+};
+
 export type TraverseDataOptions = {
   columns?: '*' | '**';
   column?: string[];
@@ -193,6 +198,11 @@ export type TraverseDataOptions = {
   sort?: TraverseDataSortRule[] | null;
   aggregation?: TraverseDataAggregationRule[] | null;
   dateTrunc?: TraverseDataDateTruncRule[] | null;
+  /**
+   * Grouping at which the metric filters are checked. The read's own `dateTrunc` does not apply
+   * to it. Needs at least one metric filter. Requires OWOX Data Marts 0.46.0 or later.
+   */
+  havingGroupBy?: TraverseDataHavingGroupBy | null;
   /**
    * Unique Count sources, at least one: alias paths of joined Data Marts, with `''` for this
    * Data Mart. Each adds a distinct count of the source's primary key, keyed `Unique Count` for
@@ -321,6 +331,9 @@ function buildTraverseDataQuery(options: TraverseDataOptions): URLSearchParams |
   }
   if (options.dateTrunc != null) {
     query.append('dateTrunc', encodeBase64UrlJson(options.dateTrunc));
+  }
+  if (options.havingGroupBy != null) {
+    query.append('havingGroupBy', encodeBase64UrlJson(options.havingGroupBy));
   }
   if (options.uniqueCount != null) {
     query.append('uniqueCount', encodeBase64UrlJson(options.uniqueCount));

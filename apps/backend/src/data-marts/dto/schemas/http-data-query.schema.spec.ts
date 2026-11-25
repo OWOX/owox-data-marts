@@ -228,6 +228,39 @@ describe('HttpDataQuerySchema — uniqueCount', () => {
   });
 });
 
+describe('HttpDataQuerySchema — havingGroupBy', () => {
+  it('decodes a base64url-encoded grouping into the query', () => {
+    const result = parse({ column: 'date', havingGroupBy: b64({ column: ['status'] }) });
+
+    expect(result.success).toBe(true);
+    if (result.success) {
+      expect(result.data.havingGroupBy).toEqual({ column: ['status'] });
+    }
+  });
+
+  it('leaves havingGroupBy undefined when the parameter is absent', () => {
+    const result = parse({ column: 'date' });
+
+    expect(result.success).toBe(true);
+    if (result.success) {
+      expect(result.data.havingGroupBy).toBeUndefined();
+    }
+  });
+
+  it.each([
+    ['bad base64url', '@@@not-base64@@@'],
+    ['bad JSON', Buffer.from('{"column":', 'utf8').toString('base64url')],
+    ['a schema violation', b64({ column: ['status'], extra: true })],
+  ])('rejects %s', (_name, raw) => {
+    const result = parse({ column: 'date', havingGroupBy: raw });
+
+    expect(result.success).toBe(false);
+    if (!result.success) {
+      expect(result.error.issues[0].message).toMatch(/^Invalid havingGroupBy: /);
+    }
+  });
+});
+
 describe('HttpDataQuerySchema — includeTotalRowCount', () => {
   it.each([
     ['true', true],
@@ -263,6 +296,11 @@ describe('HttpReportDataQuerySchema', () => {
 
   it('rejects any key other than limit', () => {
     expect(HttpReportDataQuerySchema.safeParse({ filter: 'abc' }).success).toBe(false);
+  });
+
+  it('rejects havingGroupBy', () => {
+    const havingGroupBy = b64({ column: ['status'] });
+    expect(HttpReportDataQuerySchema.safeParse({ havingGroupBy }).success).toBe(false);
   });
 
   it('rejects limit below 1', () => {

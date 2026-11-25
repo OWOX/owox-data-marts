@@ -2165,6 +2165,105 @@ describe('BlendedReportDataService', () => {
         expect(context!.chains[0].blendedFields.map(f => f.outputAlias)).toEqual(['blended_b']);
       });
 
+      it('joins the source of a havingGroupBy key and moves the metric filter to the restriction', async () => {
+        const where = { column: 'country', operator: 'eq', value: 'UA' };
+        const having = { column: 'revenue', function: 'SUM', operator: 'gt', value: 100 };
+        const report = {
+          ...makeReport({
+            columnConfig: ['date', 'revenue'],
+            aggregationConfig: [{ column: 'revenue', function: 'SUM' }],
+            filterConfig: [where, having] as any,
+          }),
+          havingGroupBy: { column: ['orders__status'] },
+        } as unknown as Report;
+        report.dataMart.schema = {
+          type: 'bigquery-data-mart-schema',
+          fields: [
+            { name: 'date', type: 'DATE', status: 'CONNECTED' },
+            { name: 'country', type: 'STRING', status: 'CONNECTED' },
+            { name: 'revenue', type: 'FLOAT', status: 'CONNECTED' },
+          ],
+        } as unknown as DataMart['schema'];
+
+        const blendedField = new BlendedFieldDto();
+        blendedField.name = 'orders__status';
+        blendedField.sourceRelationshipId = 'rel-1';
+        blendedField.sourceDataMartId = 'dm-orders';
+        blendedField.sourceDataMartTitle = 'Orders';
+        blendedField.targetAlias = 'orders';
+        blendedField.originalFieldName = 'status';
+        blendedField.type = 'STRING';
+        blendedField.isHidden = false;
+        blendedField.aggregateFunction = 'STRING_AGG';
+        blendedField.transitiveDepth = 1;
+        blendedField.aliasPath = 'orders';
+        blendedField.outputPrefix = 'orders';
+
+        blendableSchemaService.computeBlendableSchema.mockResolvedValue({
+          nativeFields: [],
+          availableSources: [
+            {
+              aliasPath: 'orders',
+              title: 'Orders',
+              defaultAlias: 'orders',
+              depth: 1,
+              fieldCount: 1,
+              isIncluded: true,
+              isAccessibleForReporting: true,
+              relationshipId: 'rel-1',
+              dataMartId: 'dm-orders',
+            },
+          ],
+          blendedFields: [blendedField],
+        });
+        relationshipService.findBySourceDataMartId.mockResolvedValue([
+          {
+            id: 'rel-1',
+            targetAlias: 'orders',
+            sourceDataMart: { id: 'dm-1' },
+            targetDataMart: { id: 'dm-orders', title: 'Orders' },
+            joinConditions: [],
+          } as unknown as DataMartRelationship,
+        ]);
+        tableReferenceService.resolveTableName.mockResolvedValue('table_ref');
+        blendedQueryBuilderFacade.buildBlendedQuery.mockResolvedValue('SELECT ...');
+
+        const result = await service.resolveBlendingDecision(report, {
+          userId: 'user-1',
+          roles: ['admin'],
+        });
+
+        expect(result.needsBlending).toBe(true);
+        const [, context] = blendedQueryBuilderFacade.buildBlendedQuery.mock.calls[0];
+        expect(context!.groupRestriction?.dimensions).toEqual(['orders__status']);
+        expect(context!.groupRestriction?.having).toEqual([{ ...having, clause: 'having' }]);
+        expect(context!.filters).toEqual([{ ...where, clause: 'where' }]);
+        expect(context!.chains).toHaveLength(1);
+        expect(context!.chains[0].relationship.id).toBe('rel-1');
+        expect(context!.chains[0].blendedFields.map(f => f.outputAlias)).toEqual([
+          'orders__status',
+        ]);
+      });
+
+      it('refuses a joined havingGroupBy key with no explicit column selection', async () => {
+        const report = {
+          ...makeReport({
+            columnConfig: null,
+            filterConfig: [
+              { column: 'revenue', function: 'SUM', operator: 'gt', value: 100 },
+            ] as any,
+          }),
+          havingGroupBy: { column: ['alias_0__status'] },
+        } as unknown as Report;
+        blendableSchemaService.computeBlendableSchema.mockResolvedValue(
+          makeBlendableSchema(['alias_0__status'])
+        );
+
+        await expect(
+          service.resolveBlendingDecision(report, { userId: 'user-1', roles: ['admin'] })
+        ).rejects.toThrow(/require an explicit column selection/);
+      });
+
       it('does not include blended chain if filterConfig references only a native column', async () => {
         const columnConfig = ['main_a'];
         const report = makeReport({
@@ -3086,6 +3185,27 @@ describe('BlendedReportDataService', () => {
 
         const error = await refusalOf(report);
 
+        expect(error.errorDetails).toMatchObject({ joinedCalculatedColumns: ['alias_1__ctr'] });
+        expect(blendedQueryBuilderFacade.buildBlendedQuery).not.toHaveBeenCalled();
+      });
+
+      it('refuses one named as a havingGroupBy key', async () => {
+        const report = {
+          ...makeReport({
+            columnConfig: ['date'],
+            filterConfig: [{ column: 'date', function: 'COUNT', operator: 'gt', value: 1 }] as any,
+          }),
+          havingGroupBy: { column: ['alias_1__ctr'] },
+        } as unknown as Report;
+        report.dataMart.schema = makeMainSchema([
+          { name: 'date', type: 'STRING', status: 'CONNECTED' },
+        ]);
+        blendableSchemaService.computeBlendableSchema.mockResolvedValue(schemaWithJoinedFormula());
+        mockChains();
+
+        const error = await refusalOf(report);
+
+        expect(error).toBeInstanceOf(InvalidQueryColumnsException);
         expect(error.errorDetails).toMatchObject({ joinedCalculatedColumns: ['alias_1__ctr'] });
         expect(blendedQueryBuilderFacade.buildBlendedQuery).not.toHaveBeenCalled();
       });

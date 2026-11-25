@@ -1,5 +1,8 @@
+import type { DuckDBConnection, DuckDBInstance } from '@duckdb/node-api';
 import { Test, TestingModule } from '@nestjs/testing';
+import type { RoutedFilterRule } from '../../../dto/domain/filter-clause';
 import { DataStorageType } from '../../enums/data-storage-type.enum';
+import type { BlendedQueryContext } from '../../interfaces/blended-query-builder.interface';
 import {
   createBuildContext,
   makeChain,
@@ -274,5 +277,185 @@ describe('DuckDbBlendedQueryBuilder', () => {
 
     expect(sql).toContain('ANY_VALUE(order_name) AS sample_name');
     expect(sql).not.toContain('arbitrary');
+  });
+
+  describe('metric filters at a separate grouping, on DuckDB', () => {
+    let instance: DuckDBInstance;
+    let connection: DuckDBConnection;
+
+    beforeEach(async () => {
+      instance = await createProductionDuckDbInstance();
+      connection = await instance.connect();
+      await connection.run(
+        `CREATE TABLE main.customers AS SELECT * FROM (VALUES ` +
+          `(1, 'A', 'EU', 60.0), (2, 'A', 'US', 70.0), (3, 'B', 'EU', 50.0), (4, 'B', 'US', 20.0)` +
+          `) AS v(id, segment, region, revenue)`
+      );
+      await connection.run(
+        `CREATE TABLE main.orders AS SELECT * FROM (VALUES ` +
+          `(1, 'o1', 10.0, 'web'), (1, 'o2', 5.0, 'web'), (2, 'o3', 7.0, 'shop'), ` +
+          `(3, 'o4', 100.0, 'shop'), (4, 'o5', 1.0, 'web')` +
+          `) AS v(customerId, orderId, amount, channel)`
+      );
+    });
+
+    afterEach(() => {
+      connection.closeSync();
+      instance.closeSync();
+    });
+
+    const sumRevenueAbove100: RoutedFilterRule = {
+      column: 'revenue',
+      function: 'SUM',
+      operator: 'gt',
+      value: 100,
+      clause: 'having',
+    };
+    const ordersChain = makeChain({
+      relationship: makeRelationship({
+        joinConditions: [{ sourceFieldName: 'id', targetFieldName: 'customerId' }],
+      }),
+      targetTableReference: '"main"."orders"',
+      parentAlias: 'main',
+      blendedFields: [
+        {
+          targetFieldName: 'amount',
+          outputAlias: 'orders__amount',
+          isHidden: false,
+          aggregateFunction: 'SUM',
+        },
+        {
+          targetFieldName: 'orderId',
+          outputAlias: 'orders__orderId',
+          isHidden: false,
+          aggregateFunction: 'ANY_VALUE',
+        },
+        {
+          targetFieldName: 'channel',
+          outputAlias: 'orders__channel',
+          isHidden: false,
+          aggregateFunction: 'ANY_VALUE',
+        },
+      ],
+    });
+    const fieldIndex = buildBlendedFieldIndex({
+      blendedFields: [
+        {
+          name: 'orders__amount',
+          aliasPath: 'orders',
+          originalFieldName: 'amount',
+          type: 'DOUBLE',
+        },
+        {
+          name: 'orders__orderId',
+          aliasPath: 'orders',
+          originalFieldName: 'orderId',
+          type: 'VARCHAR',
+        },
+        {
+          name: 'orders__channel',
+          aliasPath: 'orders',
+          originalFieldName: 'channel',
+          type: 'VARCHAR',
+        },
+      ],
+      availableSources: [{ aliasPath: 'orders', isIncluded: true }],
+    } as never);
+
+    // Segment A (60 + 70) passes and segment B (50 + 20) fails, so only customers 1 and 2 are read.
+    const readByRegion = (columns: string[], controls: Partial<BlendedQueryContext>) => {
+      const { sql } = builder.buildBlendedQuery({
+        ...createBuildContext('"main"."customers"')([ordersChain], columns),
+        fieldIndex,
+        sort: [{ column: 'region', direction: 'asc' }],
+        groupRestriction: { dimensions: ['segment'], having: [sumRevenueAbove100] },
+        ...controls,
+      });
+      return readSerializedRows(connection, sql);
+    };
+
+    it('computes a native and a joined SUM over the kept rows only', async () => {
+      const rows = await readByRegion(['region', 'revenue', 'orders__amount'], {
+        aggregations: [
+          { column: 'revenue', function: 'SUM' },
+          { column: 'orders__amount', function: 'SUM' },
+        ],
+      });
+      expect(rows).toEqual([
+        { region: 'EU', 'revenue | SUM': 60, 'orders__amount | SUM': 15 },
+        { region: 'US', 'revenue | SUM': 70, 'orders__amount | SUM': 7 },
+      ]);
+    });
+
+    it('counts distinct joined values over the kept rows only', async () => {
+      const rows = await readByRegion(['region', 'orders__orderId'], {
+        aggregations: [{ column: 'orders__orderId', function: 'COUNT_DISTINCT' }],
+      });
+      expect(rows).toEqual([
+        { region: 'EU', 'orders__orderId | COUNTUNIQUE': 2 },
+        { region: 'US', 'orders__orderId | COUNTUNIQUE': 1 },
+      ]);
+    });
+
+    it('counts the joined Unique Count over the kept rows only', async () => {
+      const rows = await readByRegion(['region'], {
+        uniqueCountSources: [
+          {
+            aliasPath: 'orders',
+            cteName: 'orders',
+            pkColumns: ['orderId'],
+            outputLabel: 'orders__unique_count',
+          },
+        ],
+      });
+      expect(rows).toEqual([
+        { region: 'EU', orders__unique_count: 2 },
+        { region: 'US', orders__unique_count: 1 },
+      ]);
+    });
+
+    // Per customer the channel is web for 1 and 4 (80, fails) and shop for 2 and 3 (120, passes).
+    it('checks the metric filter at a joined grouping key', async () => {
+      const rows = await readByRegion(['region', 'revenue'], {
+        aggregations: [{ column: 'revenue', function: 'SUM' }],
+        groupRestriction: { dimensions: ['orders__channel'], having: [sumRevenueAbove100] },
+      });
+      expect(rows).toEqual([
+        { region: 'EU', 'revenue | SUM': 50 },
+        { region: 'US', 'revenue | SUM': 70 },
+      ]);
+    });
+
+    it('returns one row without grouping keys, with NULL metrics and a zero COUNT when no group passes', async () => {
+      const scorecard = (value: number) =>
+        readByRegion(['revenue', 'id', 'orders__amount'], {
+          aggregations: [
+            { column: 'revenue', function: 'SUM' },
+            { column: 'id', function: 'COUNT' },
+            { column: 'orders__amount', function: 'SUM' },
+          ],
+          sort: [],
+          groupRestriction: {
+            dimensions: ['segment'],
+            having: [{ ...sumRevenueAbove100, value }],
+          },
+        });
+      expect(await scorecard(100)).toEqual([
+        { 'revenue | SUM': 130, 'id | COUNT': 2, 'orders__amount | SUM': 22 },
+      ]);
+      expect(await scorecard(1000)).toEqual([
+        { 'revenue | SUM': null, 'id | COUNT': 0, 'orders__amount | SUM': null },
+      ]);
+    });
+
+    it('refuses a restriction on a query that does not aggregate', () => {
+      expect(() =>
+        builder.buildBlendedQuery({
+          ...createBuildContext('"main"."customers"')([ordersChain], ['region']),
+          fieldIndex,
+          groupRestriction: { dimensions: ['segment'], having: [sumRevenueAbove100] },
+        })
+      ).toThrow(/buildBlendedQuery ungrouped query: \[revenue\] are routed to HAVING/);
+    });
   });
 });

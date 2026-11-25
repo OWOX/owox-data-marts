@@ -5,6 +5,7 @@ import {
   type TraverseDataAggregationRule,
   type TraverseDataDateTruncRule,
   type TraverseDataFilterRule,
+  type TraverseDataHavingGroupBy,
   type TraverseDataOptions,
   type TraverseDataRelativeDatePreset,
   type TraverseDataSortRule,
@@ -349,6 +350,45 @@ describe('DataMartsApi.traverseData', () => {
       JSON.parse(Buffer.from(url.searchParams.get('dateTrunc')!, 'base64url').toString('utf8'))
     ).toEqual(dateTrunc);
     expect(url.searchParams.get('uniqueCount')).toBe('WyIiXQ');
+  });
+
+  it('encodes havingGroupBy as base64url JSON and omits null and undefined', async () => {
+    const fetchMock = createFetchMock(request => {
+      if (request.method === 'POST' && request.url === '/api/auth/api-keys/exchange') {
+        return createJsonResponse(200, { accessToken: 'access-token-1' });
+      }
+
+      if (
+        request.method === 'GET' &&
+        request.url.startsWith('/api/external/http-data/data-marts/dm-1.ndjson')
+      ) {
+        return createNdjsonResponse(['{"day":"d1"}\n'], { 'x-owox-run-id': 'run-1' });
+      }
+
+      return createJsonResponse(404, { message: 'Not found' });
+    });
+    const client = new OWOXApiClient({ apiKey, fetchImpl: fetchMock.fetchImpl });
+    const sentParam = async (options: TraverseDataOptions) => {
+      fetchMock.requests.length = 0;
+      await client.dataMarts.traverseData('dm-1', options);
+      const request = fetchMock.requests.find(({ method }) => method === 'GET');
+      return new URL(`${apiOrigin}${request?.url}`).searchParams.get('havingGroupBy');
+    };
+
+    const havingGroupBy = {
+      column: ['status', 'date'],
+      dateTrunc: [{ column: 'date', unit: 'MONTH' }],
+    } satisfies TraverseDataHavingGroupBy;
+    expect(
+      JSON.parse(Buffer.from((await sentParam({ havingGroupBy }))!, 'base64url').toString())
+    ).toEqual(havingGroupBy);
+    expect(await sentParam({ havingGroupBy: null })).toBeNull();
+    expect(await sentParam({})).toBeNull();
+    expect(
+      JSON.parse(
+        Buffer.from((await sentParam({ havingGroupBy: { column: [] } }))!, 'base64url').toString()
+      )
+    ).toEqual({ column: [] });
   });
 
   it('reports malformed NDJSON lines with line and run context', async () => {

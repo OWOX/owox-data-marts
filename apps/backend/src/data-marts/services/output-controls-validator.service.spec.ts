@@ -7372,4 +7372,248 @@ describe('OutputControlsValidatorService', () => {
       });
     });
   });
+
+  describe('validateForReport — havingGroupBy', () => {
+    const fields = [
+      { name: 'status', type: 'STRING' },
+      { name: 'date', type: 'DATE' },
+      { name: 'ts', type: 'TIMESTAMP' },
+      { name: 'revenue', type: 'NUMERIC' },
+      { name: 'tags', type: 'STRING', mode: 'REPEATED' },
+      {
+        name: 'status_upper',
+        type: 'STRING',
+        calculated: { formula: 'UPPER({{ref field="status"}})', level: 'column' },
+      },
+      {
+        name: 'total',
+        type: 'NUMERIC',
+        calculated: { formula: 'SUM({{ref field="revenue"}})', level: 'metric' },
+      },
+    ];
+    const sumRevenueOver100 = {
+      column: 'revenue',
+      operator: 'gt',
+      value: 100,
+      function: 'SUM',
+      placement: 'post-join',
+    };
+    const sumRevenue = { column: 'revenue', function: 'SUM' };
+
+    async function validate(args: {
+      havingGroupBy: {
+        column: string[];
+        dateTrunc?: { column: string; unit: string; timeZone?: string }[];
+      };
+      columnConfig?: string[];
+      filterConfig?: Record<string, unknown>[];
+      aggregationConfig?: { column: string; function: string }[];
+      dateTruncConfig?: { column: string; unit: string }[];
+    }): Promise<Record<string, unknown>[]> {
+      const validator = new OutputControlsValidatorService(
+        { isSupported: jest.fn().mockReturnValue(true) } as never,
+        {
+          computeBlendableSchema: jest.fn().mockResolvedValue({
+            nativeFields: fields,
+            blendedFields: [],
+            availableSources: [],
+            mainUniqueCountKeyFields: [],
+          }),
+        } as never
+      );
+      try {
+        await validator.validateForReport({
+          storageType: DataStorageType.GOOGLE_BIGQUERY,
+          dataMartId: 'dm-orders',
+          projectId: 'proj-orders',
+          columnConfig: args.columnConfig ?? ['status'],
+          filterConfig: (args.filterConfig ?? null) as never,
+          sortConfig: null,
+          limitConfig: null,
+          aggregationConfig: (args.aggregationConfig ?? null) as never,
+          dateTruncConfig: (args.dateTruncConfig ?? null) as never,
+          havingGroupBy: args.havingGroupBy as never,
+          dataMartSchemaFields: fields as never,
+          accessor: { userId: 'user-1', roles: ['admin'] },
+        });
+      } catch (e) {
+        const response = (e as BadRequestException).getResponse() as {
+          details: { errors: Record<string, unknown>[] };
+        };
+        return response.details.errors;
+      }
+      return [];
+    }
+
+    // The read with a metric filter at a separate grouping, which every case below varies.
+    const metricRead = {
+      columnConfig: ['revenue'],
+      filterConfig: [sumRevenueOver100],
+      aggregationConfig: [sumRevenue],
+    };
+
+    it('refuses a grouping on a read with no other output control', async () => {
+      const errors = await validate({ havingGroupBy: { column: ['status'] } });
+
+      expect(errors).toEqual([
+        {
+          code: 'HAVING_GROUP_BY_REQUIRES_METRIC_FILTER',
+          message: expect.any(String),
+          source: 'havingGroupBy',
+        },
+      ]);
+    });
+
+    it('refuses a grouping on a read with only a WHERE filter', async () => {
+      const errors = await validate({
+        havingGroupBy: { column: ['status'] },
+        filterConfig: [{ column: 'status', operator: 'eq', value: 'paid', placement: 'post-join' }],
+      });
+
+      expect(errors.map(e => e.code)).toEqual(['HAVING_GROUP_BY_REQUIRES_METRIC_FILTER']);
+    });
+
+    it('accepts a metric filter with a key that the read does not select', async () => {
+      expect(await validate({ ...metricRead, havingGroupBy: { column: ['status'] } })).toEqual([]);
+    });
+
+    it('accepts a filter on an aggregate-level calculated field as the metric filter', async () => {
+      const errors = await validate({
+        havingGroupBy: { column: [] },
+        filterConfig: [{ column: 'total', operator: 'gt', value: 100, placement: 'post-join' }],
+      });
+
+      expect(errors).toEqual([]);
+    });
+
+    it('refuses an aggregate-level calculated field as a key', async () => {
+      const errors = await validate({ ...metricRead, havingGroupBy: { column: ['total'] } });
+
+      expect(errors).toEqual([
+        expect.objectContaining({
+          code: 'CALCULATED_FIELD_AS_DIMENSION',
+          column: 'total',
+          source: 'havingGroupBy',
+        }),
+      ]);
+    });
+
+    it('accepts a row-level calculated field as a key', async () => {
+      expect(
+        await validate({ ...metricRead, havingGroupBy: { column: ['status_upper'] } })
+      ).toEqual([]);
+    });
+
+    it('refuses a key of a type that cannot be grouped', async () => {
+      const errors = await validate({ ...metricRead, havingGroupBy: { column: ['tags'] } });
+
+      expect(errors).toEqual([
+        {
+          code: 'HAVING_GROUP_BY_KEY_NOT_GROUPABLE',
+          column: 'tags',
+          type: 'ARRAY<STRING>',
+          source: 'havingGroupBy',
+        },
+      ]);
+    });
+
+    it('gives a refused key no second verdict for its date bucket', async () => {
+      const errors = await validate({
+        ...metricRead,
+        havingGroupBy: { column: ['tags'], dateTrunc: [{ column: 'tags', unit: 'MONTH' }] },
+      });
+
+      expect(errors.map(e => e.code)).toEqual(['HAVING_GROUP_BY_KEY_NOT_GROUPABLE']);
+    });
+
+    it('gives an aggregate-level calculated key no second verdict for its date bucket', async () => {
+      const errors = await validate({
+        ...metricRead,
+        havingGroupBy: { column: ['total'], dateTrunc: [{ column: 'total', unit: 'MONTH' }] },
+      });
+
+      expect(errors).toEqual([
+        expect.objectContaining({
+          code: 'CALCULATED_FIELD_AS_DIMENSION',
+          column: 'total',
+          source: 'havingGroupBy',
+        }),
+      ]);
+    });
+
+    it('refuses a date bucket on a key that is not a date', async () => {
+      const errors = await validate({
+        ...metricRead,
+        havingGroupBy: { column: ['status'], dateTrunc: [{ column: 'status', unit: 'MONTH' }] },
+      });
+
+      expect(errors).toEqual([
+        {
+          code: 'DATE_TRUNC_REQUIRES_DATE_COLUMN',
+          column: 'status',
+          type: 'STRING',
+          source: 'havingGroupBy',
+        },
+      ]);
+    });
+
+    it('refuses a time zone on a DATE key and accepts it on a TIMESTAMP key', async () => {
+      const onDate = await validate({
+        ...metricRead,
+        havingGroupBy: {
+          column: ['date'],
+          dateTrunc: [{ column: 'date', unit: 'MONTH', timeZone: 'Europe/Kyiv' }],
+        },
+      });
+      const onTimestamp = await validate({
+        ...metricRead,
+        havingGroupBy: {
+          column: ['ts'],
+          dateTrunc: [{ column: 'ts', unit: 'MONTH', timeZone: 'Europe/Kyiv' }],
+        },
+      });
+
+      expect(onDate).toEqual([
+        {
+          code: 'DATE_TRUNC_TIMEZONE_REQUIRES_TIMESTAMP',
+          column: 'date',
+          type: 'DATE',
+          source: 'havingGroupBy',
+        },
+      ]);
+      expect(onTimestamp).toEqual([]);
+    });
+
+    it("keeps no source on the read's own date bucket error", async () => {
+      const errors = await validate({
+        columnConfig: ['status', 'revenue'],
+        filterConfig: [sumRevenueOver100],
+        aggregationConfig: [sumRevenue],
+        dateTruncConfig: [{ column: 'status', unit: 'MONTH' }],
+        havingGroupBy: { column: ['status'], dateTrunc: [{ column: 'status', unit: 'MONTH' }] },
+      });
+
+      expect(errors).toEqual([
+        { code: 'DATE_TRUNC_REQUIRES_DATE_COLUMN', column: 'status', type: 'STRING' },
+        {
+          code: 'DATE_TRUNC_REQUIRES_DATE_COLUMN',
+          column: 'status',
+          type: 'STRING',
+          source: 'havingGroupBy',
+        },
+      ]);
+    });
+
+    it('still demands the aggregation of a metric filter', async () => {
+      const errors = await validate({
+        columnConfig: ['revenue'],
+        filterConfig: [sumRevenueOver100],
+        havingGroupBy: { column: ['status'] },
+      });
+
+      expect(errors).toEqual([
+        { code: 'HAVING_FILTER_NOT_AGGREGATED', column: 'revenue', function: 'SUM' },
+      ]);
+    });
+  });
 });

@@ -4,9 +4,9 @@
  */
 
 /**
- * CTE / derived-table name holding the dimension tuples of the groups a report's metric (HAVING)
- * filters keep. Only a Totals query builds it — see `GroupRestriction`. Reserved like the sleeve
- * names: `disambiguateSleeveCteNames` seeds it so no sleeve can take the same name.
+ * CTE / derived-table name holding the dimension tuples of the groups the metric (HAVING) filters
+ * keep. Totals and `havingGroupBy` reads build it — see `GroupRestriction`. Reserved like the
+ * sleeve names: `disambiguateSleeveCteNames` seeds it so no sleeve can take the same name.
  */
 export const KEPT_GROUPS_CTE = '_kept_groups';
 

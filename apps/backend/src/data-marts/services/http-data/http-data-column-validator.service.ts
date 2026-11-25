@@ -5,6 +5,7 @@ import { SortConfig } from '../../dto/schemas/sort-config.schema';
 import { AggregationConfig } from '../../dto/schemas/aggregation-config.schema';
 import { DateTruncConfig } from '../../dto/schemas/date-trunc-config.schema';
 import { UniqueCountConfig } from '../../dto/schemas/unique-count-config.schema';
+import { HavingGroupBy } from '../../dto/schemas/having-group-by.schema';
 import {
   hasMainUniqueCount,
   joinedUniqueCountSources,
@@ -20,6 +21,7 @@ export interface HttpDataColumnValidationInput {
   aggregation?: AggregationConfig;
   dateTrunc?: DateTruncConfig;
   uniqueCount?: UniqueCountConfig;
+  havingGroupBy?: HavingGroupBy;
 }
 
 @Injectable()
@@ -75,6 +77,13 @@ export class HttpDataColumnValidator {
       referenced.delete(buildJoinedUniqueCountColumnName(aliasPath));
     }
     if (hasMainUniqueCount(input.uniqueCount)) referenced.delete(UNIQUE_COUNT_LABEL);
+    // Added after the deletions above: a Unique Count is not a grouping key, so it stays unknown here.
+    for (const column of input.havingGroupBy?.column ?? []) {
+      referenced.add(column);
+    }
+    for (const rule of input.havingGroupBy?.dateTrunc ?? []) {
+      referenced.add(rule.column);
+    }
     return referenced;
   }
 }

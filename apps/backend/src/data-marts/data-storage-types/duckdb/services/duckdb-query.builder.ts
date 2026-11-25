@@ -47,7 +47,9 @@ export class DuckDbQueryBuilder implements DataMartQueryBuilder {
       uniqueCount ||
       calculatedFields.length > 0 ||
       queryOptions?.limit != null ||
-      queryOptions?.distinct === true;
+      queryOptions?.distinct === true ||
+      // The plain branch ignores a group restriction, so its metric filters would keep every row.
+      (queryOptions?.groupRestriction?.having.length ?? 0) > 0;
 
     const selectList = this.buildSelectList(queryOptions?.columns);
 
@@ -90,7 +92,10 @@ export class DuckDbQueryBuilder implements DataMartQueryBuilder {
       });
     }
 
-    assertNoHavingRules(queryOptions?.filters ?? [], 'DuckDbQueryBuilder plain query');
+    assertNoHavingRules(
+      [...(queryOptions?.filters ?? []), ...(queryOptions?.groupRestriction?.having ?? [])],
+      'DuckDbQueryBuilder plain query'
+    );
     const where = this.clauseRenderer.renderWhere(
       queryOptions?.filters ?? [],
       undefined,

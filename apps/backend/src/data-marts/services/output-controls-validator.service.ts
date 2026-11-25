@@ -12,6 +12,7 @@ import {
   DateTruncRule,
   IANA_TIME_ZONE_PATTERN,
 } from '../dto/schemas/date-trunc-config.schema';
+import { HavingGroupBy } from '../dto/schemas/having-group-by.schema';
 import { DataStorageType } from '../data-storage-types/enums/data-storage-type.enum';
 import { OutputControlsCapabilityService } from './output-controls-capability.service';
 import { BlendableSchemaAccessor, BlendableSchemaService } from './blendable-schema.service';
@@ -62,13 +63,14 @@ import {
   brokenJoinedReferencesOf,
   brokenReferencesOf,
   buildJoinedReferenceIndex,
+  type CalculatedSchemaField,
   calculatedFieldLevelOf,
   calculatedFieldsOf,
   joinedCalculatedFieldRefusals,
   readsJoinedDataMart,
 } from '../calculated-fields/calculated-field.utils';
 import { routeFilterClauses } from '../calculated-fields/filter-clause-routing';
-import { isHavingFilterRule } from '../dto/domain/filter-clause';
+import { isHavingFilterRule, type RoutedFilterRule } from '../dto/domain/filter-clause';
 import { isAggregateLevel, type CalculatedFieldLevel } from '../calculated-fields/formula-level';
 import type { DataMartSchema } from '../data-storage-types/data-mart-schema.type';
 import { isArrayFieldType } from '../data-storage-types/field-type-compatibility';
@@ -90,6 +92,7 @@ export type ValidationError =
       control: 'filter' | 'slice' | 'sort' | 'aggregation' | 'date bucket';
       message: string;
       aliasPath?: string;
+      source?: 'havingGroupBy';
     }
   | { code: 'FILTER_COLUMN_UNKNOWN'; column: string; aliasPath?: string }
   | {
@@ -117,18 +120,48 @@ export type ValidationError =
       function: string;
     }
   | { code: 'DUPLICATE_AGGREGATION'; column: string; function: string }
-  | { code: 'DATE_TRUNC_COLUMN_NOT_SELECTED'; column: string }
-  | { code: 'DATE_TRUNC_REQUIRES_DATE_COLUMN'; column: string; type: string }
-  | { code: 'DATE_TRUNC_COLUMN_IS_AGGREGATED'; column: string }
-  | { code: 'DATE_TRUNC_INVALID_TIMEZONE'; column: string; timeZone: string }
-  | { code: 'DATE_TRUNC_TIMEZONE_REQUIRES_TIMESTAMP'; column: string; type: string }
+  // `source` marks a `havingGroupBy` error, so a client can tell it from the read's own date bucket.
+  | { code: 'DATE_TRUNC_COLUMN_NOT_SELECTED'; column: string; source?: 'havingGroupBy' }
+  | {
+      code: 'DATE_TRUNC_REQUIRES_DATE_COLUMN';
+      column: string;
+      type: string;
+      source?: 'havingGroupBy';
+    }
+  | { code: 'DATE_TRUNC_COLUMN_IS_AGGREGATED'; column: string; source?: 'havingGroupBy' }
+  | {
+      code: 'DATE_TRUNC_INVALID_TIMEZONE';
+      column: string;
+      timeZone: string;
+      source?: 'havingGroupBy';
+    }
+  | {
+      code: 'DATE_TRUNC_TIMEZONE_REQUIRES_TIMESTAMP';
+      column: string;
+      type: string;
+      source?: 'havingGroupBy';
+    }
   // A date bucket on a CALCULATED field may not carry a time zone; the bucket itself stays.
   // Measured on Snowflake: a TIMESTAMP-declared formula over the string '05/08/2026', bucketed by
   // MONTH in `America/New_York`, returned the 8th of May where the formula means the 5th of August
   // — one row, no error, no NULL. `CONVERT_TIMEZONE` is the only string shape Snowflake returns a
   // value for instead of refusing, and it parses the string as MDY under a session default.
-  | { code: 'DATE_TRUNC_TIMEZONE_ON_CALCULATED_FIELD'; column: string; timeZone: string }
+  | {
+      code: 'DATE_TRUNC_TIMEZONE_ON_CALCULATED_FIELD';
+      column: string;
+      timeZone: string;
+      source?: 'havingGroupBy';
+    }
   | { code: 'UNIQUE_COUNT_REQUIRES_PRIMARY_KEY'; message: string }
+  // A `havingGroupBy` grouping only moves metric filters, so a read with none has nothing to move.
+  | { code: 'HAVING_GROUP_BY_REQUIRES_METRIC_FILTER'; message: string; source: 'havingGroupBy' }
+  // A `havingGroupBy` key of the `other` category (ARRAY, STRUCT, JSON...) cannot be a GROUP BY key.
+  | {
+      code: 'HAVING_GROUP_BY_KEY_NOT_GROUPABLE';
+      column: string;
+      type: string;
+      source: 'havingGroupBy';
+    }
   // A HAVING filter (rule carries `function`) must target a configured aggregation —
   // i.e. the (column, function) pair must exist in aggregationConfig.
   | { code: 'HAVING_FILTER_NOT_AGGREGATED'; column: string; function: string }
@@ -213,6 +246,7 @@ export type ValidationError =
       column: string;
       message: string;
       level: CalculatedFieldLevel;
+      source?: 'havingGroupBy';
     }
   // A calculated field selected/filtered/sorted by this composition references a schema field
   // that no longer resolves (see `brokenReferencesOf`) — fails the query explicitly rather than
@@ -262,12 +296,27 @@ function operatorAllowed(fieldType: string, operator: string): boolean {
   return INTERNAL_OPERATORS_BY_CATEGORY[categorizeFieldType(fieldType)].has(operator);
 }
 
+type ArrayControlError = Extract<
+  ValidationError,
+  { code: 'ARRAY_FIELD_OUTPUT_CONTROL_UNSUPPORTED' }
+>;
+
+// The codes `validateDateTruncs` can emit, so the `havingGroupBy` source tag is type-checked.
+type DateTruncValidationError = Extract<
+  ValidationError,
+  { code: 'ARRAY_FIELD_OUTPUT_CONTROL_UNSUPPORTED' | `DATE_TRUNC_${string}` }
+>;
+
+function calculatedFieldAsDimensionMessage(column: string): string {
+  return `\`${column}\` is a calculated field and cannot be used as a dimension.`;
+}
+
 function arrayControlError(
   column: string,
   type: string,
-  control: Extract<ValidationError, { code: 'ARRAY_FIELD_OUTPUT_CONTROL_UNSUPPORTED' }>['control'],
+  control: ArrayControlError['control'],
   aliasPath?: string
-): ValidationError {
+): ArrayControlError {
   return {
     code: 'ARRAY_FIELD_OUTPUT_CONTROL_UNSUPPORTED',
     column,
@@ -601,8 +650,8 @@ export class OutputControlsValidatorService {
     aggregatedColumns: ReadonlySet<string>,
     /** The mart's own calculated fields, which are refused the time-zone leg alone. */
     calculatedColumns: ReadonlySet<string> = new Set()
-  ): ValidationError[] {
-    const errors: ValidationError[] = [];
+  ): DateTruncValidationError[] {
+    const errors: DateTruncValidationError[] = [];
     for (const rule of dateTruncs) {
       const type = resolveType(rule.column);
       if (type !== undefined && isArrayFieldType(type)) {
@@ -751,6 +800,8 @@ export class OutputControlsValidatorService {
      * alike by design — failing it would turn that degradation into a 400 on every schedule.
      */
     rejectUnavailableUniqueCountSources?: boolean;
+    /** The ad-hoc HTTP Data read's separate grouping for its metric filters. */
+    havingGroupBy?: HavingGroupBy | null;
   }): Promise<void> {
     const hasOutputControls =
       (args.filterConfig?.length ?? 0) > 0 ||
@@ -758,7 +809,8 @@ export class OutputControlsValidatorService {
       args.limitConfig != null ||
       (args.aggregationConfig?.length ?? 0) > 0 ||
       (args.dateTruncConfig?.length ?? 0) > 0 ||
-      normalizeUniqueCountSources(args.uniqueCountConfig).length > 0;
+      normalizeUniqueCountSources(args.uniqueCountConfig).length > 0 ||
+      args.havingGroupBy != null;
 
     const hasColumnConfig = (args.columnConfig?.length ?? 0) > 0;
 
@@ -892,6 +944,15 @@ export class OutputControlsValidatorService {
     // carried on the rule — the same seat the composer stamps with, so what this
     // validates and what the builder renders cannot disagree about which clause a predicate is in.
     const routedFilters = routeFilterClauses(parsedFilters, metricSchemaFields);
+    const havingGroupByKeyErrors = args.havingGroupBy
+      ? this.validateHavingGroupByKeys(
+          args.havingGroupBy,
+          routedFilters,
+          calculated,
+          metricSchemaFields
+        )
+      : [];
+    errors.push(...havingGroupByKeyErrors);
     // Columns whose filter rule is refused below, so no second verdict is stacked on them.
     const refusedCalculatedFilterColumns = new Set<string>();
     for (const rule of routedFilters) {
@@ -1072,7 +1133,7 @@ export class OutputControlsValidatorService {
               code: 'CALCULATED_FIELD_AS_DIMENSION',
               column: rule.column,
               level,
-              message: `\`${rule.column}\` is a calculated field and cannot be used as a dimension.`,
+              message: calculatedFieldAsDimensionMessage(rule.column),
             });
           }
 
@@ -1372,6 +1433,20 @@ export class OutputControlsValidatorService {
             )
           );
         }
+        if (args.havingGroupBy) {
+          errors.push(
+            ...this.validateHavingGroupByTypes(
+              args.havingGroupBy,
+              col => homeFieldTypes.get(col),
+              new Set(calculated.keys()),
+              new Set(
+                havingGroupByKeyErrors.flatMap(e =>
+                  e.code === 'CALCULATED_FIELD_AS_DIMENSION' ? [e.column] : []
+                )
+              )
+            )
+          );
+        }
 
         // Unique Count emits a COUNT(DISTINCT <pk tuple>) column only when the data
         // mart has at least one primary-key field. Without a PK the SQL no-ops but
@@ -1469,6 +1544,69 @@ export class OutputControlsValidatorService {
         details: { errors },
       });
     }
+  }
+
+  /** `havingGroupBy` rules that need no field types: a metric filter exists, no key aggregates. */
+  private validateHavingGroupByKeys(
+    grain: HavingGroupBy,
+    routedFilters: readonly RoutedFilterRule[],
+    calculated: ReadonlyMap<string, CalculatedSchemaField>,
+    metricSchemaFields: DataMartSchema['fields']
+  ): ValidationError[] {
+    const errors: ValidationError[] = [];
+    // Read the routed clause: a filter on an aggregate-level field has no `function`.
+    if (!routedFilters.some(isHavingFilterRule)) {
+      errors.push({
+        code: 'HAVING_GROUP_BY_REQUIRES_METRIC_FILTER',
+        message:
+          '"havingGroupBy" applies only to metric filters. Add a metric filter, or remove "havingGroupBy".',
+        source: 'havingGroupBy',
+      });
+    }
+    for (const column of grain.column) {
+      const field = calculated.get(column);
+      if (!field || !isAggregateLevel(calculatedFieldLevelOf(field, metricSchemaFields))) continue;
+      errors.push({
+        code: 'CALCULATED_FIELD_AS_DIMENSION',
+        column,
+        level: 'metric',
+        message: calculatedFieldAsDimensionMessage(column),
+        source: 'havingGroupBy',
+      });
+    }
+    return errors;
+  }
+
+  /** `havingGroupBy` rules that need field types: each key can be grouped, each bucket is valid. */
+  private validateHavingGroupByTypes(
+    grain: HavingGroupBy,
+    resolveType: (column: string) => string | undefined,
+    calculatedNames: ReadonlySet<string>,
+    /** Keys already refused as aggregate-level Calculated Fields. */
+    refusedAsDimension: ReadonlySet<string>
+  ): ValidationError[] {
+    const errors: ValidationError[] = [];
+    const refusedKeys = new Set(refusedAsDimension);
+    for (const column of grain.column) {
+      const type = resolveType(column);
+      if (type === undefined || categorizeFieldType(type) !== 'other') continue;
+      refusedKeys.add(column);
+      errors.push({
+        code: 'HAVING_GROUP_BY_KEY_NOT_GROUPABLE',
+        column,
+        type,
+        source: 'havingGroupBy',
+      });
+    }
+    // A bucket on a refused key gets no second verdict: it only buries the fix.
+    const bucketErrors = this.validateDateTruncs(
+      (grain.dateTrunc ?? []).filter(rule => !refusedKeys.has(rule.column)),
+      new Set(grain.column),
+      resolveType,
+      new Set(),
+      calculatedNames
+    ).map((error): ValidationError => ({ ...error, source: 'havingGroupBy' }));
+    return [...errors, ...bucketErrors];
   }
 
   /**
