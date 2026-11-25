@@ -39,10 +39,11 @@ function SwitchProjectMenuInner({
   const itemRefs = useRef<(HTMLElement | null)[]>([]);
 
   const visibleProjects = useMemo(() => {
-    const available = excludeCurrentProject
-      ? projects.filter(project => project.id !== user?.projectId)
-      : projects;
-    return [...available].sort((a, b) => projectTitleCollator.compare(a.title, b.title));
+    const available = projects.filter(
+      project =>
+        project.status !== 'removed' && (!excludeCurrentProject || project.id !== user?.projectId)
+    );
+    return available.sort((a, b) => projectTitleCollator.compare(a.title, b.title));
   }, [projects, excludeCurrentProject, user?.projectId]);
 
   const isInitialLoad = autoLoad && callState === RequestStatus.IDLE;

@@ -37,10 +37,12 @@ function reducer(state: ProjectsState, action: Action): ProjectsState {
 
 export function ProjectsProvider({ children }: { children: React.ReactNode }) {
   const [state, dispatch] = useReducer(reducer, initialState);
+  const requestId = useRef(0);
   const isRequestInFlight = useRef(false);
 
-  const loadProjects = useCallback(async () => {
-    if (isRequestInFlight.current) return;
+  const loadProjects = useCallback(async (options?: { force?: boolean }) => {
+    if (isRequestInFlight.current && !options?.force) return;
+    const id = ++requestId.current;
     isRequestInFlight.current = true;
     dispatch({ type: 'LOADING' });
     try {
@@ -60,15 +62,17 @@ export function ProjectsProvider({ children }: { children: React.ReactNode }) {
       }
 
       const projects = await getProjectsApi(token);
-      dispatch({ type: 'SUCCESS', payload: projects });
+      if (id === requestId.current) dispatch({ type: 'SUCCESS', payload: projects });
     } catch (e) {
-      dispatch({ type: 'ERROR', payload: extractApiError(e) });
+      if (id === requestId.current) dispatch({ type: 'ERROR', payload: extractApiError(e) });
     } finally {
-      isRequestInFlight.current = false;
+      if (id === requestId.current) isRequestInFlight.current = false;
     }
   }, []);
 
   const reset = useCallback(() => {
+    ++requestId.current;
+    isRequestInFlight.current = false;
     dispatch({ type: 'RESET' });
   }, []);
   const isLoading = state.callState === RequestStatus.LOADING;

@@ -1,18 +1,16 @@
-import React, { useEffect, useMemo, useState } from 'react';
-import { Link } from 'react-router';
+import React, { useEffect, useState } from 'react';
+import { Link, Navigate } from 'react-router';
+import { toast } from 'sonner';
 import {
   BookOpenIcon,
-  Check,
   ChartNoAxesColumn,
-  CircleAlert,
-  CircleHelp,
-  CircleMinus,
   ExternalLink,
   FileText,
   Plug,
   Settings,
 } from 'lucide-react';
 import { Button } from '@owox/ui/components/button';
+import { LoadingSpinner } from '@owox/ui/components/common/loading-spinner';
 import {
   CollapsibleCard,
   CollapsibleCardContent,
@@ -21,6 +19,12 @@ import {
   CollapsibleCardHeaderTitle,
 } from '../../shared/components/CollapsibleCard';
 import { useUser } from '../../features/idp/hooks/useAuthState';
+import {
+  MY_ACCOUNT_PATH,
+  MY_ACCOUNT_PROJECTS_PATH,
+} from '../../features/idp/utils/my-account-path';
+import { getAccountApiOrigin } from '../../features/my-account/use-account-api-origin';
+import { getCloudBillingOrigin } from '../../features/cloud-billing/cloud-billing';
 import { useFlags } from '../../app/store/hooks';
 import { useProjectRoute } from '../../shared/hooks';
 import { checkVisible } from '../../utils/check-visible';
@@ -34,11 +38,21 @@ import { CopyButton, CopyButtonVariant } from '@owox/ui/components/common/copy-b
 import { useClipboard } from '../../hooks/useClipboard';
 import { useProjects } from '../../features/idp/hooks/useProjects';
 import { RequestStatus } from '../../shared/types/request-status';
-import type { ProjectStatus } from '../../features/idp/types';
 import { useIsAdmin } from '../../features/idp/hooks/useRole';
 import { useProjectSettings } from '../../features/project-settings/overview';
 import { InlineEditDescription } from '../../shared/components/InlineEditDescription';
 import { Skeleton } from '@owox/ui/components/skeleton';
+import { ProjectNameEditor } from '../../features/project-settings/management/ProjectNameEditor';
+import {
+  ProjectDeletionCard,
+  type ProjectDeletionOutcome,
+} from '../../features/project-settings/management/ProjectDeletionCard';
+import {
+  getProjectStatus,
+  projectStatusLabels,
+} from '../../features/project-settings/management/project-status';
+import { getCloudProjectApiOrigin } from '../../features/project-settings/management/project-management.service';
+import { StatusLabel, StatusTypeEnum } from '../../shared/components/StatusLabel';
 
 interface Stats {
   dataMarts: number | null;
@@ -153,13 +167,39 @@ export function OverviewTab() {
     error: projectSettingsError,
     updateDescription,
   } = useProjectSettings(projectId);
-  const projectStatus = useMemo<ProjectStatus | undefined>(() => {
-    if (!projectId) {
-      return undefined;
-    }
+  const currentProject = projects.find(project => project.id === projectId);
+  const projectTitle = currentProject?.title ?? user?.projectTitle ?? '—';
+  const origin = getCloudProjectApiOrigin(flags);
+  const projectSession = user?.id && projectId ? { userId: user.id, projectId } : null;
+  const sessionKey = projectSession ? `${projectSession.userId}:${projectSession.projectId}` : '';
+  const [deletion, setDeletion] = useState<{
+    sessionKey: string;
+    status: ProjectDeletionOutcome;
+  }>();
+  const deletionStatus = deletion?.sessionKey === sessionKey ? deletion.status : undefined;
+  const listedStatus = getProjectStatus(currentProject);
+  const projectStatus =
+    listedStatus === 'removed'
+      ? 'removed'
+      : ((deletionStatus === 'unknown' ? undefined : deletionStatus) ?? listedStatus);
+  const canManage = Boolean(origin && projectSession && isAdmin && !user?.viewOnly);
+  const canUseProjectActions =
+    Boolean(currentProject) &&
+    callState !== RequestStatus.ERROR &&
+    !(deletionStatus === 'unknown' && callState === RequestStatus.LOADING);
+  const projectUnavailable =
+    deletionStatus === 'unknown' && callState === RequestStatus.LOADED && !currentProject;
+  const statusLabel = projectStatus ? projectStatusLabels[projectStatus] : undefined;
 
-    return projects.find(project => project.id === projectId)?.status;
-  }, [projectId, projects]);
+  useEffect(() => {
+    if (origin && projectUnavailable) toast.info('This project is no longer available.');
+  }, [origin, projectUnavailable]);
+
+  function onProjectDeletion(status: ProjectDeletionOutcome) {
+    void loadProjects({ force: true });
+    setDeletion({ sessionKey, status });
+    if (status === 'removed') toast.success('Project deleted');
+  }
 
   const adminCount = members.filter(m => m.role === 'admin').length;
   const editorCount = members.filter(m => m.role === 'editor').length;
@@ -173,6 +213,26 @@ export function OverviewTab() {
     .join(' · ');
   const mcpServerUrl = user?.mcpServerUrl ?? '';
 
+  if (origin && (projectStatus === 'removed' || projectUnavailable)) {
+    if (callState === RequestStatus.LOADING || callState === RequestStatus.IDLE) {
+      return <LoadingSpinner message='Loading projects…' />;
+    }
+    const hasRemainingProjects = projects.some(
+      project => project.id !== projectId && project.status !== 'removed'
+    );
+    const openProfile =
+      callState === RequestStatus.LOADED &&
+      !hasRemainingProjects &&
+      getAccountApiOrigin(flags) !== null;
+    return (
+      <Navigate
+        to={openProfile ? MY_ACCOUNT_PATH : MY_ACCOUNT_PROJECTS_PATH}
+        replace
+        state={{ unavailableProjectId: projectId }}
+      />
+    );
+  }
+
   return (
     <div className='flex flex-col gap-4'>
       <CollapsibleCard collapsible name='project-overview'>
@@ -183,7 +243,22 @@ export function OverviewTab() {
         </CollapsibleCardHeader>
         <CollapsibleCardContent>
           <div className='grid grid-cols-1 gap-3 sm:grid-cols-3'>
-            <DescriptionCard label='Project name' value={user?.projectTitle ?? '—'} />
+            <DescriptionCard
+              label='Project name'
+              value={
+                canManage && origin && projectSession ? (
+                  <ProjectNameEditor
+                    key={sessionKey}
+                    origin={origin}
+                    session={projectSession}
+                    title={projectTitle}
+                    readOnly={!canUseProjectActions || projectStatus === 'removing'}
+                  />
+                ) : (
+                  projectTitle
+                )
+              }
+            />
             <DescriptionCard
               label='Project ID'
               value={
@@ -205,8 +280,10 @@ export function OverviewTab() {
             <DescriptionCard
               label='Status'
               value={
-                callState === RequestStatus.LOADED ? (
-                  <ProjectStatusBadge status={projectStatus} />
+                statusLabel ? (
+                  <StatusLabel type={statusLabel.type}>{statusLabel.label}</StatusLabel>
+                ) : callState === RequestStatus.LOADED ? (
+                  <StatusLabel type={StatusTypeEnum.NEUTRAL}>Unknown</StatusLabel>
                 ) : (
                   '—'
                 )
@@ -348,7 +425,19 @@ export function OverviewTab() {
         </CollapsibleCard>
       )}
 
-      {isOwoxIdpProvider && (
+      {canManage && origin && projectSession && (
+        <ProjectDeletionCard
+          key={sessionKey}
+          origin={origin}
+          session={projectSession}
+          title={projectTitle}
+          removing={projectStatus === 'removing'}
+          disabled={!canUseProjectActions}
+          onResult={onProjectDeletion}
+        />
+      )}
+
+      {isOwoxIdpProvider && (!origin || !getCloudBillingOrigin(flags)) && (
         <CollapsibleCard collapsible name='project-legacy-platform'>
           <CollapsibleCardHeader>
             <CollapsibleCardHeaderTitle
@@ -383,64 +472,13 @@ export function OverviewTab() {
   );
 }
 
-function ProjectStatusBadge({ status }: { status?: ProjectStatus }) {
-  const config = getProjectStatusConfig(status);
-  const Icon = config.icon;
-
-  return (
-    <span
-      className={`inline-flex items-center gap-1 rounded-full border px-2.5 py-0.5 text-xs font-medium ${config.className}`}
-    >
-      <Icon className='h-3 w-3' />
-      {config.label}
-    </span>
-  );
-}
-
-function getProjectStatusConfig(status?: ProjectStatus): {
-  label: string;
-  icon: React.ComponentType<{ className?: string }>;
-  className: string;
-} {
-  switch (status) {
-    case 'active':
-      return {
-        label: 'Active',
-        icon: Check,
-        className:
-          'border-green-200 bg-green-50 text-green-700 dark:border-green-900 dark:bg-green-950 dark:text-green-300',
-      };
-    case 'blocked':
-      return {
-        label: 'Blocked',
-        icon: CircleAlert,
-        className:
-          'border-red-200 bg-red-50 text-red-700 dark:border-red-900 dark:bg-red-950 dark:text-red-300',
-      };
-    case 'removed':
-      return {
-        label: 'Removed',
-        icon: CircleMinus,
-        className:
-          'border-gray-200 bg-gray-50 text-gray-700 dark:border-gray-800 dark:bg-gray-950 dark:text-gray-300',
-      };
-    default:
-      return {
-        label: 'Unknown',
-        icon: CircleHelp,
-        className:
-          'border-gray-200 bg-gray-50 text-gray-700 dark:border-gray-800 dark:bg-gray-950 dark:text-gray-300',
-      };
-  }
-}
-
 function DescriptionCard({ label, value }: { label: string; value: React.ReactNode }) {
   return (
     <div className='flex w-full flex-col gap-2 rounded-md border-b border-gray-200 bg-white p-4 transition-shadow duration-200 hover:shadow-xs dark:border-0 dark:bg-white/2'>
       <span className='text-muted-foreground text-xs font-medium tracking-wide uppercase'>
         {label}
       </span>
-      <span className='text-foreground text-sm font-medium'>{value}</span>
+      <div className='text-foreground text-sm font-medium'>{value}</div>
     </div>
   );
 }

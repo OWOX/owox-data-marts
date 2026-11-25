@@ -7,6 +7,7 @@ export interface Project {
   status?: ProjectStatus;
   roles?: ProjectRole[];
   createdAt?: string;
+  removalPending?: boolean;
 }
 
 export type Projects = Project[];

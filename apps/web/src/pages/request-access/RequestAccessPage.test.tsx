@@ -31,6 +31,16 @@ const userProvisioningServiceMock = vi.hoisted(() => ({
   requestAccess: vi.fn(),
   createNewProject: vi.fn(),
 }));
+const cloudCreation = vi.hoisted(() => ({
+  canCreate: false,
+  creating: false,
+  label: 'Create project',
+  createProject: vi.fn(),
+}));
+
+vi.mock('../../features/project-settings/management/useCloudProjectCreation', () => ({
+  useCloudProjectCreation: () => cloudCreation,
+}));
 
 vi.mock('../../features/idp', () => ({
   useAuth: () => authMock.value,
@@ -63,6 +73,7 @@ vi.mock('@owox/ui/components/select', () => ({
 describe('RequestAccessPage', () => {
   beforeEach(() => {
     vi.resetAllMocks();
+    cloudCreation.canCreate = false;
     requestAccessContextMock.value = {
       context: context(),
       loading: false,
@@ -85,6 +96,14 @@ describe('RequestAccessPage', () => {
     expect(screen.getByRole('button', { name: /Create new project/ })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /Request access/ })).toBeInTheDocument();
     expect(screen.queryByText('Request access to existing project')).not.toBeInTheDocument();
+  });
+
+  it('uses the shared Cloud create action when project management is enabled', () => {
+    cloudCreation.canCreate = true;
+    renderPage();
+    fireEvent.click(screen.getByRole('button', { name: 'Create project' }));
+    expect(cloudCreation.createProject).toHaveBeenCalledOnce();
+    expect(userProvisioningServiceMock.createNewProject).not.toHaveBeenCalled();
   });
 
   it('submits an access request and refreshes context', async () => {
@@ -232,6 +251,7 @@ describe('RequestAccessPage', () => {
   });
 
   it('keeps the MCP retry instructions and creation action after a failed creation', async () => {
+    cloudCreation.canCreate = true;
     userProvisioningServiceMock.createNewProject.mockRejectedValueOnce(
       new Error('Could not create project')
     );
@@ -241,6 +261,7 @@ describe('RequestAccessPage', () => {
     expect(screen.getByRole('button', { name: /Create new project/ })).toBeEnabled();
     expect(screen.getByText(/return to ChatGPT and connect OWOX again/)).toBeInTheDocument();
     expect(signInMock).not.toHaveBeenCalled();
+    expect(cloudCreation.createProject).not.toHaveBeenCalled();
   });
 });
 

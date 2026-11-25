@@ -1,7 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { AlertCircle, ArrowLeft, Eye } from 'lucide-react';
 import { useState } from 'react';
-import { Link, Navigate, NavLink } from 'react-router';
+import { Link, Navigate, NavLink, useLocation } from 'react-router';
 import { Alert, AlertDescription, AlertTitle } from '@owox/ui/components/alert';
 import { Button } from '@owox/ui/components/button';
 import { LoadingSpinner } from '@owox/ui/components/common/loading-spinner';
@@ -15,6 +15,7 @@ import {
 } from '../idp/utils/my-account-path';
 import { buildProjectPath } from '../../utils/path';
 import { RequestStatus } from '../../shared/types/request-status';
+import { getCloudProjectApiOrigin } from '../project-settings/management/project-management.service';
 import {
   getAccountProfile,
   updateAccountProfile,
@@ -26,11 +27,12 @@ import { AccountErasureCard } from './AccountErasureCard';
 import { AccountDataExportCard } from './AccountDataExportCard';
 import { AccountProjectsCard } from './AccountProjectsCard';
 import { AccountEmailPreferencesCard } from './AccountEmailPreferencesCard';
-import { useAccountApiOrigin } from './use-account-api-origin';
+import { getAccountApiOrigin } from './use-account-api-origin';
 
+const projectsTab = { label: 'Projects', path: MY_ACCOUNT_PROJECTS_PATH };
 const navigation = [
   { label: 'Overview', path: MY_ACCOUNT_PATH },
-  { label: 'Projects', path: MY_ACCOUNT_PROJECTS_PATH },
+  projectsTab,
   { label: 'Email preferences', path: MY_ACCOUNT_EMAIL_PATH },
 ];
 
@@ -39,9 +41,10 @@ export function MyAccountPage({
 }: {
   section?: 'profile' | 'projects' | 'email-preferences';
 }) {
-  const { callState } = useFlags();
-  const origin = useAccountApiOrigin();
+  const { callState, flags } = useFlags();
+  const origin = getAccountApiOrigin(flags);
   const { isAuthenticated, session, user } = useAuthState();
+  const navigationState: unknown = useLocation().state;
 
   if (
     !isAuthenticated ||
@@ -52,8 +55,18 @@ export function MyAccountPage({
   ) {
     return <LoadingSpinner fullScreen message='Loading your profile...' />;
   }
-  if (!origin) return <Navigate to='/' replace />;
+  if (!origin && (section !== 'projects' || !getCloudProjectApiOrigin(flags))) {
+    return <Navigate to='/' replace />;
+  }
 
+  const currentProjectUnavailable =
+    typeof navigationState === 'object' &&
+    navigationState !== null &&
+    (('unavailableProjectId' in navigationState &&
+      navigationState.unavailableProjectId === user.projectId) ||
+      ('deletedProjectId' in navigationState &&
+        navigationState.deletedProjectId === user.projectId));
+  const tabs = origin ? navigation : [projectsTab];
   const needsProjectAccess = user.roles?.length === 0;
   const projectPath = buildProjectPath(
     user.projectId,
@@ -61,32 +74,39 @@ export function MyAccountPage({
   );
   const viewOnly = user.viewOnly === true;
   const account = {
-    origin,
     session: { userId: user.id, projectId: user.projectId },
     viewOnly,
   };
 
   return (
     <div className='dm-page-content pb-6'>
-      <header className='flex min-w-0 items-center gap-2 py-4 md:-ml-10 md:py-6'>
-        <Button variant='ghost' size='icon-sm' asChild>
-          <Link
-            to={projectPath}
-            aria-label={needsProjectAccess ? 'Back to Request access' : 'Back to Data Marts'}
-          >
-            <ArrowLeft aria-hidden='true' />
-          </Link>
-        </Button>
+      <header
+        className={cn(
+          'flex min-w-0 items-center gap-2 py-4 md:py-6',
+          !currentProjectUnavailable && 'md:-ml-10'
+        )}
+      >
+        {!currentProjectUnavailable && (
+          <Button variant='ghost' size='icon-sm' asChild>
+            <Link
+              to={projectPath}
+              aria-label={needsProjectAccess ? 'Back to Request access' : 'Back to Data Marts'}
+            >
+              <ArrowLeft aria-hidden='true' />
+            </Link>
+          </Button>
+        )}
         <h1 className='dm-page-header-title'>My profile</h1>
       </header>
       <nav
         aria-label='My profile'
         className='no-scrollbar flex gap-2 overflow-x-auto border-b whitespace-nowrap'
       >
-        {navigation.map(({ label, path }) => (
+        {tabs.map(({ label, path }) => (
           <NavLink
             key={path}
             to={path}
+            state={currentProjectUnavailable ? navigationState : undefined}
             end
             className={({ isActive }) =>
               cn(
@@ -108,10 +128,12 @@ export function MyAccountPage({
             <AlertDescription>You are viewing this profile in read-only mode.</AlertDescription>
           </Alert>
         )}
-        {section === 'profile' && <AccountDetails key={user.id} {...account} />}
+        {origin && section === 'profile' && (
+          <AccountDetails key={user.id} origin={origin} {...account} />
+        )}
         {section === 'projects' && <AccountProjectsCard />}
-        {section === 'email-preferences' && (
-          <AccountEmailPreferencesCard key={user.id} {...account} />
+        {origin && section === 'email-preferences' && (
+          <AccountEmailPreferencesCard key={user.id} origin={origin} {...account} />
         )}
       </div>
     </div>

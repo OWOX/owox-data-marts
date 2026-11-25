@@ -93,6 +93,18 @@ function validateCloudBillingConfig(): void {
   }
 }
 
+function resolveCloudApiOrigin(key: 'CLOUD_ACCOUNT_API_ORIGIN' | 'CLOUD_PROJECT_API_ORIGIN') {
+  if (process.env.IDP_PROVIDER !== 'owox-better-auth') return null;
+  const value = process.env[key]?.trim();
+  if (!value) return null;
+  const url = URL.parse(value);
+  if (url?.protocol !== 'https:' || (value !== url.origin && value !== `${url.origin}/`)) {
+    throw new Error(`${key} must be an HTTPS origin`);
+  }
+
+  return url.origin;
+}
+
 /**
  * Register an Express route that exposes selected environment variables as JSON.
  *
@@ -106,19 +118,8 @@ function validateCloudBillingConfig(): void {
  * GET /flags -> { "APP_VERSION": "1.2.3" }
  */
 export function registerPublicFlagsRoute(app: Express, rawOptions: FlagsRouteOptions = {}): void {
-  const accountApiOrigin =
-    process.env.IDP_PROVIDER === 'owox-better-auth'
-      ? process.env.CLOUD_ACCOUNT_API_ORIGIN?.trim()
-      : undefined;
-  const accountApiUrl = accountApiOrigin ? URL.parse(accountApiOrigin) : null;
-  if (
-    accountApiOrigin &&
-    (accountApiUrl?.protocol !== 'https:' ||
-      (accountApiOrigin !== accountApiUrl.origin &&
-        accountApiOrigin !== `${accountApiUrl.origin}/`))
-  ) {
-    throw new Error('CLOUD_ACCOUNT_API_ORIGIN must be an HTTPS origin');
-  }
+  const accountApiOrigin = resolveCloudApiOrigin('CLOUD_ACCOUNT_API_ORIGIN');
+  const projectApiOrigin = resolveCloudApiOrigin('CLOUD_PROJECT_API_ORIGIN');
 
   const options: ResolvedOptions = ResolvedOptionsSchema.parse(rawOptions);
   validateCloudBillingConfig();
@@ -136,9 +137,8 @@ export function registerPublicFlagsRoute(app: Express, rawOptions: FlagsRouteOpt
 
     // Do not cache this response; values may change across deploys
     res.setHeader('Cache-Control', 'no-store');
-    if (accountApiUrl) {
-      payload.CLOUD_ACCOUNT_API_ORIGIN = accountApiUrl.origin;
-    }
+    if (accountApiOrigin) payload.CLOUD_ACCOUNT_API_ORIGIN = accountApiOrigin;
+    if (projectApiOrigin) payload.CLOUD_PROJECT_API_ORIGIN = projectApiOrigin;
 
     res.json(payload);
   });
