@@ -360,9 +360,10 @@ describe('PluginsGalleryPage', () => {
 
   describe('install', () => {
     const confirmInstall = () => {
-      renderPage();
+      const view = renderPage();
       fireEvent.click(screen.getByRole('button', { name: 'Install Alpha Plugin' }));
       fireEvent.click(screen.getByRole('button', { name: 'Confirm install' }));
+      return view;
     };
 
     it('opens the plugin once it is installed', async () => {
@@ -394,6 +395,26 @@ describe('PluginsGalleryPage', () => {
       );
       confirmInstall();
       window.history.pushState({}, '', '/elsewhere');
+      finish(null);
+
+      await waitFor(() => {
+        expect(install).toHaveBeenCalled();
+      });
+      await act(async () => {});
+      expect(navigate).not.toHaveBeenCalled();
+    });
+
+    // Back, then Forward: a new page shows at the same address, without the dialog.
+    it('does not open the plugin after the member left and came back', async () => {
+      let finish: (stale: null) => void = () => undefined;
+      install.mockReturnValueOnce(
+        new Promise<null>(resolve => {
+          finish = resolve;
+        })
+      );
+      const { unmount } = confirmInstall();
+      unmount();
+      renderPage();
       finish(null);
 
       await waitFor(() => {

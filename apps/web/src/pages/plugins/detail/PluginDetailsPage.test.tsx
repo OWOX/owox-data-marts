@@ -307,6 +307,28 @@ describe('PluginDetailsPage', () => {
     expect(navigate).not.toHaveBeenCalled();
   });
 
+  // Back, then Forward: a new page shows at the same address, without the dialog.
+  it('does not open the plugin after the member left and came back', async () => {
+    let finish: (stale: null) => void = () => undefined;
+    install.mockReturnValueOnce(
+      new Promise<null>(resolve => {
+        finish = resolve;
+      })
+    );
+    const { unmount } = renderPage();
+    fireEvent.click(screen.getByRole('button', { name: 'Install' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Confirm install' }));
+    unmount();
+    renderPage();
+    finish(null);
+
+    await waitFor(() => {
+      expect(install).toHaveBeenCalled();
+    });
+    await act(async () => {});
+    expect(navigate).not.toHaveBeenCalled();
+  });
+
   it('keeps the dialog and does not navigate when the install fails', async () => {
     install.mockRejectedValueOnce(new Error('refused'));
     renderPage();

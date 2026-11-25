@@ -1834,8 +1834,8 @@ pin an older version.
 ## Publish and install
 
 Publishing makes a plugin findable. **Publish & Install** also offers to install it for you; every
-other member decides whether to install it. **Install** on the **Plugins** page opens the plugin.
-Unpublishing later does not uninstall existing installations.
+other member decides whether to install it. **Install** on the **Plugins** page or on the plugin's
+page opens the plugin. Unpublishing later does not uninstall existing installations.
 
 ### Publish in OWOX Data Marts
 

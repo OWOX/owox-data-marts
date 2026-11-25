@@ -1,7 +1,7 @@
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { onlineManager, QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { act, renderHook, waitFor } from '@testing-library/react';
 import type { ReactNode } from 'react';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 vi.mock('../../../shared/hooks', () => ({ useProjectId: () => 'project-1' }));
 vi.mock('react-hot-toast', () => {
@@ -57,6 +57,10 @@ describe('usePluginGallery', () => {
 });
 
 describe('usePluginActions', () => {
+  afterEach(() => {
+    onlineManager.setOnline(true);
+  });
+
   beforeEach(() => {
     vi.clearAllMocks();
     service.install.mockResolvedValue({ installationId: 'i1' });
@@ -130,6 +134,63 @@ describe('usePluginActions', () => {
     ).rejects.toBeDefined();
     expect(toast.error).toHaveBeenCalledWith('Not installed');
     expect(toast.success).not.toHaveBeenCalled();
+  });
+
+  // The dialog cannot close while the install runs, so the load of the newer version counts too.
+  it('stays busy until the newer version is loaded after a stale confirmation', async () => {
+    service.install.mockRejectedValue(staleError('2.0.0'));
+    let load: (plugin: unknown) => void = () => undefined;
+    service.getPlugin.mockReturnValueOnce(
+      new Promise(resolve => {
+        load = resolve;
+      })
+    );
+    const { result } = renderHook(() => usePluginActions(), { wrapper });
+
+    let done: Promise<unknown> = Promise.resolve();
+    act(() => {
+      done = result.current.install('p1', 'v1');
+    });
+    await waitFor(() => {
+      expect(service.getPlugin).toHaveBeenCalledWith('p1');
+    });
+    expect(result.current.isInstalling).toBe(true);
+
+    await act(async () => {
+      load({ pluginId: 'p1', currentVersionId: 'v2', currentSemver: '2.0.0' });
+      await done;
+    });
+    await waitFor(() => {
+      expect(result.current.isInstalling).toBe(false);
+    });
+  });
+
+  it('shows an error when the newer version does not load', async () => {
+    service.install.mockRejectedValue(staleError('2.0.0'));
+    service.getPlugin.mockRejectedValueOnce(new Error('Network Error'));
+    const { result } = renderHook(() => usePluginActions(), { wrapper });
+
+    await expect(
+      act(async () => {
+        await result.current.install('p1', 'v1');
+      })
+    ).rejects.toBeDefined();
+    expect(toast.error).toHaveBeenCalled();
+  });
+
+  // A paused install would keep the dialog locked until the network comes back.
+  it('fails at once when the browser is offline', async () => {
+    service.install.mockRejectedValue(new Error('Network Error'));
+    onlineManager.setOnline(false);
+    const { result } = renderHook(() => usePluginActions(), { wrapper });
+
+    await expect(
+      act(async () => {
+        await result.current.install('p1', 'v1');
+      })
+    ).rejects.toBeDefined();
+    expect(service.install).toHaveBeenCalled();
+    expect(toast.error).toHaveBeenCalled();
   });
 
   it('still surfaces a genuine install failure', async () => {

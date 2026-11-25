@@ -14,7 +14,7 @@ import {
   SelectValue,
 } from '@owox/ui/components/select';
 import { EllipsisVertical, History, Plus, Puzzle } from 'lucide-react';
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useNavigate } from 'react-router';
 import {
   comparePluginsByName,
@@ -61,6 +61,13 @@ export default function PluginsGalleryPage() {
   const [query, setQuery] = useState('');
   const [candidate, setCandidate] = useState<PluginGalleryEntry | null>(null);
   const [publishing, setPublishing] = useState(false);
+  const mounted = useRef(false);
+  useEffect(() => {
+    mounted.current = true;
+    return () => {
+      mounted.current = false;
+    };
+  }, []);
 
   /**
    * The Gallery plus every live installation that nothing lists any more.
@@ -140,8 +147,8 @@ export default function PluginsGalleryPage() {
     }
 
     setCandidate(null);
-    // The member may have left while the install ran.
-    if (window.location.pathname !== from) return;
+    // The member may have left while the install ran. Back unmounts this page, and a return mounts a new one.
+    if (!mounted.current || window.location.pathname !== from) return;
     void navigate(scope(`/plugins/${plugin.pluginId}/open`));
   };
 

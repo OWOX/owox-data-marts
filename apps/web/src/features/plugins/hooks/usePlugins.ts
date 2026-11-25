@@ -130,7 +130,9 @@ export function usePluginActions() {
   }, [queryClient, projectId]);
 
   const installMutation = useMutation({
-    mutationFn: ({
+    // Offline the request fails at once. A paused install would lock the dialog, which cannot close while it runs.
+    networkMode: 'always',
+    mutationFn: async ({
       pluginId,
       expectedVersionId,
       credentialSelections,
@@ -138,7 +140,18 @@ export function usePluginActions() {
       pluginId: string;
       expectedVersionId: string | null;
       credentialSelections: Readonly<Record<string, string | null>>;
-    }) => pluginsService.install(pluginId, expectedVersionId, credentialSelections),
+    }): Promise<PluginGalleryEntry | null> => {
+      try {
+        await pluginsService.install(pluginId, expectedVersionId, credentialSelections);
+        return null;
+      } catch (caught) {
+        if (!readStaleVersion(caught)) {
+          throw caught;
+        }
+        // Inside the mutation: the dialog stays busy, and a failed load shows its error.
+        return pluginsService.getPlugin(pluginId);
+      }
+    },
     onSuccess: invalidate,
   });
 
@@ -172,20 +185,17 @@ export function usePluginActions() {
       credentialSelections: Readonly<Record<string, string | null>> = {}
     ): Promise<PluginGalleryEntry | null> => {
       try {
-        await installMutation.mutateAsync({ pluginId, expectedVersionId, credentialSelections });
-        return null;
+        return await installMutation.mutateAsync({
+          pluginId,
+          expectedVersionId,
+          credentialSelections,
+        });
       } catch (caught) {
-        const stale = readStaleVersion(caught);
-        if (stale) {
-          await invalidate();
-          return pluginsService.getPlugin(pluginId);
-        }
-
         toast.error(errorMessage(caught));
         throw caught;
       }
     },
-    [installMutation, invalidate]
+    [installMutation]
   );
 
   const uninstall = useCallback(
