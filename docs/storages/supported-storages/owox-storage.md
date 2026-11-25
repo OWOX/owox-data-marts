@@ -21,6 +21,8 @@ Click **OWOX Storage**. The storage settings panel opens.
 
 Click **Save**. OWOX creates the storage and its BigQuery dataset.
 
+The settings of a saved storage show its **Project ID**, **Location** and **Dataset**. You cannot change them. Use the project ID and the dataset in the fully qualified name of a table: `<Project ID>.<Dataset>.<table>`.
+
 ## Who can create one
 
 - Each project can have one OWOX Storage in each location: one in `US` and one in `EU`.

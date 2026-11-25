@@ -630,15 +630,19 @@ describe('DataStorageForm — OWOX Storage', () => {
     localStorage.clear();
   });
 
-  it('shows location and dataset read-only and no Credential for an OWOX Storage', async () => {
+  it('shows project, location and dataset read-only and no Credential for an OWOX Storage', async () => {
     renderForm(vi.fn(), owoxStorage());
 
     expect(await screen.findByDisplayValue('OWOX Storage')).toBeDisabled();
+    expect(screen.getByLabelText('Project ID')).toHaveValue('owox-managed-project');
+    expect(screen.getByLabelText('Project ID')).toBeDisabled();
     expect(screen.getByLabelText('Location')).toHaveValue('EU');
     expect(screen.getByLabelText('Location')).toBeDisabled();
     expect(screen.getByLabelText('Dataset')).toHaveValue('owox_0123456789ab');
     expect(screen.getByLabelText('Dataset')).toBeDisabled();
-    expect(screen.queryByLabelText('Project ID')).toBeNull();
+    expect(
+      screen.getByLabelText('Project ID').compareDocumentPosition(screen.getByLabelText('Location'))
+    ).toBe(Node.DOCUMENT_POSITION_FOLLOWING);
     expect(screen.queryByText('Authentication')).toBeNull();
     expect(screen.queryByText('Credential')).toBeNull();
   });

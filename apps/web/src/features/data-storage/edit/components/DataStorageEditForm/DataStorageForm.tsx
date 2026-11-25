@@ -60,7 +60,10 @@ import {
 import { OwoxStorageUsage } from '../../../shared/components/OwoxStorageUsage';
 import type { OwoxStorageLocation } from '../../../shared/api/types';
 import type { UseFormReturn } from 'react-hook-form';
-import type { DataStorage } from '../../../shared/model/types/data-storage.ts';
+import {
+  isGoogleBigQueryStorage,
+  type DataStorage,
+} from '../../../shared/model/types/data-storage.ts';
 import { useDuckDbStorageEnabled } from '../../../shared/hooks/useDuckDbStorageEnabled.ts';
 import { DataStorageTypeModel } from '../../../shared/types/data-storage-type.model.ts';
 import { AwsAthenaFields } from './AwsAthenaFields';
@@ -353,8 +356,12 @@ export function DataStorageForm({
               )}
             />
           </FormSection>
-          {owoxStorage && (
+          {owoxStorage && isGoogleBigQueryStorage(initialData) && (
             <FormSection title='Connection Settings'>
+              <FormItem>
+                <FormLabel htmlFor='owox-storage-project'>Project ID</FormLabel>
+                <Input id='owox-storage-project' value={initialData.config.projectId} disabled />
+              </FormItem>
               <FormItem>
                 <FormLabel htmlFor='owox-storage-location'>Location</FormLabel>
                 <Input id='owox-storage-location' value={owoxStorage.location} disabled />
