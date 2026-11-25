@@ -54,6 +54,19 @@ export class GetDataMartRelationshipGraphService {
       command.projectId
     );
 
+    // Before the walk, so that a caller without access gets 403 and not a walk error.
+    const canSeeRoot = await this.accessDecisionService.canAccess(
+      command.userId,
+      command.roles,
+      EntityType.DATA_MART,
+      rootDataMart.id,
+      Action.SEE,
+      command.projectId
+    );
+    if (!canSeeRoot) {
+      throw new ForbiddenException('You do not have access to this DataMart');
+    }
+
     const allStorageRelationships = await this.relationshipService.findByStorageId(
       rootDataMart.storage.id,
       command.projectId
@@ -100,10 +113,6 @@ export class GetDataMartRelationshipGraphService {
         collected.map(n => n.relationship)
       ),
     ]);
-
-    if (!accessByDataMartId.get(rootDataMart.id)) {
-      throw new ForbiddenException('You do not have access to this DataMart');
-    }
 
     const hiddenPaths = command.omitInaccessible
       ? collected
