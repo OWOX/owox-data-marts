@@ -1,6 +1,7 @@
-import { Loader2, Trash2 } from 'lucide-react';
+import { Loader2, RefreshCw, Trash2 } from 'lucide-react';
 import { Button } from '@owox/ui/components/button';
 import { Skeleton } from '@owox/ui/components/skeleton';
+import { cn } from '@owox/ui/lib/utils';
 import {
   Table,
   TableBody,
@@ -18,6 +19,7 @@ export function OwoxStorageUsage({ storageId }: { storageId: string }) {
   const {
     usage,
     failed,
+    loading,
     load,
     tableToDelete,
     setTableToDelete,
@@ -38,7 +40,14 @@ export function OwoxStorageUsage({ storageId }: { storageId: string }) {
     );
   }
 
-  if (!usage) return <Skeleton className='h-24 w-full' />;
+  if (!usage) {
+    return (
+      <Skeleton className='text-muted-foreground flex h-24 w-full items-center justify-center gap-2 text-sm'>
+        <Loader2 className='size-4 animate-spin' aria-hidden='true' />
+        Loading storage metadata…
+      </Skeleton>
+    );
+  }
 
   if (usage.deletedAt) {
     return (
@@ -66,9 +75,21 @@ export function OwoxStorageUsage({ storageId }: { storageId: string }) {
 
   return (
     <div className='space-y-3'>
-      <p className='text-sm'>
-        {formatBytes(usage.usedBytes)} of {formatBytes(usage.limitBytes)} used
-      </p>
+      <div className='flex items-center justify-between gap-3'>
+        <p className='text-sm'>
+          {formatBytes(usage.usedBytes)} of {formatBytes(usage.limitBytes)} used
+        </p>
+        <Button
+          type='button'
+          variant='outline'
+          size='sm'
+          disabled={loading}
+          onClick={() => void load()}
+        >
+          <RefreshCw className={cn('h-4 w-4', loading && 'animate-spin')} aria-hidden='true' />
+          <span>Refresh</span>
+        </Button>
+      </div>
       {full && (
         <p className='bg-warning-bg text-warning rounded-md px-3 py-2 text-sm'>
           This storage is full. New connector runs are refused until you delete tables. To get more

@@ -33,6 +33,7 @@ const DATE = formatDateOnly('2026-12-05T12:00:00.000Z');
 describe('OwoxStorageUsage', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    getOwoxStorageUsage.mockReset();
     deleteOwoxStorageTable.mockResolvedValue(undefined);
     restoreOwoxStorage.mockResolvedValue(undefined);
   });
@@ -43,6 +44,36 @@ describe('OwoxStorageUsage', () => {
 
     expect(await screen.findByText('512 MB of 1 GB used')).toBeInTheDocument();
     expect(screen.queryByText(FULL)).toBeNull();
+  });
+
+  it('says what it loads while the usage loads', () => {
+    getOwoxStorageUsage.mockReturnValue(new Promise(() => undefined));
+    render(<OwoxStorageUsage storageId='s1' />);
+
+    expect(screen.getByText('Loading storage metadata…')).toBeInTheDocument();
+  });
+
+  it('reloads the usage on Refresh and keeps the old one until then', async () => {
+    getOwoxStorageUsage.mockResolvedValueOnce(usage());
+    render(<OwoxStorageUsage storageId='s1' />);
+    await screen.findByText(
+      'No tables yet. Connector Data Marts create tables here when they load data.'
+    );
+
+    let resolveRefresh: (value: OwoxStorageUsageResponseDto) => void = () => undefined;
+    getOwoxStorageUsage.mockReturnValueOnce(
+      new Promise(resolve => {
+        resolveRefresh = resolve;
+      })
+    );
+    fireEvent.click(screen.getByRole('button', { name: 'Refresh' }));
+
+    expect(screen.getByRole('button', { name: 'Refresh' })).toBeDisabled();
+    expect(screen.getByText('512 MB of 1 GB used')).toBeInTheDocument();
+    resolveRefresh(usage({ tables: [{ name: 'holidays', rowCount: 3, sizeBytes: 188 }] }));
+    expect(await screen.findByText('holidays')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Refresh' })).toBeEnabled();
+    expect(getOwoxStorageUsage).toHaveBeenCalledTimes(2);
   });
 
   it('shows a larger limit set by support', async () => {

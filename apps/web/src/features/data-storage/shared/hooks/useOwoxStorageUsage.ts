@@ -6,17 +6,22 @@ import type { OwoxStorageUsageResponseDto } from '../api/types';
 export function useOwoxStorageUsage(storageId: string) {
   const [usage, setUsage] = useState<OwoxStorageUsageResponseDto | null>(null);
   const [failed, setFailed] = useState(false);
+  const [loading, setLoading] = useState(false);
   const [tableToDelete, setTableToDelete] = useState<string | null>(null);
   const [deleting, setDeleting] = useState(false);
   const [restoring, setRestoring] = useState(false);
 
+  // Keeps the usage on screen while it reloads; only a failed load clears it.
   const load = useCallback(async () => {
     setFailed(false);
+    setLoading(true);
     try {
       setUsage(await dataStorageApiService.getOwoxStorageUsage(storageId));
     } catch {
       setUsage(null);
       setFailed(true);
+    } finally {
+      setLoading(false);
     }
   }, [storageId]);
 
@@ -54,6 +59,7 @@ export function useOwoxStorageUsage(storageId: string) {
   return {
     usage,
     failed,
+    loading,
     load,
     tableToDelete,
     setTableToDelete,
