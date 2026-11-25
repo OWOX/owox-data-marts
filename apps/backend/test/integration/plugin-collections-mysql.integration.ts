@@ -50,8 +50,26 @@ const sha256 = (value: string) => createHash('sha256').update(value).digest('hex
 describeIfAvailable('Plugin collections storage (integration, MySQL)', () => {
   let dataSource: DataSource;
   let service: PluginCollectionPersistenceService;
-  // Holds each write after its usage-row insert until a second write arrives (or 1 s passes).
-  let barrier: { arrived: Set<unknown>; release: () => void; gate: Promise<void> } | null = null;
+  // An armed point holds each write until a second write arrives there (or 1 s passes).
+  type Point = 'after usage insert' | 'before document insert' | 'before audit insert';
+  const barriers = new Map<
+    Point,
+    { arrived: Set<unknown>; release: () => void; gate: Promise<void> }
+  >();
+  const arm = (...points: Point[]) => {
+    for (const point of points) {
+      let release!: () => void;
+      const gate = new Promise<void>(resolve => (release = resolve));
+      barriers.set(point, { arrived: new Set(), release, gate });
+    }
+  };
+  const hold = async (point: Point, queryRunner: unknown) => {
+    const barrier = barriers.get(point);
+    if (!barrier) return;
+    barrier.arrived.add(queryRunner);
+    if (barrier.arrived.size === 2) barrier.release();
+    await Promise.race([barrier.gate, new Promise(resolve => setTimeout(resolve, 1000))]);
+  };
 
   beforeAll(async () => {
     initializeTransactionalContext({ storageDriver: StorageDriver.AUTO });
@@ -73,14 +91,20 @@ describeIfAvailable('Plugin collections storage (integration, MySQL)', () => {
     await dataSource.runMigrations();
     addTransactionalDataSource({ name: PLUGIN_COLLECTIONS_DATA_SOURCE, dataSource });
     dataSource.subscribers.push({
-      listenTo: () => PluginCollectionUsage,
-      afterInsert: async (event: InsertEvent<PluginCollectionUsage>) => {
-        if (!barrier) return;
-        barrier.arrived.add(event.queryRunner);
-        if (barrier.arrived.size === 2) barrier.release();
-        await Promise.race([barrier.gate, new Promise(resolve => setTimeout(resolve, 1000))]);
+      afterInsert: async (event: InsertEvent<unknown>) => {
+        if (event.metadata.target === PluginCollectionUsage) {
+          await hold('after usage insert', event.queryRunner);
+        }
       },
-    } as EntitySubscriberInterface<PluginCollectionUsage>);
+      beforeInsert: async (event: InsertEvent<unknown>) => {
+        if (event.metadata.target === PluginCollectionDocument) {
+          await hold('before document insert', event.queryRunner);
+        }
+        if (event.metadata.target === PluginCollectionAuditEvent) {
+          await hold('before audit insert', event.queryRunner);
+        }
+      },
+    } as EntitySubscriberInterface);
     service = new PluginCollectionPersistenceService(
       dataSource.getRepository(PluginCollectionDocument),
       dataSource.getRepository(PluginCollectionUsage),
@@ -93,8 +117,9 @@ describeIfAvailable('Plugin collections storage (integration, MySQL)', () => {
   }, 60_000);
 
   afterEach(async () => {
-    barrier = null;
-    for (const table of TABLES.slice(0, 3)) await dataSource.query(`DELETE FROM \`${table}\``);
+    barriers.clear();
+    // TRUNCATE, not DELETE: rows marked for purge would split the index gaps.
+    for (const table of TABLES.slice(0, 3)) await dataSource.query(`TRUNCATE TABLE \`${table}\``);
   });
 
   afterAll(async () => {
@@ -106,22 +131,26 @@ describeIfAvailable('Plugin collections storage (integration, MySQL)', () => {
     }
   }, 30_000);
 
-  const collection = (pluginId: string, name: string): ResolvedPluginCollection => ({
+  const collection = (
+    pluginId: string,
+    name: string,
+    projectId: string
+  ): ResolvedPluginCollection => ({
     declaration: { name, scope: 'project' },
     semver: '1.0.0',
-    namespaceKey: sha256(`${pluginId}:${PROJECT_ID}:${name}`),
+    namespaceKey: sha256(`${pluginId}:${projectId}:${name}`),
     memberId: null,
   });
 
-  const put = (pluginId: string, name: string, documentId: string) =>
-    service.put(collection(pluginId, name), {
+  const put = (pluginId: string, name: string, documentId: string, projectId = PROJECT_ID) =>
+    service.put(collection(pluginId, name, projectId), {
       collectionName: name,
       documentId,
       document: { documentId },
       parentId: null,
       context: {
         userId: 'user-1',
-        projectId: PROJECT_ID,
+        projectId,
         roles: ['admin'],
         pluginId,
         installationId: `installation-${pluginId}`,
@@ -138,9 +167,7 @@ describeIfAvailable('Plugin collections storage (integration, MySQL)', () => {
       await put(pluginA, nameA, 'seed-a');
       await put(pluginB, nameB, 'seed-b');
 
-      let release!: () => void;
-      const gate = new Promise<void>(resolve => (release = resolve));
-      barrier = { arrived: new Set(), release, gate };
+      arm('after usage insert');
       const results = await Promise.allSettled([
         put(pluginA, nameA, 'doc-a'),
         put(pluginB, nameB, 'doc-b'),
@@ -157,4 +184,20 @@ describeIfAvailable('Plugin collections storage (integration, MySQL)', () => {
     },
     30_000
   );
+
+  it('creates new documents in two projects at once without a deadlock', async () => {
+    // Empty tables, as on a new installation: the new keys share one index gap.
+    arm('before document insert', 'before audit insert');
+    const results = await Promise.allSettled([
+      put('plugin-a', 'grid-columns', 'doc-1', 'project-1'),
+      put('plugin-a', 'grid-columns', 'doc-2', 'project-2'),
+    ]);
+
+    expect(results.map(result => (result.status === 'rejected' ? result.reason : 'ok'))).toEqual([
+      'ok',
+      'ok',
+    ]);
+    expect(await dataSource.getRepository(PluginCollectionDocument).count()).toBe(2);
+    expect(await dataSource.getRepository(PluginCollectionAuditEvent).count()).toBe(2);
+  }, 30_000);
 });
