@@ -333,11 +333,17 @@ export interface McpReportOutputSchemaColumn {
   /** The aggregate function the report applies to this column; null when it applies none. */
   aggregateFunction: string | null;
   /**
-   * Set only for a calculated field: `metric` means the formula aggregates and must NOT be
-   * re-aggregated at any grain, `column` means it is row-level with no warehouse column behind it.
-   * Null is an ordinary native column a consumer may roll up — not "unknown".
+   * Set only for a calculated field: `metric` means the formula aggregates, so a query cannot
+   * aggregate it again; `rollupAggregations` tells how to combine its values. `column` means it is
+   * row-level with no warehouse column behind it. Null is an ordinary native column a consumer may
+   * roll up — not "unknown".
    */
   calculatedFieldLevel: string | null;
+  /**
+   * Set only on a calculated metric with no `aggregateFunction`: the functions that combine its
+   * values for separate groups of rows. `[]` means no function does. Null everywhere else.
+   */
+  rollupAggregations: string[] | null;
 }
 
 export interface McpGetReportOutputSchemaResponse {

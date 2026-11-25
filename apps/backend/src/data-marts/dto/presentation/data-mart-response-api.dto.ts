@@ -59,7 +59,10 @@ export class DataMartResponseApiDto {
   })
   icon: DataMartIconValue | null;
 
-  @ApiProperty()
+  @ApiProperty({
+    description:
+      'Each calculated field carries its effective calculated.level. A calculated metric also carries calculated.rollupAggregations: the functions that combine its computed values. A calculated metric accepts no aggregation in a query.',
+  })
   schema?: DataMartSchema;
 
   @ApiProperty({ required: false, type: ConnectorStateResponseApiDto })

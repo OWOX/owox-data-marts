@@ -268,7 +268,8 @@ export class BlendableSchemaDto {
     type: 'array',
     items: { type: 'object' },
     description:
-      "The main Data Mart's own fields (native, unblended), filtered to reporting-visible ones. Shape follows the storage-specific Data Mart schema field contract (see `DataMartSchema` in data-storage-types/data-mart-schema.type.ts) — a recursive per-storage-type field tree, not modeled field-by-field here.",
+      "The main Data Mart's own fields (native, unblended), filtered to reporting-visible ones. Shape follows the storage-specific Data Mart schema field contract (see `DataMartSchema` in data-storage-types/data-mart-schema.type.ts) — a recursive per-storage-type field tree, not modeled field-by-field here. " +
+      'Each calculated field carries its effective calculated.level. A calculated metric also carries calculated.rollupAggregations: the functions that combine its computed values. A calculated metric accepts no aggregation in a query.',
   })
   nativeFields: DataMartSchema['fields'];
 

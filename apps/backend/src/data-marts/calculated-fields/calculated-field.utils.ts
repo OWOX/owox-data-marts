@@ -1,9 +1,20 @@
 import type { DataMartSchemaField } from '../data-storage-types/data-mart-schema.type';
+import {
+  type DataStorageType,
+  integerDivisionTruncates,
+} from '../data-storage-types/enums/data-storage-type.enum';
 import type { CalculatedFieldPlan } from '../data-storage-types/utils/sql-clause-renderer';
+import type { ReportAggregateFunction } from '../dto/schemas/aggregate-function.schema';
 import { liveFormulaReferences } from './formula-live-reference';
 import type { FormulaReference } from './formula-reference';
 import { isAggregateLevel, type CalculatedFieldLevel } from './formula-level';
 import { isUniversalAggregateFunction } from './formula-function-dialect';
+import {
+  classifyFormulaRollup,
+  rollupAggregationsOfClass,
+  type RollupClass,
+  type RollupClassifyOptions,
+} from './rollup-aggregations';
 import { findFunctionCalls } from './sql-function-calls';
 import { scanSql } from './sql-token-scanner';
 import { collectFormulaReferenceableFields } from '../data-storage-types/data-mart-schema.utils';
@@ -129,6 +140,83 @@ export function calculatedFieldLevelOf(
     return false;
   };
   return aggregatesAnywhere(field.calculated) ? 'metric' : 'column';
+}
+
+/**
+ * The functions that combine the values a calculated metric computed for separate groups of its
+ * Data Mart's rows. `undefined` for a native field and for a row-level formula.
+ */
+export function calculatedRollupAggregationsOf(
+  field: Pick<DataMartSchemaField, 'calculated'>,
+  schemaFields: readonly DataMartSchemaField[],
+  storageType: DataStorageType | undefined
+): ReportAggregateFunction[] | undefined {
+  if (!isCalculatedField(field) || calculatedFieldLevelOf(field, schemaFields) === 'column') {
+    return undefined;
+  }
+  const classify = formulaRollupClassifier(schemaFields, storageType);
+  return rollupAggregationsOfClass(classify(field.calculated.formula));
+}
+
+/** A calculated config as a response carries it: `rollupAggregations` is not part of the stored type. */
+export type EffectiveCalculatedConfig = CalculatedFieldConfig & {
+  rollupAggregations?: ReportAggregateFunction[];
+};
+
+/**
+ * Copies of the top-level calculated fields with the effective `level` and, on a metric,
+ * `rollupAggregations`. For responses only: the input fields stay unchanged.
+ */
+export function withEffectiveCalculatedFields(
+  fields: readonly DataMartSchemaField[],
+  storageType: DataStorageType | undefined
+): DataMartSchemaField[] {
+  const classify = formulaRollupClassifier(fields, storageType);
+  return fields.map(field => {
+    if (!isCalculatedField(field)) return field;
+    const level = calculatedFieldLevelOf(field, fields);
+    // The stored type has no `rollupAggregations`, so a schema save drops it.
+    const calculated: EffectiveCalculatedConfig = {
+      ...field.calculated,
+      level,
+    };
+    if (level === 'metric') {
+      calculated.rollupAggregations = rollupAggregationsOfClass(classify(field.calculated.formula));
+    }
+    return { ...field, calculated };
+  });
+}
+
+/**
+ * Classifies formulas of one schema. Each own calculated field is classified once. A field that
+ * reads itself back is `other`, but a field that the chain reads twice is not.
+ */
+function formulaRollupClassifier(
+  schemaFields: readonly DataMartSchemaField[],
+  storageType: DataStorageType | undefined
+): (formula: string) => RollupClass {
+  const substitutable = substitutableFieldsByName(schemaFields);
+  const classified = new Map<string, RollupClass>();
+  const inProgress = new Set<string>();
+  const options: RollupClassifyOptions = {
+    integerDivisionTruncates: integerDivisionTruncates(storageType),
+    classifyOwnReference(name) {
+      const dependency = substitutable.get(name);
+      if (!dependency || inProgress.has(name)) return 'other';
+      let rollup = classified.get(name);
+      if (rollup === undefined) {
+        inProgress.add(name);
+        try {
+          rollup = classifyFormulaRollup(dependency.calculated.formula, options);
+        } finally {
+          inProgress.delete(name);
+        }
+        classified.set(name, rollup);
+      }
+      return rollup;
+    },
+  };
+  return formula => classifyFormulaRollup(formula, options);
 }
 
 /**

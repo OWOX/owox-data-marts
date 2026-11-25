@@ -1,3 +1,4 @@
+import { z } from 'zod';
 import type { McpDataMartsFacade } from '../../../data-marts/facades/mcp-data-marts.facade';
 import type { PublicOriginService } from '../../../common/config/public-origin.service';
 import type { McpAuthContext } from '../auth/mcp-auth-context';
@@ -326,6 +327,43 @@ describe('GetDataMartDetailsTool', () => {
     });
     expect(JSON.stringify(sc.fields[1])).not.toContain('{{ref');
     expect(sc.fields[1].calculated).not.toHaveProperty('formula');
+  });
+
+  // Clients read the published JSON schema, so the key must be declared, not only passed through.
+  it('declares rollupAggregations on the calculated object of its output schema', () => {
+    const tool = new GetDataMartDetailsTool({} as McpDataMartsFacade, publicOrigin);
+    const rollupAggregations = { type: 'array', items: { type: 'string' } };
+
+    expect(z.toJSONSchema(z.object(tool.outputSchema), { io: 'output' })).toMatchObject({
+      properties: {
+        fields: { items: { properties: { calculated: { properties: { rollupAggregations } } } } },
+      },
+    });
+  });
+
+  it('keeps rollupAggregations on a calculated metric and still empties allowedAggregations', async () => {
+    const facade = {
+      getDataMartDetails: jest.fn().mockResolvedValue({
+        id: 'dm_1',
+        name: 'Ads',
+        description: '',
+        fields: [
+          {
+            name: 'total',
+            type: 'FLOAT',
+            calculated: { level: 'metric', rollupAggregations: ['SUM'] },
+          },
+        ],
+        joinedFields: [],
+      }),
+    } as unknown as jest.Mocked<McpDataMartsFacade>;
+    const tool = new GetDataMartDetailsTool(facade, publicOrigin);
+
+    const result = await tool.handler({ data_mart_id: 'dm_1' }, context);
+    const sc = result.structuredContent as { fields: Array<Record<string, unknown>> };
+
+    expect(sc.fields[0].allowedAggregations).toEqual([]);
+    expect(sc.fields[0].calculated).toEqual({ level: 'metric', rollupAggregations: ['SUM'] });
   });
 
   // On its own that empty set reads as a refusal, so agents recomputed the metric from its inputs

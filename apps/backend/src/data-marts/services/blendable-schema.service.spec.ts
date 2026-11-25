@@ -18,6 +18,7 @@ import { buildBlendedFieldUnifiedName } from './blended-field-name';
 import { DataStorageType } from '../data-storage-types/enums/data-storage-type.enum';
 import { DataMartSchemaFieldStatus } from '../data-storage-types/enums/data-mart-schema-field-status.enum';
 import { AvailableSourceDto } from '../dto/domain/blendable-schema.dto';
+import type { EffectiveCalculatedConfig } from '../calculated-fields/calculated-field.utils';
 
 const defaultAccessor: BlendableSchemaAccessor = { userId: 'user-1', roles: ['admin'] };
 
@@ -64,6 +65,7 @@ function makeSchema(
     type: string;
     status?: DataMartSchemaFieldStatus;
     isHiddenForReporting?: boolean;
+    calculated?: { formula: string; level: string };
   }>
 ) {
   return {
@@ -150,6 +152,70 @@ describe('BlendableSchemaService', () => {
       expect(handedOut.calculated?.level).toBe('metric');
       const stored = schema.fields[1] as { calculated?: { level?: string } };
       expect(stored.calculated?.level).toBe('column');
+    });
+
+    it('hands out rollup functions of a calculated metric and leaves a hidden field out', async () => {
+      const schema = makeSchema([
+        { name: 'a', type: 'INTEGER' },
+        { name: 'b', type: 'INTEGER' },
+        {
+          name: 'total_a',
+          type: 'INTEGER',
+          calculated: { formula: 'SUM({{ref field="a"}})', level: 'metric' },
+        },
+        {
+          name: 'ratio',
+          type: 'FLOAT',
+          calculated: {
+            formula: 'SUM({{ref field="a"}}) / SUM({{ref field="b"}})',
+            level: 'metric',
+          },
+        },
+        {
+          name: 'secret',
+          type: 'INTEGER',
+          isHiddenForReporting: true,
+          calculated: { formula: 'SUM({{ref field="a"}})', level: 'metric' },
+        },
+      ]);
+      dataMartService.getByIdAndProjectId.mockResolvedValue(makeDataMart({ id: 'dm-1', schema }));
+      relationshipService.findByStorageId.mockResolvedValue([]);
+
+      const result = await service.computeBlendableSchema('dm-1', 'project-1', defaultAccessor);
+
+      const rollups = Object.fromEntries(
+        result.nativeFields.map(f => [
+          f.name,
+          (f.calculated as EffectiveCalculatedConfig | undefined)?.rollupAggregations,
+        ])
+      );
+      expect(rollups).toEqual({ a: undefined, b: undefined, total_a: ['SUM'], ratio: [] });
+      expect(
+        (schema.fields[2].calculated as EffectiveCalculatedConfig).rollupAggregations
+      ).toBeUndefined();
+    });
+
+    // Athena truncates `INTEGER / INTEGER` per group, so the group values no longer add up.
+    it('reads the storage type for a division', async () => {
+      const rollupOn = async (type: DataStorageType) => {
+        const schema = makeSchema([
+          { name: 'a', type: 'INTEGER' },
+          {
+            name: 'scaled',
+            type: 'FLOAT',
+            calculated: { formula: 'SUM({{ref field="a"}}) / 100', level: 'metric' },
+          },
+        ]);
+        const storage = { id: 'storage-1', type } as unknown as DataMart['storage'];
+        dataMartService.getByIdAndProjectId.mockResolvedValue(makeDataMart({ schema, storage }));
+        relationshipService.findByStorageId.mockResolvedValue([]);
+
+        const result = await service.computeBlendableSchema('dm-1', 'project-1', defaultAccessor);
+        return (result.nativeFields[1].calculated as EffectiveCalculatedConfig).rollupAggregations;
+      };
+
+      expect(await rollupOn(DataStorageType.GOOGLE_BIGQUERY)).toEqual(['SUM']);
+      expect(await rollupOn(DataStorageType.AWS_ATHENA)).toEqual([]);
     });
 
     it('should return empty arrays when schema is undefined and no relationships exist', async () => {

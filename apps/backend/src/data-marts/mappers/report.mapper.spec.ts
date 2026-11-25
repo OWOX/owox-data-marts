@@ -290,8 +290,8 @@ describe('ReportMapper — uniqueCountConfig round-trip', () => {
     ]);
   });
 
-  // `type` alone cannot separate a non-additive calculated metric from an ordinary numeric column,
-  // and a consumer that re-aggregates the first is wrong at any grain. Both discriminators travel.
+  // `type` alone cannot tell a calculated metric from a re-summable column; `rollupAggregations`
+  // says how it combines.
   it('toOutputSchemaResponse: carries the aggregate function and the calculated-field level', () => {
     expect(
       mapper.toOutputSchemaResponse([
@@ -315,5 +315,23 @@ describe('ReportMapper — uniqueCountConfig round-trip', () => {
       expect.objectContaining({ name: 'revenue | SUM', aggregateFunction: 'SUM' }),
       expect.objectContaining({ name: 'ctr', calculatedFieldLevel: 'metric' }),
     ]);
+  });
+
+  it('toOutputSchemaResponse: copies the rollup functions, and leaves them out when the header has none', () => {
+    const [revenue, clicks] = mapper.toOutputSchemaResponse([
+      new ReportDataHeader(
+        'revenue',
+        undefined,
+        undefined,
+        BigQueryFieldType.FLOAT,
+        undefined,
+        'metric',
+        ['SUM']
+      ),
+      new ReportDataHeader('clicks'),
+    ]);
+
+    expect(revenue.rollupAggregations).toEqual(['SUM']);
+    expect(clicks.rollupAggregations).toBeUndefined();
   });
 });

@@ -1,15 +1,18 @@
 import type { DataMartSchemaField } from '../data-storage-types/data-mart-schema.type';
 import type { CalculatedFieldPlan } from '../data-storage-types/utils/sql-clause-renderer';
 import { DataMartSchemaFieldStatus } from '../data-storage-types/enums/data-mart-schema-field-status.enum';
+import { DataStorageType } from '../data-storage-types/enums/data-storage-type.enum';
 import {
   brokenReferencesOf,
   calculatedDependencyPlans,
   calculatedFieldLevelOf,
+  calculatedRollupAggregationsOf,
   CalculatedSchemaField,
   collectCollidingCalculatedFieldNames,
   columnFilterWithoutCalculatedFields,
   isAggregateCalculatedField,
   isRowLevelCalculatedField,
+  withEffectiveCalculatedFields,
 } from './calculated-field.utils';
 
 const mkField = (name: string, extra: Partial<DataMartSchemaField> = {}): DataMartSchemaField =>
@@ -191,6 +194,110 @@ describe('calculatedFieldLevelOf', () => {
     const roas = mkCalculated('roas', `${ref('parent.child')} / 2`, 'column');
 
     expect(calculatedFieldLevelOf(roas, [parent, roas])).toBe('column');
+  });
+});
+
+describe('calculatedRollupAggregationsOf', () => {
+  const rollupOf = (
+    field: DataMartSchemaField,
+    schemaFields: DataMartSchemaField[],
+    storageType = DataStorageType.GOOGLE_BIGQUERY
+  ) => calculatedRollupAggregationsOf(field, schemaFields, storageType);
+
+  it('gives SUM for a sum, and none for a ratio of sums', () => {
+    const revenue = mkField('revenue');
+    const cost = mkField('cost');
+    const total = mkCalculated('total', `SUM(${ref('revenue')})`);
+    const roas = mkCalculated('roas', `SUM(${ref('revenue')}) / SUM(${ref('cost')})`);
+
+    expect(rollupOf(total, [revenue, cost, total, roas])).toEqual(['SUM']);
+    expect(rollupOf(roas, [revenue, cost, total, roas])).toEqual([]);
+  });
+
+  it('gives nothing for a row-level formula and for a native field', () => {
+    const revenue = mkField('revenue');
+    const doubled = mkCalculated('doubled', `${ref('revenue')} * 2`, 'column');
+
+    expect(rollupOf(doubled, [revenue, doubled])).toBeUndefined();
+    expect(rollupOf(revenue, [revenue, doubled])).toBeUndefined();
+  });
+
+  // A group where `costs` is NULL loses its `gross` value, until `COALESCE` closes the gap.
+  it('reads the class of each calculated field the formula reads', () => {
+    const gross = mkCalculated('gross', `SUM(${ref('a')})`);
+    const costs = mkCalculated('costs', `SUM(${ref('b')})`);
+    const profit = mkCalculated('profit', `${ref('gross')} - ${ref('costs')}`);
+    const safeProfit = mkCalculated(
+      'safe_profit',
+      `COALESCE(${ref('gross')}, 0) - COALESCE(${ref('costs')}, 0)`
+    );
+    const fields = [mkField('a'), mkField('b'), gross, costs, profit, safeProfit];
+
+    expect(rollupOf(profit, fields)).toEqual([]);
+    expect(rollupOf(safeProfit, fields)).toEqual(['SUM']);
+  });
+
+  // A field that the chain reads twice is not a cycle.
+  it('gives SUM when the chain reads one field twice', () => {
+    const orders = mkCalculated('orders', `COUNT(${ref('a')})`);
+    const tax = mkCalculated('tax', `${ref('orders')} * 0.2`);
+    const gross = mkCalculated('gross', `${ref('orders')} + ${ref('tax')}`);
+    const double = mkCalculated('double', `${ref('orders')} + ${ref('orders')}`);
+    const fields = [mkField('a'), orders, tax, gross, double];
+
+    expect(rollupOf(gross, fields)).toEqual(['SUM']);
+    expect(rollupOf(double, fields)).toEqual(['SUM']);
+  });
+
+  it('gives none for a field that reads itself back', () => {
+    const x = mkCalculated('x', `${ref('y')} + SUM(${ref('a')})`);
+    const y = mkCalculated('y', `${ref('x')} + SUM(${ref('a')})`);
+
+    expect(rollupOf(x, [mkField('a'), x, y])).toEqual([]);
+  });
+
+  it('gives none for a division on a storage where integer division truncates', () => {
+    const scaled = mkCalculated('scaled', `SUM(${ref('a')}) / 100`);
+    const fields = [mkField('a'), scaled];
+
+    expect(rollupOf(scaled, fields, DataStorageType.AWS_ATHENA)).toEqual([]);
+    expect(rollupOf(scaled, fields, DataStorageType.GOOGLE_BIGQUERY)).toEqual(['SUM']);
+  });
+});
+
+describe('withEffectiveCalculatedFields', () => {
+  it('sets the effective level and the rollup functions on copies of the calculated fields', () => {
+    const amount = mkField('amount');
+    const total = mkCalculated('total', `SUM(${ref('amount')})`, 'column');
+    const doubled = mkCalculated('doubled', `${ref('amount')} * 2`, 'column');
+    const fields = [amount, total, doubled];
+    const before = structuredClone(fields);
+
+    const result = withEffectiveCalculatedFields(fields, DataStorageType.GOOGLE_BIGQUERY);
+
+    expect(result[0]).toBe(amount);
+    expect(result[1].calculated).toStrictEqual({
+      formula: total.calculated.formula,
+      level: 'metric',
+      rollupAggregations: ['SUM'],
+    });
+    expect(result[2].calculated).toStrictEqual({
+      formula: doubled.calculated.formula,
+      level: 'column',
+    });
+    expect(fields).toEqual(before);
+  });
+
+  // A field that reads itself back must not recurse without end.
+  it('gives a field that reads itself no rollup functions, without throwing', () => {
+    const x = mkCalculated('x', `${ref('x')} + SUM(${ref('a')})`);
+
+    const result = withEffectiveCalculatedFields(
+      [mkField('a'), x],
+      DataStorageType.GOOGLE_BIGQUERY
+    );
+
+    expect(result[1].calculated).toMatchObject({ level: 'metric', rollupAggregations: [] });
   });
 });
 

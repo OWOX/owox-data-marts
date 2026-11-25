@@ -14,6 +14,7 @@ import { DataQualitySummaryState } from '../enums/data-quality-summary-state.enu
 import { DataMartIcon } from '../enums/data-mart-icon.enum';
 import { DataMartDefinitionType } from '../enums/data-mart-definition-type.enum';
 import { SourceCredentialBindingService } from '../connector-types/source-credential-binding.service';
+import type { EffectiveCalculatedConfig } from '../calculated-fields/calculated-field.utils';
 
 const SAFE_DATA_QUALITY_RUN_ERROR = 'Data Quality run failed during execution';
 
@@ -281,6 +282,81 @@ describe('DataMartMapper', () => {
           mapper.toListItemDto(entity, { triggersCount: 0, reportsCount: 0, relationshipsCount: 3 })
         ).relationshipsCount
       ).toBe(3);
+    });
+  });
+
+  it('returns the effective level and rollup functions of a calculated field, as copies', async () => {
+    const fields = [
+      { name: 'revenue', type: 'INTEGER' },
+      {
+        name: 'roas',
+        type: 'INTEGER',
+        calculated: { formula: 'SUM({{ref field="revenue"}})', level: 'column' },
+      },
+    ];
+    const dto = {
+      id: 'data-mart-1',
+      storage: { type: DataStorageType.GOOGLE_BIGQUERY },
+      schema: { type: 'bigquery-data-mart-schema', fields },
+      contexts: [],
+    } as never;
+
+    const response = await mapper.toResponse(dto);
+
+    const [native, roas] = response.schema!.fields as { calculated?: EffectiveCalculatedConfig }[];
+    expect(native.calculated).toBeUndefined();
+    expect(roas.calculated).toMatchObject({ level: 'metric', rollupAggregations: ['SUM'] });
+    expect(fields[1].calculated).toEqual({
+      formula: 'SUM({{ref field="revenue"}})',
+      level: 'column',
+    });
+  });
+
+  describe('calculated fields in the response', () => {
+    const calculatedOf = async (
+      formulas: Record<string, string>,
+      storageType = DataStorageType.GOOGLE_BIGQUERY
+    ) => {
+      const fields = [
+        { name: 'a', type: 'INTEGER' },
+        { name: 'b', type: 'INTEGER' },
+        ...Object.entries(formulas).map(([name, formula]) => ({
+          name,
+          type: 'FLOAT',
+          calculated: { formula, level: 'column' },
+        })),
+      ];
+      const response = await mapper.toResponse({
+        id: 'data-mart-1',
+        storage: { type: storageType },
+        schema: { type: 'bigquery-data-mart-schema', fields },
+        contexts: [],
+      } as never);
+      const published = response.schema!.fields as {
+        name: string;
+        calculated?: EffectiveCalculatedConfig;
+      }[];
+      return Object.fromEntries(published.map(f => [f.name, f.calculated]));
+    };
+
+    it('gives a ratio of sums none, and keeps a row-level field without rollup functions', async () => {
+      const calculated = await calculatedOf({
+        ratio: 'SUM({{ref field="a"}}) / SUM({{ref field="b"}})',
+        doubled: '{{ref field="a"}} * 2',
+      });
+
+      expect(calculated.ratio).toMatchObject({ level: 'metric', rollupAggregations: [] });
+      expect(calculated.doubled).toEqual({ formula: '{{ref field="a"}} * 2', level: 'column' });
+    });
+
+    // Athena truncates `INTEGER / INTEGER` per group, so the group values no longer add up.
+    it('reads the storage type for a division', async () => {
+      const scaled = { scaled: 'SUM({{ref field="a"}}) / 100' };
+
+      expect((await calculatedOf(scaled)).scaled?.rollupAggregations).toEqual(['SUM']);
+      expect(
+        (await calculatedOf(scaled, DataStorageType.AWS_ATHENA)).scaled?.rollupAggregations
+      ).toEqual([]);
     });
   });
 

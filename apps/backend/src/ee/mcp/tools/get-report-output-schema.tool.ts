@@ -44,7 +44,14 @@ export class GetReportOutputSchemaTool implements McpToolDefinition<GetReportOut
           .string()
           .nullable()
           .describe(
-            'Calculated fields only. `metric` AGGREGATES — never re-aggregate it, whatever `type` says. `column` is row-level with no warehouse column behind it. null is an ordinary native column, which may be rolled up.'
+            'Calculated fields only. `metric` AGGREGATES — a query cannot aggregate it again, whatever `type` says; read `rollup_aggregations` to combine its values. `column` is row-level with no warehouse column behind it. null is an ordinary native column, which may be rolled up.'
+          ),
+        // A bare string array for the same reason as `calculated_field_level`.
+        rollup_aggregations: z
+          .array(z.string())
+          .nullable()
+          .describe(
+            'Set only on a calculated metric column with no aggregate_function. The functions that combine values this column computed for separate groups of rows into the value for all of them. [] means no function does: query the coarser grain. null on every other column.'
           ),
       })
     ),
@@ -88,6 +95,7 @@ export class GetReportOutputSchemaTool implements McpToolDefinition<GetReportOut
         type: column.type,
         aggregate_function: column.aggregateFunction,
         calculated_field_level: column.calculatedFieldLevel,
+        rollup_aggregations: column.rollupAggregations,
       })),
     });
   }

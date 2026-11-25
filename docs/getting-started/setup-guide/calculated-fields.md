@@ -317,6 +317,28 @@ A **dimension** carries no such note, because aggregating one is exactly what a 
 
 Nothing about the Data Mart changes here. A `roas` written as [above](#referencing-another-calculated-field) has always been recomputed correctly for each group the question asks for; what changed is that the assistant now asks for it.
 
+## Using the Field from an API Client or Plugin
+
+A chart adds up values that a query already computed: a pie slice, an "Other" group, a stacked bar total. That is correct for `SUM(amount)` per month. It is wrong for `SUM(revenue) / NULLIF(SUM(cost), 0)`: two ratios do not add up to the ratio of the totals.
+
+So a **metric** carries `calculated.rollupAggregations`: the functions that combine the values it computed for separate groups of rows into its value for all of them. OWOX reads it from the formula every time it returns the field. You do not set it, and a schema save ignores it.
+
+| Formula                                                                  | `rollupAggregations`  |
+| ------------------------------------------------------------------------ | --------------------- |
+| `SUM(amount)`, `COUNT(order_id)`, `COUNT(a) + COUNT(b)`, `0.01 * SUM(a)` | `["SUM"]`             |
+| `MIN(created_at)` / `MAX(amount)`                                        | `["MIN"]` / `["MAX"]` |
+| `SUM(revenue) / NULLIF(SUM(cost), 0)`, `AVG(x)`, `COUNT(DISTINCT x)`     | `[]`                  |
+
+`[]` means that no function combines the values. Query the coarser grain instead. A formula OWOX cannot classify also gets `[]`. A reference to another calculated metric counts as that metric's formula, so `orders - returns` over two `COUNT` metrics gets `["SUM"]`.
+
+You find it on the field in `GET /api/data-marts/{id}`, on a metric column of a report's output schema, and in the MCP tools `get_data_mart_details_by_id` and `get_report_output_schema`. A **dimension** has no `rollupAggregations`: its `allowedAggregations` tells what a query may apply to it.
+
+Three things to know:
+
+- **Division on AWS Athena and AWS Redshift.** These warehouses truncate the division of one integer by another, so `COUNT(x) / 1000` per group does not add up. There a formula that divides an aggregate by a number gets `[]`. Multiply instead: `COUNT(x) * 0.001`.
+- **Empty groups.** `SUM(x)` returns `NULL` for a group with no values, and a number plus `NULL` is `NULL`. So a sum of several `SUM` terms, such as `SUM(revenue) - SUM(refunds)`, gets `[]`: a group with no refunds would lose its revenue. Wrap each `SUM` in `COALESCE(..., 0)` to get `["SUM"]`. `COUNT` never returns `NULL` and needs no wrap.
+- **Known functions only.** OWOX knows `SUM`, `COUNT`, `MIN`, `MAX` and `COALESCE(x, 0)`. A dialect function such as `COUNTIF` gives `[]`.
+
 ## Limitations and Considerations
 
 - **The scalar-function suggestions are curated, deliberately incomplete, and validate nothing.** BigQuery alone documents hundreds of scalar functions; the menu holds at most 100 entries per storage. A function's absence from the list is not a verdict — you may type any scalar function your warehouse has, and it will work. Its presence only means that warehouse's own reference documents it. The warehouse is the authority, and the save's test run is what actually accepts or rejects a call.

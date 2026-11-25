@@ -324,7 +324,7 @@ export function createBaseFieldSchemaForType<T extends z.ZodTypeAny>(schemaField
         .array(z.enum(REPORT_AGGREGATE_FUNCTIONS))
         .optional()
         .describe(
-          'Aggregation functions a report may apply to this field; absent = derive defaults by type'
+          'Aggregation functions a report may apply to this field; absent = derive defaults by type. A calculated field whose calculated.level is not "column" accepts none.'
         ),
       calculated: z
         .object({
@@ -349,7 +349,9 @@ export function createBaseFieldSchemaForType<T extends z.ZodTypeAny>(schemaField
           warehouseValidation: z.enum(['passed', 'skipped']).optional(),
         })
         .optional()
-        .describe('Formula definition; present only on calculated fields'),
+        .describe(
+          'Formula definition; present only on calculated fields. Responses also carry a read-only rollupAggregations on a metric: the functions that combine its computed values. A save ignores it.'
+        ),
       status: z
         .nativeEnum(DataMartSchemaFieldStatus)
         .default(DataMartSchemaFieldStatus.DISCONNECTED)
