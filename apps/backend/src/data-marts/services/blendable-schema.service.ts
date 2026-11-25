@@ -40,6 +40,7 @@ import { JoinCondition } from '../dto/schemas/join-condition.schema';
 import { AggregateFunction } from '../dto/schemas/aggregate-function.schema';
 import { resolveFieldGovernance } from '../dto/schemas/field-aggregation-governance';
 import { BusinessViolationException } from '../../common/exceptions/business-violation.exception';
+import { MAX_JOIN_PATHS, throwTooManyJoinPathsError } from '../errors/too-many-join-paths.error';
 import { DataMartRelationship } from '../entities/data-mart-relationship.entity';
 import { DataMartStatus } from '../enums/data-mart-status.enum';
 import { IdpProjectionsFacade } from '../../idp/facades/idp-projections.facade';
@@ -520,6 +521,7 @@ export class BlendableSchemaService {
       availableSource.mainGrainCollapse = grain.collapse;
       if (grain.collapsedAt !== undefined) availableSource.mainGrainCollapsedAt = grain.collapsedAt;
       ctx.availableSources.push(availableSource);
+      if (ctx.availableSources.length > MAX_JOIN_PATHS) throwTooManyJoinPathsError();
 
       for (const field of flatTargetFields) {
         const fieldOverride = sourceConfig?.fields?.[field.name];

@@ -213,7 +213,7 @@ A small graph opens whole. A graph too large to read that way opens on the sourc
 
 If **Campaigns** joins **Orders**, and **Orders** joins **Products**, the column picker on any **Campaigns** report exposes fields from **Products** as available options — qualified with the Output Alias of the Data Mart the field actually comes from (**Products**), not the whole chain. Existing reports keep their current columns until you pick the new ones.
 
-There is **no hard limit** on chain length. The generated SQL pre-aggregates each level on its parent's join key, so adding depth never multiplies the source Data Mart's rows.
+Chain length has no fixed limit. The generated SQL pre-aggregates each level on its parent's join key, so adding depth never multiplies the source Data Mart's rows. The number of join paths has a limit: see [Too many join paths](#too-many-join-paths).
 
 ### Diamond patterns
 
@@ -268,6 +268,7 @@ Combine it with the other filters. For example, **Relationships** _With relation
 
 - **Same storage.** All Data Marts in a chain must live on the same storage type and connection. Cross-storage joins are not supported.
 - **No self-reference.** A Data Mart cannot be joined to itself.
+- **At most 5,000 join paths per Data Mart.** Relationships that repeat a path, such as reverse relationships, can go above this limit. See [Too many join paths](#too-many-join-paths).
 - **Type-compatible join keys.** Mismatched types on a join condition are rejected at save.
 - **Dedup trade-offs.** `STRING_AGG` keeps every text value but produces long values on high-fanout joins. Switch to `ANY_VALUE` when the relationship is effectively 1-to-1, or when reports should aggregate the joined rows themselves — see [Choosing a Dedup](#choosing-a-dedup).
 - **Athena array serialization.** Joined array rollup requires every element and nested field to support casting to JSON. Athena/Trino does not currently support date, time, timestamp, or binary values in this cast path.
@@ -285,6 +286,16 @@ The relationship was saved but has no join conditions. Its fields are not expose
 ### A relationship shows a "Blocked" badge
 
 A Data Mart further upstream in the chain is in Draft status or has a relationship with no join conditions. Everything downstream of that node is marked **Blocked** until the upstream issue is resolved — publish the upstream Data Mart and finish its join configuration to unblock the rest of the chain.
+
+### Too many join paths
+
+A join path is one route from the source Data Mart to another Data Mart through relationships, such as `orders.customer`. Each path adds its own group of fields to the column picker, so OWOX Data Marts builds every path in memory. A Data Mart can have at most 5,000 join paths. Above that, the column picker, the data preview, the Graph view, report runs, HTTP Data and the MCP tools can return this error for the Data Mart:
+
+> The relationships of this storage give this Data Mart more than 5000 join paths.
+
+The usual cause is reverse relationships, for example `Orders → Customers` together with `Customers → Orders`. A path can then go back through other Data Marts, and the number of paths grows very quickly: when 8 Data Marts all join each other in both directions, each of them has 13,699 join paths.
+
+To fix it, remove the relationships that repeat an existing path. A relationship runs one way: keep it on the Data Mart you report from. Add the reverse relationship only when a report starts from the other Data Mart. See [Design a Data Model](../best-practices/data-model-design.md).
 
 ## Related Links
 

@@ -308,4 +308,23 @@ describe('GetDataMartRelationshipGraphService', () => {
     const idsArg = accessDecisionService.canAccessMany.mock.calls[0][3] as string[];
     expect(new Set(idsArg)).toEqual(new Set(['dm-root', 'dm-a', 'dm-b']));
   });
+
+  it('rejects a graph above the join path limit instead of walking every path', async () => {
+    const ids = ['dm-root', ...Array.from({ length: 7 }, (_, i) => `dm-${i}`)];
+    const { service, accessDecisionService } = build({
+      relationships: ids.flatMap(sourceId =>
+        ids
+          .filter(targetId => targetId !== sourceId)
+          .map(targetId => ({
+            id: `${sourceId}-${targetId}`,
+            sourceId,
+            targetId,
+            targetAlias: targetId.replace('-', '_'),
+          }))
+      ),
+    });
+
+    await expect(service.run(command())).rejects.toMatchObject({ code: 'TOO_MANY_JOIN_PATHS' });
+    expect(accessDecisionService.canAccessMany).not.toHaveBeenCalled();
+  });
 });

@@ -227,6 +227,7 @@ A good answer says where its numbers come from, which rows they cover, and which
 | An assistant counts organic revenue in ROAS                 | The scope rule lives in someone's prompt                                  | State the scope in the Data Mart description                                      |
 | Campaigns from different platforms merge                    | Grouping by campaign name alone, while names repeat across platforms      | Group by source and campaign, or by campaign ID                                   |
 | A user or an assistant picks the wrong joined group         | Two join paths show the same name, such as _Sessions_                     | Name each path by its role — _Order Session_, _Session Visitor_ — and describe it |
+| Joined fields stop loading with "more than 5000 join paths" | Reverse relationships next to the relationships of many Data Marts        | Keep each relationship in one direction                                           |
 
 ## Checklist
 
