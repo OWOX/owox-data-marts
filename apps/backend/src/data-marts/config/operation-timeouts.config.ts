@@ -10,6 +10,9 @@ const LONG_OPERATION_ROUTES = [
   { path: 'data-marts/:id/schema', method: RequestMethod.PUT },
   // A plugin's AI call waits up to 120 seconds for the AI provider (CredentialAiService).
   { path: 'plugins/runtime/credentials/:handle/ai/:operation', method: RequestMethod.POST },
+  // An OWOX Storage create or restore waits up to 40 seconds for IB, then up to 40 seconds until BigQuery lets the new account in.
+  { path: 'data-storages/owox-storage', method: RequestMethod.POST },
+  { path: 'data-storages/:id/owox-storage/restore', method: RequestMethod.POST },
 ];
 
 export function configureOperationTimeouts(consumer: MiddlewareConsumer): void {

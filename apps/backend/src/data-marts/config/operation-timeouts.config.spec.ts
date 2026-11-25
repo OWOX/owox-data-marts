@@ -38,6 +38,21 @@ class StubController {
   schema(): string {
     return 'ok';
   }
+
+  @Post('data-storages')
+  createStorage(): string {
+    return 'ok';
+  }
+
+  @Post('data-storages/owox-storage')
+  createOwoxStorage(): string {
+    return 'ok';
+  }
+
+  @Post('data-storages/:id/owox-storage/restore')
+  restoreOwoxStorage(): string {
+    return 'ok';
+  }
 }
 
 @Module({ controllers: [StubController] })
@@ -83,5 +98,26 @@ describe('configureOperationTimeouts', () => {
       .default(app.getHttpServer())
       .put('/api/data-marts/data-mart-1/schema')
       .expect('x-operation-timeout-ms', '180000');
+  });
+
+  it('gives the OWOX Storage create 180 seconds', async () => {
+    await supertest
+      .default(app.getHttpServer())
+      .post('/api/data-storages/owox-storage')
+      .expect('x-operation-timeout-ms', '180000');
+  });
+
+  it('gives the OWOX Storage restore 180 seconds', async () => {
+    await supertest
+      .default(app.getHttpServer())
+      .post('/api/data-storages/storage-1/owox-storage/restore')
+      .expect('x-operation-timeout-ms', '180000');
+  });
+
+  it('keeps 30 seconds for the create of other storages', async () => {
+    await supertest
+      .default(app.getHttpServer())
+      .post('/api/data-storages')
+      .expect('x-operation-timeout-ms', '30000');
   });
 });
