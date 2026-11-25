@@ -10,7 +10,8 @@ import {
 } from '@owox/ui/components/sheet';
 import type { DataStorage } from '../../../shared/model/types/data-storage.ts';
 import { DataStorageForm } from '../DataStorageEditForm';
-import type { DataStorageFormData } from '../../../shared';
+import type { DataStorageFormData, GoogleBigQueryFormData } from '../../../shared';
+import type { OwoxStorageLocation } from '../../../shared/api/types';
 import { useDataStorage } from '../../../shared/model/hooks/useDataStorage.ts';
 import { trackEvent } from '../../../../../utils';
 import { useUnsavedGuard } from '../../../../../hooks/useUnsavedGuard';
@@ -25,6 +26,8 @@ interface DataStorageEditSheetProps {
   isOpen: boolean;
   onClose: () => void;
   dataStorage: DataStorage | null;
+  /** Creates an OWOX Storage on save; `dataStorage` is null then. */
+  newOwoxStorage?: boolean;
   onSaveSuccess: (dataStorage: DataStorage) => void;
   promo?: ReactNode;
 }
@@ -33,11 +36,17 @@ export function DataStorageConfigSheet({
   isOpen,
   onClose,
   dataStorage,
+  newOwoxStorage = false,
   onSaveSuccess,
   promo,
 }: DataStorageEditSheetProps) {
-  const { updateDataStorage, getDataStorageById, currentDataStorage, clearCurrentDataStorage } =
-    useDataStorage();
+  const {
+    updateDataStorage,
+    createOwoxStorage,
+    getDataStorageById,
+    currentDataStorage,
+    clearCurrentDataStorage,
+  } = useDataStorage();
 
   useIntercomLauncher(isOpen);
 
@@ -92,18 +101,28 @@ export function DataStorageConfigSheet({
   const forbidden = ownCopyId !== null && load === 'forbidden';
 
   const onSave = async (data: DataStorageFormData) => {
-    if (dataStorage) {
-      // Throws on a rejected save; the form catches it to highlight the fields to fix.
-      const updatedStorage = await updateDataStorage(dataStorage.id, data);
-      // Saved. A fault in what the caller does with the result is not a failed save: let it
-      // reach the form and the form reports "Failed to save" and keeps the sheet open.
-      try {
-        onSaveSuccess(updatedStorage);
-      } catch (error) {
-        console.error('Storage saved, but handling the result failed', error);
-      }
-      handleFormSubmitSuccess();
+    // Throws on a rejected save; the form catches it to highlight the fields to fix.
+    let savedStorage: DataStorage;
+    if (newOwoxStorage) {
+      const { title, config, ownerIds } = data as GoogleBigQueryFormData & { ownerIds?: string[] };
+      savedStorage = await createOwoxStorage({
+        title,
+        location: config.location as OwoxStorageLocation,
+        ownerIds,
+      });
+    } else if (dataStorage) {
+      savedStorage = await updateDataStorage(dataStorage.id, data);
+    } else {
+      return;
     }
+    // Saved. A fault in what the caller does with the result is not a failed save: let it
+    // reach the form and the form reports "Failed to save" and keeps the sheet open.
+    try {
+      onSaveSuccess(savedStorage);
+    } catch (error) {
+      console.error('Storage saved, but handling the result failed', error);
+    }
+    handleFormSubmitSuccess();
   };
 
   const wasOpenRef = useRef<boolean>(false);
@@ -174,6 +193,7 @@ export function DataStorageConfigSheet({
         {(!ownCopyId || formStorage) && (
           <DataStorageForm
             initialData={formStorage ?? undefined}
+            newOwoxStorage={newOwoxStorage}
             onSubmit={onSave}
             onCancel={handleClose}
             onDirtyChange={handleFormDirtyChange}

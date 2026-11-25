@@ -103,8 +103,27 @@ describe('createDataStorageFormResolver', () => {
   });
 
   describe('for an OWOX Storage', () => {
+    it('asks a new OWOX Storage for a location and no project', async () => {
+      const resolver = createDataStorageFormResolver(false, 'new');
+
+      const result = await resolver(
+        {
+          title: 'OWOX Storage',
+          type: DataStorageType.GOOGLE_BIGQUERY,
+          reusableCredentialId: '',
+          config: { location: '' },
+        } as unknown as DataStorageFormData,
+        undefined,
+        resolverOptions
+      );
+
+      expect(Object.keys(result.errors)).toEqual(['config']);
+      expect(result.errors.config).toHaveProperty('location');
+      expect(result.errors.config).not.toHaveProperty('projectId');
+    });
+
     it('accepts an OWOX Storage without a Credential', async () => {
-      const resolver = createDataStorageFormResolver(false, true);
+      const resolver = createDataStorageFormResolver(false, 'saved');
 
       const result = await resolver(
         buildValues(DataStorageType.GOOGLE_BIGQUERY),
@@ -116,7 +135,7 @@ describe('createDataStorageFormResolver', () => {
     });
 
     it('still requires one for a regular BigQuery storage', async () => {
-      const resolver = createDataStorageFormResolver(false, false);
+      const resolver = createDataStorageFormResolver(false);
 
       const result = await resolver(
         buildValues(DataStorageType.GOOGLE_BIGQUERY),

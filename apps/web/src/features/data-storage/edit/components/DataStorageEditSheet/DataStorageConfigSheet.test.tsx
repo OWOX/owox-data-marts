@@ -151,6 +151,42 @@ describe('DataStorageConfigSheet', () => {
     expect(screen.queryByRole('button', { name: 'Copy link to this storage' })).toBeNull();
   });
 
+  it('creates an OWOX Storage on the save of a new one', async () => {
+    const created = { ...dataStorage, id: 'owox-1' };
+    const createOwoxStorage = vi.fn().mockResolvedValue(created);
+    vi.mocked(useDataStorage).mockReturnValue({
+      ...vi.mocked(useDataStorage)(),
+      currentDataStorage: null,
+      createOwoxStorage,
+    });
+    const onSaveSuccess = vi.fn();
+    render(
+      <MemoryRouter>
+        <DataStorageConfigSheet
+          isOpen
+          onClose={vi.fn()}
+          dataStorage={null}
+          newOwoxStorage
+          onSaveSuccess={onSaveSuccess}
+        />
+      </MemoryRouter>
+    );
+
+    await formProps.current?.onSubmit({
+      type: DataStorageType.GOOGLE_BIGQUERY,
+      title: 'Ads data',
+      config: { location: 'EU' },
+      ownerIds: ['user-2'],
+    });
+
+    expect(createOwoxStorage).toHaveBeenCalledWith({
+      title: 'Ads data',
+      location: 'EU',
+      ownerIds: ['user-2'],
+    });
+    expect(onSaveSuccess).toHaveBeenCalledWith(created);
+  });
+
   // The form highlights the rejected fields only if the failure reaches it; a sheet that
   // treated it as a success would also close as if the Storage had been saved.
   it('passes a rejected save on to the form and stays open', async () => {

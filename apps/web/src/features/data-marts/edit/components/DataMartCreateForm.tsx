@@ -18,7 +18,7 @@ import { useForm } from 'react-hook-form';
 import { Combobox } from '../../../../shared/components/Combobox/combobox';
 import { DataStorageHealthIndicator, DataStorageType } from '../../../data-storage';
 import { DataStorageTypeDialog } from '../../../data-storage/shared/components/DataStorageTypeDialog';
-import { OwoxStorageCreateDialog } from '../../../data-storage/shared/components/OwoxStorageCreateDialog';
+import { DataStorageConfigSheet } from '../../../data-storage/edit';
 import type { DataStorage } from '../../../data-storage/shared/model/types/data-storage';
 import { useDataStorage } from '../../../data-storage/shared/model/hooks/useDataStorage';
 import type { DataStorageList } from '../../../data-storage/shared/model/types/data-storage-list.ts';
@@ -291,12 +291,17 @@ export function DataMartCreateForm({ initialData, onSuccess }: DataMartFormProps
         }}
       />
 
-      <OwoxStorageCreateDialog
+      <DataStorageConfigSheet
         isOpen={isOwoxCreateOpen}
         onClose={() => {
           setIsOwoxCreateOpen(false);
         }}
-        onCreated={selectOwoxStorage}
+        dataStorage={null}
+        newOwoxStorage
+        onSaveSuccess={dataStorage => {
+          setIsOwoxCreateOpen(false);
+          void selectOwoxStorage(dataStorage);
+        }}
       />
     </>
   );

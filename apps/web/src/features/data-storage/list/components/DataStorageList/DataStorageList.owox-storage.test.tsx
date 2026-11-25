@@ -6,7 +6,11 @@ const storages = vi.hoisted(() => [
   { id: 'owox', title: 'OWOX', publishedDataMartsCount: 0, draftDataMartsCount: 0 },
   { id: 'bq', title: 'BQ', publishedDataMartsCount: 0, draftDataMartsCount: 0 },
 ]);
-const handlers = vi.hoisted(() => ({ onDelete: undefined as undefined | ((id: string) => void) }));
+const handlers = vi.hoisted(() => ({
+  onDelete: undefined as undefined | ((id: string) => void),
+  onSelectOwoxStorage: undefined as undefined | (() => void),
+  sheets: [] as { isOpen: boolean; newOwoxStorage?: boolean }[],
+}));
 
 vi.mock('../../../shared/model/hooks/useDataStorage.ts', () => ({
   useDataStorage: () => ({
@@ -31,15 +35,18 @@ vi.mock('../../../../../shared/hooks', () => ({
 }));
 vi.mock('react-router', () => ({ Link: () => null }));
 vi.mock('../../../edit', () => ({
-  DataStorageConfigSheet: () => null,
+  DataStorageConfigSheet: (props: { isOpen: boolean; newOwoxStorage?: boolean }) => {
+    handlers.sheets.push(props);
+    return null;
+  },
   useStorageSheetMcpPromo: () => undefined,
 }));
 vi.mock('../../../shared', () => ({}));
 vi.mock('../../../shared/components/DataStorageTypeDialog.tsx', () => ({
-  DataStorageTypeDialog: () => null,
-}));
-vi.mock('../../../shared/components/OwoxStorageCreateDialog.tsx', () => ({
-  OwoxStorageCreateDialog: () => null,
+  DataStorageTypeDialog: (props: { onSelectOwoxStorage?: () => void }) => {
+    handlers.onSelectOwoxStorage = props.onSelectOwoxStorage;
+    return null;
+  },
 }));
 vi.mock('../DataStorageDetailsDialog', () => ({ DataStorageDetailsDialog: () => null }));
 vi.mock('../DataStorageTable', () => ({
@@ -77,5 +84,19 @@ describe('DataStorageList delete confirmation', () => {
         'Are you sure you want to delete this storage? This action cannot be undone.'
       )
     ).toBeInTheDocument();
+  });
+});
+
+describe('DataStorageList new OWOX Storage', () => {
+  beforeEach(() => {
+    handlers.sheets = [];
+  });
+
+  it('opens the storage sheet for a new OWOX Storage, not a dialog', () => {
+    render(<DataStorageList />);
+    act(() => {
+      handlers.onSelectOwoxStorage?.();
+    });
+    expect(handlers.sheets.some(sheet => sheet.isOpen && sheet.newOwoxStorage === true)).toBe(true);
   });
 });

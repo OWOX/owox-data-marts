@@ -10,7 +10,7 @@ In the OWOX Data Marts web application, navigate to **Storages** from the main n
 
 ## 2. Choose Storage Type
 
-Click **OWOX Storage**. The **New OWOX Storage** dialog opens.
+Click **OWOX Storage**. The storage settings panel opens.
 
 ## 3. Add title and location
 
@@ -19,7 +19,7 @@ Click **OWOX Storage**. The **New OWOX Storage** dialog opens.
 
 > ☝️ The location cannot be changed after the storage is created.
 
-Click **Create**. OWOX creates the storage and its BigQuery dataset.
+Click **Save**. OWOX creates the storage and its BigQuery dataset.
 
 ## Who can create one
 
