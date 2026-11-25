@@ -6,7 +6,7 @@ export class OwoxStorageStatementException extends BusinessViolationException {
   }
 }
 
-/** Google's daily query quota stopped the job: of this storage, or of all storages together. */
+/** Google's daily query quota stopped the job: of the project's storages, or of all storages together. */
 export class OwoxStorageQueryLimitException extends BusinessViolationException {
   constructor() {
     super(

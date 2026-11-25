@@ -42,7 +42,7 @@ A connector Data Mart on an OWOX Storage writes into the storage's one dataset. 
 
 ## Daily query limit
 
-Each OWOX Storage can scan up to 100 GiB of data a day with its queries and connector loads. BigQuery enforces this limit. The limit is the same on every plan. Each load counts as at least 10 MiB.
+The OWOX Storages of a project can scan up to 100 GiB of data a day together with their queries and connector loads. The `US` and the `EU` storage of the project share this limit. BigQuery enforces it. The limit is the same on every plan. Each load counts as at least 10 MiB.
 
 BigQuery also stops all OWOX Storages for the rest of the day when together they use their shared daily capacity.
 

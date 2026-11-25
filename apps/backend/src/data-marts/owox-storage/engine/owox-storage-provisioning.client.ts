@@ -28,7 +28,7 @@ export class OwoxStorageProvisioningClient {
 
   constructor(private readonly configService: ConfigService) {}
 
-  /** Creates the datasets and the storage's service account, or finds them. Idempotent. */
+  /** Creates the datasets and gives the project's service account access, or finds them. Idempotent. */
   async provision(
     projectId: string,
     datasetId: string,

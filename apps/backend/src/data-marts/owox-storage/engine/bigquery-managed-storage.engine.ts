@@ -35,8 +35,8 @@ export function describeGoogleError(error: unknown): string {
 }
 
 /**
- * Integrated Backend creates and deletes the datasets and the storage's own service account;
- * ODM reads the datasets and runs the customer's work as that account.
+ * Integrated Backend creates and deletes the datasets and gives them to the service account of
+ * the project, one for its storages in US and EU; ODM runs the customer's work as that account.
  */
 @Injectable()
 export class BigQueryManagedStorageEngine implements ManagedStorageEngine {
@@ -86,7 +86,7 @@ export class BigQueryManagedStorageEngine implements ManagedStorageEngine {
     leftovers: boolean
   ): Promise<void> {
     const { datasetId, serviceAccountEmail } = target;
-    // A recreated account keeps its email but rejects the old account's token.
+    // The deletion took the account's grants away: start with a new token.
     this.identity.forget(serviceAccountEmail);
     try {
       // A deletion that failed half-way can leave a dataset without its account: start clean.
