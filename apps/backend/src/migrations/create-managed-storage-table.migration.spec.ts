@@ -1,6 +1,6 @@
 import 'reflect-metadata';
 import { DataSource } from 'typeorm';
-import { CreateManagedStorageTable1793100000000 } from './1793100000000-create-managed-storage-table';
+import { CreateManagedStorageTable1795564800000 } from './1795564800000-create-managed-storage-table';
 
 describe('CreateManagedStorageTable migration', () => {
   let dataSource: DataSource;
@@ -20,7 +20,7 @@ describe('CreateManagedStorageTable migration', () => {
 
   it('creates managed_storage with one storage per project and location', async () => {
     const runner = dataSource.createQueryRunner();
-    const migration = new CreateManagedStorageTable1793100000000();
+    const migration = new CreateManagedStorageTable1795564800000();
 
     await migration.up(runner);
     await migration.up(runner);
@@ -54,7 +54,7 @@ describe('CreateManagedStorageTable migration', () => {
 
   it('down drops it with softDropTable', async () => {
     const runner = dataSource.createQueryRunner();
-    const migration = new CreateManagedStorageTable1793100000000();
+    const migration = new CreateManagedStorageTable1795564800000();
     await migration.up(runner);
 
     await migration.down(runner);

@@ -3,8 +3,8 @@ import { softDropTable } from './migration-utils';
 
 const TABLE = 'managed_storage';
 
-export class CreateManagedStorageTable1793100000000 implements MigrationInterface {
-  public readonly name = 'CreateManagedStorageTable1793100000000';
+export class CreateManagedStorageTable1795564800000 implements MigrationInterface {
+  public readonly name = 'CreateManagedStorageTable1795564800000';
 
   public async up(queryRunner: QueryRunner): Promise<void> {
     if (await queryRunner.hasTable(TABLE)) return;
