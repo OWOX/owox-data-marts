@@ -1,6 +1,6 @@
 # OWOX Storage
 
-OWOX Storage is a Google BigQuery storage that OWOX hosts for you. You need no warehouse, key or Google Cloud setup.
+OWOX Storage is a data storage that OWOX hosts for you. You need no data warehouse, key or cloud setup of your own.
 
 OWOX Storage is available in OWOX Cloud only. It is not offered in self-hosted deployments.
 
@@ -19,7 +19,7 @@ Click **OWOX Storage**. The storage settings panel opens.
 
 > ☝️ The location cannot be changed after the storage is created.
 
-Click **Save**. OWOX creates the storage and its BigQuery dataset.
+Click **Save**. OWOX creates the storage and its dataset.
 
 The settings of a saved storage show its **Project ID**, **Location** and **Dataset**. You cannot change them. Use the project ID and the dataset in the fully qualified name of a table: `<Project ID>.<Dataset>.<table>`.
 
@@ -42,13 +42,13 @@ A connector Data Mart on an OWOX Storage writes into the storage's one dataset. 
 
 ## Daily query limit
 
-The OWOX Storages of a project can scan up to 100 GiB of data a day together with their queries and connector loads. The `US` and the `EU` storage of the project share this limit. BigQuery enforces it. The limit is the same on every plan. Each load counts as at least 10 MiB.
+The OWOX Storages of a project can scan up to 100 GiB of data a day together with their queries and connector loads. The `US` and the `EU` storage of the project share this limit. The limit is the same on every plan. Each load counts as at least 10 MiB.
 
-BigQuery also stops all OWOX Storages for the rest of the day when together they use their shared daily capacity.
+All OWOX Storages also stop for the rest of the day when together they use up their shared daily capacity.
 
-The limit resets at midnight Pacific Time. Queries that BigQuery stops fail with the error "OWOX Storage has used its query capacity for today. It resets at midnight Pacific Time. If you need it sooner, contact support." Connector runs that it stops show BigQuery's own error in Run History.
+The limit resets at midnight Pacific Time. Queries that the limit stops fail with the error "OWOX Storage has used its query capacity for today. It resets at midnight Pacific Time. If you need it sooner, contact support." Connector runs that the limit stops show the error of the storage in Run History.
 
-To get a higher limit, contact support.
+To get a higher limit, contact OWOX support.
 
 ## Storage size
 
@@ -56,11 +56,11 @@ Each OWOX Storage can hold up to 100 GiB. The limit is the same on every plan.
 
 When a storage reaches its limit, new connector runs are refused. They show as RESTRICTED in Run History with the message "This project's OWOX Storage has reached its size limit. Delete tables in the storage to load more data, or contact support to get a higher limit."
 
-Reads, reports and table deletion keep working when the storage is full.
+`SELECT` queries, reports and table deletion keep working when the storage is full. Only connector runs, which load data, are refused.
 
 A connector run that has already started is not stopped, so usage can end above the limit.
 
-To get a larger storage, contact support.
+To get a larger storage, contact OWOX support.
 
 ## Usage and tables
 
@@ -96,9 +96,9 @@ The Data Marts keep their settings. OWOX resets the state of their connectors, s
 
 > ☝️ You can also delete the storage instead, as described below. Delete its Data Marts first.
 
-## No direct BigQuery access
+## No direct access
 
-OWOX Storage gives you no key and no access to the Google Cloud console. Use OWOX Data Marts to query the data and to deliver it with [Destinations](../../destinations/).
+OWOX Storage has no interface for direct access yet. It will be added later. Until then, use OWOX Data Marts to query the data and to deliver it with [Destinations](../../destinations/).
 
 ## Deleting an OWOX Storage
 
