@@ -12,7 +12,7 @@ Every member has one of three roles:
 | --- | --- |
 | **Project Admin** | Full access across all entities |
 | **Data Owner** | Builds and maintains data resources |
-| **Business User** | Self-service reporting on shared Data Marts |
+| **Business User** | Creates and runs Reports on shared Data Marts |
 
 Access to a specific resource combines the member's role, their ownership status, and the resource's sharing settings. [Contexts](./contexts.md) add business-domain labels, such as Marketing or Finance. They limit visibility only for members whose **Role scope** is **Selected contexts only**.
 

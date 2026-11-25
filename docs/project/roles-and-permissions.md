@@ -8,7 +8,7 @@ Each project member has one of three roles.
 |---|---|
 | **Project Admin** | Full access across all entities |
 | **Data Owner** | Build and maintain data resources; can edit any Report they have access to |
-| **Business User** | Self-service reporting on Data Marts shared with them; manage own Reports and Destinations |
+| **Business User** | Create and run Reports on Data Marts shared with them; manage own Reports and Destinations |
 
 ## Project Admin
 
