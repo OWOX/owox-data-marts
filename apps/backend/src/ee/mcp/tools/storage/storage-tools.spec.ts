@@ -10,6 +10,7 @@ import { BusinessViolationException } from '../../../../common/exceptions/busine
 import { ListStoragesTool } from './list-storages.tool';
 import { GetStorageTool } from './get-storage.tool';
 import { CreateStorageTool } from './create-storage.tool';
+import { CreateOwoxStorageTool } from './create-owox-storage.tool';
 import { UpdateStorageTool } from './update-storage.tool';
 import { SetStorageAccessTool } from './set-storage-access.tool';
 import { ValidateStorageAccessTool } from './validate-storage-access.tool';
@@ -45,6 +46,7 @@ const cases = [
   [ListStoragesTool, 'list', {}],
   [GetStorageTool, 'get', { storage_id: 'storage' }],
   [CreateStorageTool, 'create', { storage_type: 'GOOGLE_BIGQUERY' }],
+  [CreateOwoxStorageTool, 'createOwoxStorage', { location: 'EU' }],
   [UpdateStorageTool, 'update', { storage_id: 'storage', title: 'New' }],
   [SetStorageAccessTool, 'setAccess', { storage_id: 'storage', owner_ids: [] }],
   [ValidateStorageAccessTool, 'validate', { storage_id: 'storage' }],
@@ -57,6 +59,7 @@ function facade() {
     list: jest.fn().mockResolvedValue([storage]),
     get: jest.fn().mockResolvedValue(storage),
     create: jest.fn().mockResolvedValue(storage),
+    createOwoxStorage: jest.fn().mockResolvedValue(storage),
     update: jest.fn().mockResolvedValue(storage),
     setAccess: jest.fn().mockResolvedValue(undefined),
     validate: jest.fn().mockResolvedValue({ valid: true, state: 'valid', message: 'Valid' }),
@@ -88,7 +91,7 @@ describe('Storage MCP tools', () => {
       const result = await tool.handler(input as never, context);
       expect(api[method].mock.calls[0][0]).toEqual(actor);
       const output = z.object(tool.outputSchema).parse(result.structuredContent);
-      if (['list', 'get', 'create', 'update'].includes(method)) {
+      if (['list', 'get', 'create', 'createOwoxStorage', 'update'].includes(method)) {
         const expected = { url: 'https://app.example/ui/project/data-storages?id=storage' };
         expect(output).toMatchObject(method === 'list' ? { storages: [expected] } : expected);
       }
@@ -118,7 +121,7 @@ describe('Storage MCP tools', () => {
     expect(listed.storages).toMatchObject([marked, { owox_storage: null }]);
   });
 
-  it('offers OWOX Storage in list_storages with its free locations and the Storages page', async () => {
+  it('offers OWOX Storage in list_storages with its free locations', async () => {
     const api = facade();
     api.getOwoxStorageOffer.mockResolvedValue({ locations: ['US', 'EU'] });
     const tool = new ListStoragesTool(api as never, publicOrigin as never);
@@ -127,11 +130,52 @@ describe('Storage MCP tools', () => {
       .object(tool.outputSchema)
       .parse((await tool.handler({} as never, context)).structuredContent);
 
-    expect(output.owox_storage_offer).toEqual({
-      locations: ['US', 'EU'],
-      url: 'https://app.example/ui/project/data-storages',
-    });
+    expect(output.owox_storage_offer).toEqual({ locations: ['US', 'EU'] });
     expect(api.getOwoxStorageOffer).toHaveBeenCalledWith(actor);
+  });
+
+  it('creates an OWOX Storage in the location and with the title that the agent gives', async () => {
+    const api = facade();
+    const tool = new CreateOwoxStorageTool(api as never, publicOrigin as never);
+
+    await tool.handler({ location: 'US', title: 'Ads data' } as never, context);
+
+    expect(api.createOwoxStorage).toHaveBeenCalledWith(actor, {
+      location: 'US',
+      title: 'Ads data',
+    });
+    await expect(tool.handler({ location: 'ASIA' } as never, context)).rejects.toBeInstanceOf(
+      z.ZodError
+    );
+  });
+
+  it.each([
+    'This project already has an OWOX Storage in EU.',
+    'OWOX Storage could not be created. Try again later.',
+    'OWOX Storage is not available on this deployment.',
+  ])('tells the agent why an OWOX Storage was not created: %s', async message => {
+    const api = facade();
+    api.createOwoxStorage.mockRejectedValue(
+      new BusinessViolationException(message, { datasetId: 'NEVER_EXPOSE' })
+    );
+    const result = new CreateOwoxStorageTool(api as never, publicOrigin as never).handler(
+      { location: 'EU' },
+      context
+    );
+    await expect(result).rejects.toThrow(message);
+    await result.catch(error => expect(JSON.stringify(error)).not.toContain('NEVER_EXPOSE'));
+  });
+
+  it('tells the agent that the configuration of an OWOX Storage cannot change', async () => {
+    const message =
+      "An OWOX Storage's connection and Credential are managed by OWOX and cannot be changed.";
+    const api = facade();
+    api.update.mockRejectedValue(new BusinessViolationException(message));
+    const result = new UpdateStorageTool(api as never, publicOrigin as never).handler(
+      { storage_id: 'storage', credential_id: 'credential' },
+      context
+    );
+    await expect(result).rejects.toThrow(message);
   });
 
   it('rejects Legacy creation', async () => {
@@ -223,17 +267,18 @@ describe('Storage MCP tools', () => {
     }
   );
 
-  it.each(cases.filter(([, method]) => ['list', 'get', 'create', 'validate'].includes(method)))(
-    '%s removes private details from unexpected errors',
-    async (Tool, method, input) => {
-      const api = facade();
-      api[method].mockRejectedValue(new Error('NEVER_EXPOSE'));
-      const result = new Tool(api as never, publicOrigin as never).handler(input as never, context);
+  it.each(
+    cases.filter(([, method]) =>
+      ['list', 'get', 'create', 'createOwoxStorage', 'validate'].includes(method)
+    )
+  )('%s removes private details from unexpected errors', async (Tool, method, input) => {
+    const api = facade();
+    api[method].mockRejectedValue(new Error('NEVER_EXPOSE'));
+    const result = new Tool(api as never, publicOrigin as never).handler(input as never, context);
 
-      await expect(result).rejects.toMatchObject({ status: 500 });
-      await result.catch(error => expect(error.message).not.toContain('NEVER_EXPOSE'));
-    }
-  );
+    await expect(result).rejects.toMatchObject({ status: 500 });
+    await result.catch(error => expect(error.message).not.toContain('NEVER_EXPOSE'));
+  });
 
   it.each([
     [new ForbiddenException('NEVER_EXPOSE'), 403],

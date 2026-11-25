@@ -11,9 +11,8 @@ export function buildDataDestinationsUiPath(projectId: string, destinationId?: s
   return destinationId ? `${base}?id=${encodeURIComponent(destinationId)}` : base;
 }
 
-export function buildDataStoragesUiPath(projectId: string, storageId?: string): string {
-  const page = `/ui/${encodeURIComponent(projectId)}/data-storages`;
-  return storageId === undefined ? page : `${page}?id=${encodeURIComponent(storageId)}`;
+export function buildDataStoragesUiPath(projectId: string, storageId: string): string {
+  return `/ui/${encodeURIComponent(projectId)}/data-storages?id=${encodeURIComponent(storageId)}`;
 }
 
 export function buildReportSchedulesUiPath(projectId: string): string {

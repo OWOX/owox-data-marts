@@ -14,8 +14,6 @@ import {
   owoxStorageOfferOutputSchema,
   storageSummaryOutputSchema,
 } from './storage.schemas';
-import { buildDataStoragesUiPath } from '../data-mart-ui-path';
-import { joinPublicOrigin } from '../mcp-public-url.util';
 import { storageToolCall } from './storage-tool-error';
 
 type Input = z.infer<typeof listStoragesSchema>;
@@ -65,10 +63,7 @@ export class ListStoragesTool implements McpToolDefinition<Input> {
       storages: storages.map(storage =>
         this.mapper.toSummary(storage, context.projectId, publicOrigin)
       ),
-      owox_storage_offer: offer && {
-        locations: offer.locations,
-        url: joinPublicOrigin(publicOrigin, buildDataStoragesUiPath(context.projectId)),
-      },
+      owox_storage_offer: offer,
     });
   }
 }

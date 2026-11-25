@@ -5,6 +5,7 @@ import { BusinessViolationException } from '../../common/exceptions/business-vio
 import { AccessValidationException } from '../../common/exceptions/access-validation.exception';
 import { McpStorageManagementFacadeImpl } from './mcp-storage-management.facade.impl';
 import { McpStorageMapper } from '../mappers/mcp-storage.mapper';
+import { CreateOwoxStorageCommand } from '../dto/domain/create-owox-storage.command';
 import { DataStorageType } from '../data-storage-types/enums/data-storage-type.enum';
 import {
   ValidationResult,
@@ -36,6 +37,7 @@ function fixture() {
       .mockResolvedValue({ namespaces: [{ id: 'my-project', secret: 'NEVER_EXPOSE' }] }),
   };
   const remove = { run: jest.fn() };
+  const createOwox = { run: jest.fn().mockResolvedValue({ ...storage, title: 'OWOX Storage' }) };
   const owoxConfig = { isEnabled: jest.fn().mockReturnValue(true) };
   const managed = {
     findByStorageId: jest.fn().mockResolvedValue(null),
@@ -52,7 +54,8 @@ function fixture() {
     remove as never,
     new McpStorageMapper(),
     managed as never,
-    owoxConfig as never
+    owoxConfig as never,
+    createOwox as never
   );
   return {
     facade,
@@ -66,6 +69,7 @@ function fixture() {
     remove,
     managed,
     owoxConfig,
+    createOwox,
   };
 }
 
@@ -262,6 +266,35 @@ describe('McpStorageManagementFacadeImpl', () => {
     await f.facade.delete(actor, 'storage');
     expect(f.remove.run).toHaveBeenCalledWith(expect.objectContaining({ fromMcp: true }));
   });
+  describe('OWOX Storage creation', () => {
+    it('creates it for the actor with the default title and returns it marked', async () => {
+      const f = fixture();
+      f.managed.findByStorageId.mockResolvedValue({
+        location: 'EU',
+        datasetId: 'owox_eu_0123456789ab',
+      });
+
+      const created = await f.facade.createOwoxStorage(actor, { location: 'EU' });
+
+      expect(f.createOwox.run).toHaveBeenCalledWith(
+        new CreateOwoxStorageCommand('project', 'OWOX Storage', 'EU', 'user', false)
+      );
+      expect(created).toMatchObject({
+        title: 'OWOX Storage',
+        owoxStorage: { location: 'EU', datasetId: 'owox_eu_0123456789ab' },
+      });
+    });
+
+    it('keeps a title that the agent gives', async () => {
+      const f = fixture();
+      await f.facade.createOwoxStorage(actor, { location: 'US', title: 'Ads data' });
+      expect(f.createOwox.run.mock.calls[0][0]).toMatchObject({
+        title: 'Ads data',
+        location: 'US',
+      });
+    });
+  });
+
   describe('OWOX Storage offer', () => {
     it('offers an editor the locations where the project has no OWOX Storage', async () => {
       const f = fixture();

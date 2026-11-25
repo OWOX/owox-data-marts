@@ -257,6 +257,7 @@ describe('MCP tool providers', () => {
           'list_storages',
           'get_storage',
           'create_storage',
+          'create_owox_storage',
           'update_storage',
           'set_storage_access',
           'validate_storage_access',

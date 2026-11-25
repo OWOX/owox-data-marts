@@ -159,5 +159,6 @@ describe('MCP guides', () => {
     for (const topic of ['data_mart_setup', 'storages_destinations'] as const) {
       expect(MCP_GUIDES[topic]).toContain('owox_storage_offer');
     }
+    expect(MCP_GUIDES.storages_destinations).toContain('call create_owox_storage');
   });
 });

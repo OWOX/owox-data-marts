@@ -33,6 +33,10 @@ export interface McpCreateStorageInput {
   type: DataStorageType;
   title?: string;
 }
+export interface McpCreateOwoxStorageInput {
+  location: OwoxStorageLocation;
+  title?: string;
+}
 export interface McpUpdateStorageInput {
   title?: string;
   configuration?: DataStorageConfig;
@@ -77,6 +81,10 @@ export interface McpStorageManagementFacade {
   list(actor: AuthorizationContext, input: McpListStoragesInput): Promise<McpStorageSummary[]>;
   get(actor: AuthorizationContext, id: string): Promise<McpStorageDto>;
   create(actor: AuthorizationContext, input: McpCreateStorageInput): Promise<McpStorageDto>;
+  createOwoxStorage(
+    actor: AuthorizationContext,
+    input: McpCreateOwoxStorageInput
+  ): Promise<McpStorageDto>;
   update(
     actor: AuthorizationContext,
     id: string,

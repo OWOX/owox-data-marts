@@ -14,6 +14,9 @@ const SAFE_BAD_REQUEST_MESSAGES = new Set([
   'Set the Storage configuration before selecting a Credential.',
   'Configure this Storage before listing resources.',
 ]);
+const SAFE_BUSINESS_MESSAGES = new Set([
+  "An OWOX Storage's connection and Credential are managed by OWOX and cannot be changed.",
+]);
 
 export async function storageToolCall<T>(
   execute: () => Promise<T>,
@@ -21,6 +24,7 @@ export async function storageToolCall<T>(
     | 'list'
     | 'get'
     | 'create'
+    | 'create_owox_storage'
     | 'update'
     | 'set_access'
     | 'validate'
@@ -53,7 +57,13 @@ export async function storageToolCall<T>(
       );
     }
 
-    if (operation === 'delete' && error instanceof BusinessViolationException) {
+    // These use cases report only user-facing rules in a BusinessViolationException.
+    if (
+      error instanceof BusinessViolationException &&
+      (operation === 'delete' ||
+        operation === 'create_owox_storage' ||
+        SAFE_BUSINESS_MESSAGES.has(error.message))
+    ) {
       throw new BusinessViolationException(error.message);
     }
     if (status === 403) {
@@ -71,6 +81,7 @@ export async function storageToolCall<T>(
       list: 'Storages could not be listed.',
       get: 'The Storage could not be read.',
       create: 'The Storage could not be created.',
+      create_owox_storage: 'OWOX Storage could not be created. Try again later.',
       update: 'The Storage could not be updated. Check its configuration and Credential access.',
       set_access:
         'The Storage access settings could not be updated. Check the owners and Contexts.',

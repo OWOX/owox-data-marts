@@ -48,6 +48,14 @@ export const createStorageSchema = z
     title: title.optional(),
   })
   .strict();
+export const createOwoxStorageSchema = z
+  .object({
+    location: z
+      .enum(['US', 'EU'])
+      .describe('Where OWOX keeps the data. Ask the user. It cannot change later.'),
+    title: title.optional().describe('Name of the Storage. Default: OWOX Storage.'),
+  })
+  .strict();
 export const updateStorageSchema = z
   .object({
     storage_id: storageId,
@@ -145,10 +153,7 @@ const owoxStorageOutput = z
     'Set only for an OWOX Storage, which OWOX creates and manages: its location and its one dataset. null for every other Storage.'
   );
 export const owoxStorageOfferOutputSchema = z
-  .object({
-    locations: z.array(z.enum(['US', 'EU'])),
-    url: z.string().describe('URL of the Storages page, where the user creates the OWOX Storage.'),
-  })
+  .object({ locations: z.array(z.enum(['US', 'EU'])) })
   .nullable()
   .describe(
     'Set when the user can create an OWOX Storage in one of these locations. OWOX hosts it, so it needs no data warehouse, Credential or cloud setup. null when the user cannot create one.'
