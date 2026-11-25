@@ -128,12 +128,14 @@ describe('CreateOwoxStorageService', () => {
     expect(s.engine.provision).not.toHaveBeenCalled();
   });
 
+  // Says why it fails and what to do, because a storage that is not shared is invisible to the user.
+  const conflictInEu =
+    'This project already has an OWOX Storage in EU. A project can have one OWOX Storage in each location. If you do not see it in Storages, ask its owner or a Project Admin to share it with you.';
+
   it('refuses a second OWOX Storage in the same location before provisioning', async () => {
     const s = setup();
     s.managed.findByProjectAndLocation.mockResolvedValue({ storageId: 'x' });
-    await expect(s.service.run(command)).rejects.toThrow(
-      'This project already has an OWOX Storage in EU.'
-    );
+    await expect(s.service.run(command)).rejects.toMatchObject({ message: conflictInEu });
     expect(s.managed.findByProjectAndLocation).toHaveBeenCalledWith('p1', 'EU');
     expect(s.engine.provision).not.toHaveBeenCalled();
   });
@@ -179,9 +181,7 @@ describe('CreateOwoxStorageService', () => {
     s.managed.create.mockRejectedValue(
       new QueryFailedError('INSERT', [], { code: 'ER_DUP_ENTRY' } as never)
     );
-    await expect(s.service.run(command)).rejects.toThrow(
-      'This project already has an OWOX Storage in EU.'
-    );
+    await expect(s.service.run(command)).rejects.toMatchObject({ message: conflictInEu });
     expect(s.engine.deprovision).toHaveBeenCalledWith(provisioned);
   });
 });

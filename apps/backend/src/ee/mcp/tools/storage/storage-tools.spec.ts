@@ -162,7 +162,7 @@ describe('Storage MCP tools', () => {
   );
 
   it.each([
-    'This project already has an OWOX Storage in EU.',
+    'This project already has an OWOX Storage in EU. A project can have one OWOX Storage in each location. If you do not see it in Storages, ask its owner or a Project Admin to share it with you.',
     'OWOX Storage could not be created. Try again later.',
     'OWOX Storage is not available on this deployment.',
   ])('tells the agent why an OWOX Storage was not created: %s', async message => {

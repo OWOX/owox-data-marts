@@ -25,10 +25,19 @@ An AI agent that connects to OWOX Data Marts over [MCP](../../getting-started/se
 
 The settings of a saved storage show its **Project ID**, **Location** and **Dataset**. You cannot change them. Use the project ID and the dataset in the fully qualified name of a table: `<Project ID>.<Dataset>.<table>`.
 
-## Who can create one
+## Who can create and use one
 
+An OWOX Storage has owners and sharing like any other Storage. See [Ownership and Sharing](../../project/ownership-and-sharing.md#storage).
+
+- A member with the Data Owner role or a Project Admin can create an OWOX Storage. The member who creates it becomes its owner.
 - Each project can have one OWOX Storage in each location: one in `US` and one in `EU`.
-- If the project already has one in the selected location, the error names that location, for example "This project already has an OWOX Storage in EU."
+- A new OWOX Storage is **Shared for use**. Other members with the Data Owner role see it and can create Data Marts on it.
+- Only its owners and Project Admins can delete its tables, restore it, delete it or change its sharing. When it is **Shared for maintenance**, other members with the Data Owner role can also delete its tables, restore it and delete it.
+- When the storage is not shared, other members do not see it. The same applies when a member's role is limited to Contexts that the storage does not have. These members also cannot create another OWOX Storage in that location.
+
+If the project already has an OWOX Storage in the selected location, creation fails with this error:
+
+> This project already has an OWOX Storage in EU. A project can have one OWOX Storage in each location. If you do not see it in Storages, ask its owner or a Project Admin to share it with you.
 
 ## No Credential
 
@@ -90,7 +99,7 @@ Until you restore the storage, connector runs end as RESTRICTED, and queries fai
 ### Restore a deleted storage
 
 1. Open **Storages**, then open the OWOX Storage.
-2. Click **Restore storage** in the notice. Only editors can restore a storage.
+2. Click **Restore storage** in the notice. Only the members who can edit the storage can restore it, see [Who can create and use one](#who-can-create-and-use-one).
 
 Restoring brings the storage back empty, under the same names. The deleted data does not come back.
 

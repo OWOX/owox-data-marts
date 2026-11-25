@@ -22,7 +22,9 @@ import { describeGoogleError } from '../owox-storage/engine/bigquery-managed-sto
 import { assertProjectMembers } from '../utils/sync-owners';
 import { CreateDataStorageService } from './create-data-storage.service';
 
-const alreadyHas = (location: string) => `This project already has an OWOX Storage in ${location}.`;
+// A storage that is not shared is invisible to the user, so the message also says whom to ask.
+const alreadyHas = (location: string) =>
+  `This project already has an OWOX Storage in ${location}. A project can have one OWOX Storage in each location. If you do not see it in Storages, ask its owner or a Project Admin to share it with you.`;
 
 @Injectable()
 export class CreateOwoxStorageService {
