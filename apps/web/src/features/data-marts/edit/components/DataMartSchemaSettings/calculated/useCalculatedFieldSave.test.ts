@@ -261,7 +261,7 @@ describe('useCalculatedFieldSave', () => {
   // asserted the hook's initial state instead — deleting `setErrorsByField(EMPTY)` left a stale
   // red banner sitting beside the unrelated-failure toast and no test noticed.
   async function primeStaleFieldErrors(
-    result: { current: { save: (s: DataMartSchema) => Promise<void> } },
+    result: { current: { save: (s: DataMartSchema) => Promise<unknown> } },
     mutationMock: Mock<Mutation>
   ) {
     mutationMock.mockRejectedValueOnce(formulaViolationError());

@@ -406,8 +406,10 @@ export function DataMartSchemaSettings({
   const guardSave = useCallback(async (): Promise<ResolvedSchema> => {
     const current = schemaRef.current;
     if (dataMartId && current) {
+      let saved = current;
       try {
-        await saveCalculatedFields(current);
+        // The server may have changed a type on save, so keep its copy on screen.
+        saved = (await saveCalculatedFields(current))?.schema ?? current;
       } catch (error) {
         // The dialog can only render a string, and an axios rejection's own `message` is
         // "Request failed with status code 400" — which names neither the field nor the fix. The
@@ -418,8 +420,9 @@ export function DataMartSchemaSettings({
             'Failed to save changes'
         );
       }
-      markSchemaSaved(current);
+      markSchemaSaved(saved);
       invalidateBlendableSchema();
+      return saved;
     }
     return current;
   }, [dataMartId, saveCalculatedFields, markSchemaSaved, invalidateBlendableSchema]);
