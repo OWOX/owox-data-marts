@@ -6,6 +6,7 @@ import {
 } from '../dto/domain/relationship-graph.dto';
 import { DataMartRelationship } from '../entities/data-mart-relationship.entity';
 import { DataMartStatus } from '../enums/data-mart-status.enum';
+import { MAX_JOIN_PATHS, throwTooManyJoinPathsError } from '../errors/too-many-join-paths.error';
 import { RelationshipMapper } from '../mappers/relationship.mapper';
 import { AccessDecisionService, Action, EntityType } from '../services/access-decision';
 import { DataMartRelationshipService } from '../services/data-mart-relationship.service';
@@ -150,6 +151,7 @@ export class GetDataMartRelationshipGraphService {
         isCycleStub,
         isBlocked: frame.parentBlocked,
       });
+      if (ctx.out.length > MAX_JOIN_PATHS) throwTooManyJoinPathsError();
 
       if (isCycleStub) continue;
 
