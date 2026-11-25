@@ -2,6 +2,7 @@ import { fireEvent, render, screen, waitFor, within } from '@testing-library/rea
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { MemoryRouter, Route, Routes } from 'react-router';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { setProject } from '../../app/store/reducers/project.reducer';
 import type { ProjectsContextType } from '../../features/idp/context/ProjectContext.types';
 import type { User } from '../../features/idp/types';
 import { RequestStatus } from '../../shared/types/request-status';
@@ -244,27 +245,87 @@ describe('OverviewTab project status', () => {
     ).toBe(true);
   });
 
-  it('saves and displays the new name and reloads the shared project list', async () => {
+  it.each(['Revenue_2026 → [EU]*, Inc. - (test)!', '→'.repeat(255)])(
+    'saves an Analytics-compatible name and reloads the shared project list',
+    async title => {
+      enableCloudManagement();
+      projectManagement.rename.mockResolvedValue({
+        projectId: 'blocked-project',
+        projectTitle: title,
+      });
+      renderOverview();
+
+      fireEvent.click(screen.getByRole('button', { name: 'Edit project name' }));
+      fireEvent.change(screen.getByRole('textbox', { name: 'Project name' }), {
+        target: { value: ` ${title} ` },
+      });
+      const save = screen.getByRole('button', { name: 'Save' });
+      await waitFor(() => {
+        expect(save).toBeEnabled();
+      });
+      fireEvent.click(save);
+
+      expect(await screen.findByText(title)).toBeVisible();
+      expect(projectManagement.rename).toHaveBeenCalledWith(
+        'https://ib.example.test',
+        { userId: 'user-1', projectId: 'blocked-project' },
+        title
+      );
+      expect(projectManagement.dispatch).toHaveBeenCalledWith(
+        setProject({ id: 'blocked-project', title })
+      );
+      expect(projectsContext.value.loadProjects).toHaveBeenCalledWith({ force: true });
+    }
+  );
+
+  it.each([
+    ['   ', 'Enter a project name.'],
+    ['a'.repeat(256), 'Use up to 255 characters.'],
+    ['Доход', 'Use English letters, numbers, spaces'],
+    ['Revenue & Costs', 'Use English letters, numbers, spaces'],
+    ['\u00a0Revenue', 'Use English letters, numbers, spaces'],
+  ])('rejects an invalid project name before calling IB', async (title, message) => {
     enableCloudManagement();
-    projectManagement.rename.mockResolvedValue({
-      projectId: 'blocked-project',
-      projectTitle: 'Revenue',
-    });
     renderOverview();
 
     fireEvent.click(screen.getByRole('button', { name: 'Edit project name' }));
-    fireEvent.change(screen.getByRole('textbox', { name: 'Project name' }), {
-      target: { value: ' Revenue ' },
-    });
-    fireEvent.click(screen.getByRole('button', { name: 'Save' }));
+    const input = screen.getByRole('textbox', { name: 'Project name' });
+    fireEvent.change(input, { target: { value: title } });
 
-    expect(await screen.findByText('Revenue')).toBeVisible();
-    expect(projectManagement.rename).toHaveBeenCalledWith(
-      'https://ib.example.test',
-      { userId: 'user-1', projectId: 'blocked-project' },
-      'Revenue'
-    );
-    expect(projectsContext.value.loadProjects).toHaveBeenCalledWith({ force: true });
+    const alert = await screen.findByRole('alert');
+    expect(alert).toHaveTextContent(message);
+    expect(alert).toHaveAttribute('data-slot', 'form-message');
+    expect(input).toHaveAttribute('aria-invalid', 'true');
+    expect(input.getAttribute('aria-describedby')?.split(' ')).toContain(alert.id);
+    expect(screen.getByRole('button', { name: 'Save' })).toBeDisabled();
+    expect(projectManagement.rename).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    [400, 'Use up to 255 characters.'],
+    [401, 'Sign in again to change the project name.'],
+    [403, 'You do not have permission to rename this project.'],
+    [404, 'This project is no longer available.'],
+    [409, 'This project is being removed. Its name cannot be changed.'],
+    [502, 'Could not save the project name. Try again.'],
+  ])('shows an actionable error after IB returns %s', async (status, message) => {
+    enableCloudManagement();
+    projectManagement.rename.mockRejectedValue({ isAxiosError: true, response: { status } });
+    renderOverview();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Edit project name' }));
+    const input = screen.getByRole('textbox', { name: 'Project name' });
+    fireEvent.change(input, { target: { value: 'Updated project' } });
+    const save = screen.getByRole('button', { name: 'Save' });
+    await waitFor(() => {
+      expect(save).toBeEnabled();
+    });
+    fireEvent.click(save);
+
+    expect(await screen.findByRole('alert')).toHaveTextContent(message);
+    expect(input).toHaveValue('Updated project');
+    expect(input).toHaveAttribute('aria-invalid', String(status === 400));
+    expect(projectManagement.dispatch).not.toHaveBeenCalled();
   });
 
   it.each(['no-origin', 'self-hosted', 'viewer', 'view-only'])(

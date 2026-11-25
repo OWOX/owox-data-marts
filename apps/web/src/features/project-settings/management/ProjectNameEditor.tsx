@@ -1,8 +1,12 @@
-import { useId, useState, type SubmitEvent } from 'react';
+import { useState } from 'react';
+import { zodResolver } from '@hookform/resolvers/zod';
 import { useMutation } from '@tanstack/react-query';
 import { isAxiosError } from 'axios';
 import { Pencil } from 'lucide-react';
+import { useForm } from 'react-hook-form';
+import { z } from 'zod';
 import { Button } from '@owox/ui/components/button';
+import { Form, FormControl, FormField, FormItem, FormMessage } from '@owox/ui/components/form';
 import { Input } from '@owox/ui/components/input';
 import { useAppDispatch } from '../../../app/store/core/store-hooks';
 import { setProject } from '../../../app/store/reducers/project.reducer';
@@ -12,6 +16,37 @@ import {
   renameCloudProject,
   type ProjectManagementSession,
 } from './project-management.service';
+
+// Match the title field in Analytics (Projects_Record_Field_Title and Projects/module.xml).
+const maxProjectNameLength = 255;
+const deniedProjectNameCharacters = /[^a-zA-Z0-9_→[\]*,.!() -]/u;
+const projectNameCharactersMessage =
+  'Use English letters, numbers, spaces, or _ → [ ] * , . - ! ( ).';
+const projectNameLengthMessage = `Use up to ${String(maxProjectNameLength)} characters.`;
+const renameProjectSchema = z.object({
+  title: z
+    .string()
+    .refine(value => !deniedProjectNameCharacters.test(value), projectNameCharactersMessage)
+    .transform(value => value.trim())
+    .pipe(
+      z.string().min(1, 'Enter a project name.').max(maxProjectNameLength, projectNameLengthMessage)
+    ),
+});
+
+function getRenameError(status?: number) {
+  switch (status) {
+    case 401:
+      return 'Sign in again to change the project name.';
+    case 403:
+      return 'You do not have permission to rename this project.';
+    case 404:
+      return 'This project is no longer available.';
+    case 409:
+      return 'This project is being removed. Its name cannot be changed.';
+    default:
+      return 'Could not save the project name. Try again.';
+  }
+}
 
 export function ProjectNameEditor({
   origin,
@@ -24,34 +59,44 @@ export function ProjectNameEditor({
   title: string;
   readOnly: boolean;
 }) {
-  const [draft, setDraft] = useState<string>();
-  const errorId = useId();
+  const [editing, setEditing] = useState(false);
+  const form = useForm({
+    resolver: zodResolver(renameProjectSchema),
+    defaultValues: { title: '' },
+    mode: 'onChange',
+  });
   const dispatch = useAppDispatch();
   const { loadProjects } = useProjects();
   const rename = useMutation({
     mutationFn: (name: string) => renameCloudProject(origin, session, name),
+    onError: error => {
+      if (isAxiosError(error) && error.response?.status === 400) {
+        form.setError('title', {
+          type: 'server',
+          message: `${projectNameLengthMessage} ${projectNameCharactersMessage}`,
+        });
+      }
+    },
     onSuccess: project => {
       if (!isCurrentProjectSession(session)) return;
       dispatch(setProject({ id: project.projectId, title: project.projectTitle }));
-      setDraft(undefined);
+      setEditing(false);
       void loadProjects({ force: true });
     },
   });
   const name = rename.data?.projectTitle ?? title;
   const errorStatus = isAxiosError(rename.error) ? rename.error.response?.status : undefined;
-  const invalidName = errorStatus === 400;
+  const saveError = rename.isError && errorStatus !== 400 ? getRenameError(errorStatus) : undefined;
 
-  function save(event: SubmitEvent<HTMLFormElement>) {
-    event.preventDefault();
-    if (rename.isPending || readOnly || !draft?.trim()) return;
-    const selectedName = draft.trim();
-    if (selectedName === name) setDraft(undefined);
+  function save({ title: selectedName }: z.infer<typeof renameProjectSchema>) {
+    if (rename.isPending || readOnly) return;
+    if (selectedName === name) setEditing(false);
     else rename.mutate(selectedName);
   }
 
   if (readOnly) return <span className='break-words'>{name}</span>;
 
-  if (draft === undefined) {
+  if (!editing) {
     return (
       <span className='flex items-center gap-2'>
         <span className='min-w-0 break-words'>{name}</span>
@@ -61,7 +106,8 @@ export function ProjectNameEditor({
           variant='ghost'
           aria-label='Edit project name'
           onClick={() => {
-            setDraft(name);
+            form.reset({ title: name });
+            setEditing(true);
           }}
         >
           <Pencil aria-hidden='true' />
@@ -71,45 +117,56 @@ export function ProjectNameEditor({
   }
 
   return (
-    <form className='flex flex-col gap-2' onSubmit={save}>
-      <Input
-        aria-label='Project name'
-        aria-invalid={invalidName}
-        aria-describedby={rename.isError ? errorId : undefined}
-        value={draft}
-        onChange={event => {
-          setDraft(event.target.value);
-          if (rename.isError) rename.reset();
-        }}
-        disabled={rename.isPending}
-        required
-      />
-      {rename.isError && (
-        <p id={errorId} role='alert' className='text-destructive text-xs'>
-          {invalidName
-            ? 'Use up to 255 characters. Use English letters, numbers, spaces, or _ → [ ] * , . - ! ( ).'
-            : errorStatus === 409
-              ? 'This project is being removed. Its name cannot be changed.'
-              : 'Could not save the project name. Try again.'}
-        </p>
-      )}
-      <div className='flex flex-wrap gap-2'>
-        <Button
-          type='button'
-          size='sm'
-          variant='outline'
-          disabled={rename.isPending}
-          onClick={() => {
-            rename.reset();
-            setDraft(undefined);
-          }}
-        >
-          Cancel
-        </Button>
-        <Button type='submit' size='sm' disabled={!draft.trim() || rename.isPending}>
-          {rename.isPending ? 'Saving…' : 'Save'}
-        </Button>
-      </div>
-    </form>
+    <Form {...form}>
+      <form
+        className='flex flex-col gap-2'
+        onSubmit={event => void form.handleSubmit(save)(event)}
+        noValidate
+      >
+        <FormField
+          control={form.control}
+          name='title'
+          render={({ field }) => (
+            <FormItem variant='light'>
+              <FormControl>
+                <Input
+                  {...field}
+                  aria-label='Project name'
+                  disabled={rename.isPending}
+                  required
+                  onChange={event => {
+                    if (rename.isError) rename.reset();
+                    field.onChange(event);
+                  }}
+                />
+              </FormControl>
+              <FormMessage role='alert' />
+            </FormItem>
+          )}
+        />
+        {saveError && (
+          <p role='alert' className='text-destructive text-sm'>
+            {saveError}
+          </p>
+        )}
+        <div className='flex flex-wrap gap-2'>
+          <Button
+            type='button'
+            size='sm'
+            variant='outline'
+            disabled={rename.isPending}
+            onClick={() => {
+              if (rename.isError) rename.reset();
+              setEditing(false);
+            }}
+          >
+            Cancel
+          </Button>
+          <Button type='submit' size='sm' disabled={!form.formState.isValid || rename.isPending}>
+            {rename.isPending ? 'Saving…' : 'Save'}
+          </Button>
+        </div>
+      </form>
+    </Form>
   );
 }
