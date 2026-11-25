@@ -10,7 +10,7 @@ export class OwoxStorageStatementException extends BusinessViolationException {
 export class OwoxStorageQueryLimitException extends BusinessViolationException {
   constructor() {
     super(
-      'OWOX Storage has used its query capacity for today. It resets at midnight Pacific Time. If you need it sooner, contact support.'
+      'OWOX Storage has used its query capacity for today. It resets at midnight Pacific Time. If you need it sooner, contact OWOX support.'
     );
   }
 }

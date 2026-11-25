@@ -93,7 +93,7 @@ export function OwoxStorageUsage({ storageId }: { storageId: string }) {
       {full && (
         <p className='bg-warning-bg text-warning rounded-md px-3 py-2 text-sm'>
           This storage is full. New connector runs are refused until you delete tables. To get more
-          space, contact support.
+          space, contact OWOX support.
         </p>
       )}
       {usage.tables.length === 0 ? (

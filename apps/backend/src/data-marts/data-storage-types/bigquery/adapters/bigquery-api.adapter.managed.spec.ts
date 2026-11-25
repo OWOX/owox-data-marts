@@ -77,7 +77,7 @@ describe('BigQueryApiAdapter (OWOX Storage)', () => {
 
   describe("Google's daily quota", () => {
     const GOOGLE_QUOTA =
-      'OWOX Storage has used its query capacity for today. It resets at midnight Pacific Time. If you need it sooner, contact support.';
+      'OWOX Storage has used its query capacity for today. It resets at midnight Pacific Time. If you need it sooner, contact OWOX support.';
     const customQuota =
       'Custom quota exceeded: Your usage exceeded the custom quota for QueryUsagePerUserPerDay, which is set by your administrator.';
     const refuseJobCreation = (error: Error) =>

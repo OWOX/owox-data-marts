@@ -25,7 +25,7 @@ const usage = (patch: Partial<OwoxStorageUsageResponseDto> = {}): OwoxStorageUsa
 });
 
 const FULL =
-  'This storage is full. New connector runs are refused until you delete tables. To get more space, contact support.';
+  'This storage is full. New connector runs are refused until you delete tables. To get more space, contact OWOX support.';
 
 // Noon UTC stays on the same calendar day in every time zone the tests may run in.
 const DATE = formatDateOnly('2026-12-05T12:00:00.000Z');

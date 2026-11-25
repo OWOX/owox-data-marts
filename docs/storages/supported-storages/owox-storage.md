@@ -46,7 +46,7 @@ The OWOX Storages of a project can scan up to 100 GiB of data a day together wit
 
 All OWOX Storages also stop for the rest of the day when together they use up their shared daily capacity.
 
-The limit resets at midnight Pacific Time. Queries that the limit stops fail with the error "OWOX Storage has used its query capacity for today. It resets at midnight Pacific Time. If you need it sooner, contact support." Connector runs that the limit stops show the error of the storage in Run History.
+The limit resets at midnight Pacific Time. Queries that the limit stops fail with the error "OWOX Storage has used its query capacity for today. It resets at midnight Pacific Time. If you need it sooner, contact OWOX support." Connector runs that the limit stops show the error of the storage in Run History.
 
 To get a higher limit, contact OWOX support.
 
@@ -54,7 +54,7 @@ To get a higher limit, contact OWOX support.
 
 Each OWOX Storage can hold up to 100 GiB. The limit is the same on every plan.
 
-When a storage reaches its limit, new connector runs are refused. They show as RESTRICTED in Run History with the message "This project's OWOX Storage has reached its size limit. Delete tables in the storage to load more data, or contact support to get a higher limit."
+When a storage reaches its limit, new connector runs are refused. They show as RESTRICTED in Run History with the message "This project's OWOX Storage has reached its size limit. Delete tables in the storage to load more data, or contact OWOX support to get a higher limit."
 
 `SELECT` queries, reports and table deletion keep working when the storage is full. Only connector runs, which load data, are refused.
 
@@ -66,7 +66,7 @@ To get a larger storage, contact OWOX support.
 
 Open **Storages**, then open the OWOX Storage. The **Usage and Tables** section of the edit sheet shows:
 
-- **Usage**: "`<used>` of `<limit>` used". A full storage also shows the warning "This storage is full. New connector runs are refused until you delete tables. To get more space, contact support."
+- **Usage**: "`<used>` of `<limit>` used". A full storage also shows the warning "This storage is full. New connector runs are refused until you delete tables. To get more space, contact OWOX support."
 - **Tables**: a list of the tables in the storage's dataset with their **Table**, **Rows** and **Size**. Sizes are read live.
 
 To delete a table, click its delete button and confirm. A connector that loads incrementally continues from its last loaded date, so running it again after a delete does not bring back the deleted rows.
