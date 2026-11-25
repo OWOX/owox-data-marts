@@ -57,7 +57,10 @@ describe('ManagedStorageService', () => {
     repository.findOne.mockResolvedValue(null);
 
     expect(await service.findByStorageId('missing')).toBeNull();
-    expect(await service.findByProjectId('missing')).toBeNull();
+    expect(await service.findByProjectAndLocation('missing', 'EU')).toBeNull();
+    expect(repository.findOne).toHaveBeenLastCalledWith({
+      where: { projectId: 'missing', location: 'EU' },
+    });
   });
 
   it('create saves the record and remove deletes by storageId', async () => {

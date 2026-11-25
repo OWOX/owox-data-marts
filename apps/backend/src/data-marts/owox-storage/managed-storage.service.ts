@@ -2,6 +2,7 @@ import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { In, IsNull, LessThan, Not, Or, Repository } from 'typeorm';
 import { ManagedStorage } from '../entities/managed-storage.entity';
+import type { OwoxStorageLocation } from './owox-storage-settings';
 
 @Injectable()
 export class ManagedStorageService {
@@ -21,8 +22,11 @@ export class ManagedStorageService {
     return new Map(rows.map(row => [row.storageId, row]));
   }
 
-  findByProjectId(projectId: string): Promise<ManagedStorage | null> {
-    return this.repository.findOne({ where: { projectId } });
+  findByProjectAndLocation(
+    projectId: string,
+    location: OwoxStorageLocation
+  ): Promise<ManagedStorage | null> {
+    return this.repository.findOne({ where: { projectId, location } });
   }
 
   findPendingDeprovision(): Promise<ManagedStorage[]> {

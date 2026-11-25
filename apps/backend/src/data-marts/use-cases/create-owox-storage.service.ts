@@ -22,7 +22,7 @@ import { describeGoogleError } from '../owox-storage/engine/bigquery-managed-sto
 import { assertProjectMembers } from '../utils/sync-owners';
 import { CreateDataStorageService } from './create-data-storage.service';
 
-const ALREADY_HAS = 'This project already has an OWOX Storage.';
+const alreadyHas = (location: string) => `This project already has an OWOX Storage in ${location}.`;
 
 @Injectable()
 export class CreateOwoxStorageService {
@@ -45,8 +45,10 @@ export class CreateOwoxStorageService {
     }
     this.configService.getSettings();
 
-    if (await this.managedStorageService.findByProjectId(command.projectId)) {
-      throw new BusinessViolationException(ALREADY_HAS);
+    if (
+      await this.managedStorageService.findByProjectAndLocation(command.projectId, command.location)
+    ) {
+      throw new BusinessViolationException(alreadyHas(command.location));
     }
 
     // Before provisioning: a bad owner would otherwise fail the save and cost a full provision/deprovision cycle.
@@ -74,7 +76,7 @@ export class CreateOwoxStorageService {
         );
       }
       if (isUniqueConstraintViolation(error)) {
-        throw new BusinessViolationException(ALREADY_HAS);
+        throw new BusinessViolationException(alreadyHas(command.location));
       }
       throw error;
     }

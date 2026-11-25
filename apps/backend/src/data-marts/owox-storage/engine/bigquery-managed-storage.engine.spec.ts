@@ -6,8 +6,8 @@ import type { OwoxStorageProvisioningClient } from './owox-storage-provisioning.
 const EMAIL = 'owox-st-abcdef012345@owox-storage-sa.iam.gserviceaccount.com';
 const CREATED = {
   gcpProjectId: 'owox-gcp',
-  datasetId: 'owox_abcdef012345',
-  internalDatasetId: 'owox_abcdef012345_internal',
+  datasetId: 'owox_eu_abcdef012345',
+  internalDatasetId: 'owox_eu_abcdef012345_internal',
   location: 'EU' as const,
   serviceAccountEmail: EMAIL,
 };
@@ -72,11 +72,18 @@ function setup() {
 describe('BigQueryManagedStorageEngine', () => {
   afterEach(() => jest.restoreAllMocks());
 
+  it('names the dataset after its location', async () => {
+    const { engine, client } = setup();
+    await engine.provision({ projectId: 'p1', location: 'US' });
+
+    expect(client.provision).toHaveBeenCalledWith('p1', 'owox_us_abcdef012345', 'US');
+  });
+
   it('asks Integrated Backend for the datasets with a new dataset id', async () => {
     const { engine, client, identity, getAccessToken, sleep } = setup();
     const result = await engine.provision({ projectId: 'p1', location: 'EU' });
 
-    expect(client.provision).toHaveBeenCalledWith('p1', 'owox_abcdef012345', 'EU');
+    expect(client.provision).toHaveBeenCalledWith('p1', 'owox_eu_abcdef012345', 'EU');
     expect(result).toEqual({ engine: 'bigquery', projectId: 'p1', ...CREATED });
     expect(identity.impersonate).toHaveBeenCalledWith(EMAIL);
     expect(getAccessToken).toHaveBeenCalledTimes(1);
@@ -113,7 +120,7 @@ describe('BigQueryManagedStorageEngine', () => {
       expect(waited).toBeGreaterThanOrEqual(30_000);
       expect(getAccessToken).toHaveBeenCalledTimes(sleep.mock.calls.length + 1);
       expect(warn).toHaveBeenCalledTimes(1);
-      expect(warn.mock.calls.flat().join(' ')).toContain('owox_abcdef012345');
+      expect(warn.mock.calls.flat().join(' ')).toContain('owox_eu_abcdef012345');
       expect(warn.mock.calls.flat().join(' ')).not.toContain(EMAIL);
       expect(client.deprovision).not.toHaveBeenCalled();
     });
@@ -151,7 +158,7 @@ describe('BigQueryManagedStorageEngine', () => {
 
     expect(error).toBeInstanceOf(OwoxStorageProvisioningException);
     expect((error as Error).cause).toBe(cause);
-    expect(client.deprovision).toHaveBeenCalledWith('p1', 'owox_abcdef012345');
+    expect(client.deprovision).toHaveBeenCalledWith('p1', 'owox_eu_abcdef012345');
     expect(logged.mock.calls.flat().join(' ')).not.toContain(EMAIL);
   });
 
@@ -173,8 +180,8 @@ describe('BigQueryManagedStorageEngine', () => {
     await engine.restore(stored, 'p1', true);
 
     expect(identity.forget).toHaveBeenCalledWith(EMAIL);
-    expect(client.deprovision).toHaveBeenCalledWith('p1', 'owox_abcdef012345');
-    expect(client.provision).toHaveBeenCalledWith('p1', 'owox_abcdef012345', 'EU');
+    expect(client.deprovision).toHaveBeenCalledWith('p1', 'owox_eu_abcdef012345');
+    expect(client.provision).toHaveBeenCalledWith('p1', 'owox_eu_abcdef012345', 'EU');
     expect(identity.impersonate).toHaveBeenCalledWith(EMAIL);
     const order = [
       identity.forget,
@@ -191,7 +198,7 @@ describe('BigQueryManagedStorageEngine', () => {
     await engine.restore(stored, 'p1', false);
 
     expect(client.deprovision).not.toHaveBeenCalled();
-    expect(client.provision).toHaveBeenCalledWith('p1', 'owox_abcdef012345', 'EU');
+    expect(client.provision).toHaveBeenCalledWith('p1', 'owox_eu_abcdef012345', 'EU');
   });
 
   it('restore waits until ODM can use the recreated account', async () => {
@@ -212,7 +219,7 @@ describe('BigQueryManagedStorageEngine', () => {
     await expect(engine.restore(stored, 'p1', true)).rejects.toThrow('503');
     expect(client.provision).not.toHaveBeenCalled();
     expect(identity.impersonate).not.toHaveBeenCalled();
-    expect(logged.mock.calls.flat().join(' ')).toContain('owox_abcdef012345 restore failed');
+    expect(logged.mock.calls.flat().join(' ')).toContain('owox_eu_abcdef012345 restore failed');
   });
 
   it('restore refuses another service account than the stored one', async () => {
@@ -229,7 +236,7 @@ describe('BigQueryManagedStorageEngine', () => {
     await engine.deprovision(stored);
 
     expect(identity.forget).toHaveBeenCalledWith(EMAIL);
-    expect(client.deprovision).toHaveBeenCalledWith('p1', 'owox_abcdef012345');
+    expect(client.deprovision).toHaveBeenCalledWith('p1', 'owox_eu_abcdef012345');
   });
 
   it('deprovision rejects when Integrated Backend fails', async () => {

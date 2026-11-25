@@ -23,8 +23,8 @@ Click **Save**. OWOX creates the storage and its BigQuery dataset.
 
 ## Who can create one
 
-- Each project can have one OWOX Storage.
-- If the project already has one, the error is "This project already has an OWOX Storage."
+- Each project can have one OWOX Storage in each location: one in `US` and one in `EU`.
+- If the project already has one in the selected location, the error names that location, for example "This project already has an OWOX Storage in EU."
 
 ## No Credential
 

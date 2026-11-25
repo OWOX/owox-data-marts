@@ -35,7 +35,7 @@ describe('CreateOwoxStorageService', () => {
   function setup() {
     const configService = { getSettings: jest.fn() };
     const managed = {
-      findByProjectId: jest.fn().mockResolvedValue(null),
+      findByProjectAndLocation: jest.fn().mockResolvedValue(null),
       create: jest.fn().mockResolvedValue({}),
     };
     const engine = {
@@ -128,12 +128,13 @@ describe('CreateOwoxStorageService', () => {
     expect(s.engine.provision).not.toHaveBeenCalled();
   });
 
-  it('refuses a second OWOX Storage before provisioning', async () => {
+  it('refuses a second OWOX Storage in the same location before provisioning', async () => {
     const s = setup();
-    s.managed.findByProjectId.mockResolvedValue({ storageId: 'x' });
+    s.managed.findByProjectAndLocation.mockResolvedValue({ storageId: 'x' });
     await expect(s.service.run(command)).rejects.toThrow(
-      'This project already has an OWOX Storage.'
+      'This project already has an OWOX Storage in EU.'
     );
+    expect(s.managed.findByProjectAndLocation).toHaveBeenCalledWith('p1', 'EU');
     expect(s.engine.provision).not.toHaveBeenCalled();
   });
 
@@ -179,7 +180,7 @@ describe('CreateOwoxStorageService', () => {
       new QueryFailedError('INSERT', [], { code: 'ER_DUP_ENTRY' } as never)
     );
     await expect(s.service.run(command)).rejects.toThrow(
-      'This project already has an OWOX Storage.'
+      'This project already has an OWOX Storage in EU.'
     );
     expect(s.engine.deprovision).toHaveBeenCalledWith(provisioned);
   });

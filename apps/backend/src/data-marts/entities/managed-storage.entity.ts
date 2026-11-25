@@ -7,12 +7,13 @@ const bytes = {
   from: (value: string | number | null) => (value == null ? null : Number(value)),
 };
 
+// One OWOX Storage per project in each location.
 @Entity('managed_storage')
+@Index('UQ_managed_storage_projectId_location', ['projectId', 'location'], { unique: true })
 export class ManagedStorage {
   @PrimaryColumn({ type: 'varchar', length: 36 })
   storageId: string;
 
-  @Index('UQ_managed_storage_projectId', { unique: true })
   @Column({ type: 'varchar', length: 255 })
   projectId: string;
 

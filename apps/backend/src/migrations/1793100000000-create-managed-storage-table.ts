@@ -30,8 +30,8 @@ export class CreateManagedStorageTable1793100000000 implements MigrationInterfac
         ],
         indices: [
           new TableIndex({
-            name: 'UQ_managed_storage_projectId',
-            columnNames: ['projectId'],
+            name: 'UQ_managed_storage_projectId_location',
+            columnNames: ['projectId', 'location'],
             isUnique: true,
           }),
         ],

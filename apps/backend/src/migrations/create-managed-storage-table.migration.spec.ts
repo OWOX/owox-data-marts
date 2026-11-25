@@ -18,7 +18,7 @@ describe('CreateManagedStorageTable migration', () => {
 
   afterEach(async () => dataSource.destroy());
 
-  it('creates managed_storage with a unique projectId', async () => {
+  it('creates managed_storage with one storage per project and location', async () => {
     const runner = dataSource.createQueryRunner();
     const migration = new CreateManagedStorageTable1793100000000();
 
@@ -44,9 +44,11 @@ describe('CreateManagedStorageTable migration', () => {
         'modifiedAt',
       ].sort()
     );
-    const unique = table?.indices.find(index => index.name === 'UQ_managed_storage_projectId');
+    const unique = table?.indices.find(
+      index => index.name === 'UQ_managed_storage_projectId_location'
+    );
     expect(unique?.isUnique).toBe(true);
-    expect(unique?.columnNames).toEqual(['projectId']);
+    expect(unique?.columnNames).toEqual(['projectId', 'location']);
     expect(table?.foreignKeys.map(key => key.referencedTableName)).toEqual(['data_storage']);
   });
 

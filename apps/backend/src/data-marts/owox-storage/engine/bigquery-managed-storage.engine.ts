@@ -55,7 +55,8 @@ export class BigQueryManagedStorageEngine implements ManagedStorageEngine {
     projectId: string;
     location: OwoxStorageLocation;
   }): Promise<ProvisionedManagedStorage> {
-    const datasetId = `owox_${this.newShortId()}`;
+    // The location in the name keeps the storages of one project apart in the console.
+    const datasetId = `owox_${input.location.toLowerCase()}_${this.newShortId()}`;
     let created: IbProvisionedStorage;
     try {
       created = await this.client.provision(input.projectId, datasetId, input.location);
