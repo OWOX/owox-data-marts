@@ -129,6 +129,8 @@ const WARNING_MESSAGES: Readonly<Record<string, string>> = {
     'Rows in a joined Data Mart with no match are excluded. The result can differ from the total for that Data Mart.',
   FORMULA_WAREHOUSE_CHECK_SKIPPED:
     'The schema was saved without checking formulas against the warehouse. Check the Storage connection and Credential. Then save again.',
+  FORMULA_TYPE_SET_FROM_RESULT:
+    'A calculated field type did not match its formula result. OWOX changed the type to the result type.',
 };
 
 export function safeMcpSchemaWarnings(warnings: readonly FormulaViolation[]) {

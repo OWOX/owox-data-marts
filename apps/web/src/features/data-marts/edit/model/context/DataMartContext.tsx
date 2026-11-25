@@ -704,7 +704,7 @@ export function DataMartProvider({ children }: DataMartProviderProps) {
           action: 'UpdateSchema',
           label: 'Manual',
         });
-        return { warnings: response.warnings ?? [] };
+        return { warnings: response.warnings ?? [], schema: dataMart.schema ?? undefined };
       } catch (error) {
         const apiError = extractApiError(error);
         dispatch({

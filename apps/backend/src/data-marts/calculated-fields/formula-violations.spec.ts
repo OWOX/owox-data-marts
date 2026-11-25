@@ -60,6 +60,7 @@ const built: Record<string, FormulaViolation> = {
   warehouseRejectedAsSet: FormulaViolations.warehouseRejectedAsSet('ctr', 'alias collision'),
   otherFieldErrorsTruncated: FormulaViolations.otherFieldErrorsTruncated('ctr', 12),
   warehouseCheckSkipped: FormulaViolations.warehouseCheckSkipped(['ctr', 'roas']),
+  typeSetFromResult: FormulaViolations.typeSetFromResult('ctr', 'STRING', 'BOOLEAN'),
 };
 
 const entries = Object.entries(built);

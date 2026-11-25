@@ -1778,6 +1778,53 @@ describe('CalculatedFieldValidatorService', () => {
       expect(memos[2]).toBe(memos[0]);
     });
 
+    describe('result types', () => {
+      const validateOne = (v: CalculatedFieldValidatorService) =>
+        v.validate(oneMetricSchema, DataStorageType.GOOGLE_BIGQUERY, buildCtx());
+
+      it('returns the types of a passed dry run and leaves the field type alone', async () => {
+        const { validator: v, dryRun } = buildValidator();
+        const types = new Map([['a', 'BOOLEAN']]);
+        dryRun.execute.mockResolvedValue(SqlDryRunResult.success(0, types));
+
+        const result = await validateOne(v);
+
+        expect(result.warehouseValidation).toBe('passed');
+        expect(result.resultTypes).toEqual(types);
+        expect(oneMetricSchema.fields.find(f => f.name === 'a')?.type).toBe('FLOAT');
+      });
+
+      it('returns no types when the dry run carried none', async () => {
+        const { validator: v, dryRun } = buildValidator();
+        dryRun.execute.mockResolvedValue(SqlDryRunResult.success());
+
+        const result = await validateOne(v);
+
+        expect(result.warehouseValidation).toBe('passed');
+        expect(result.resultTypes).toBeUndefined();
+      });
+
+      it('returns no types when the warehouse rejects the formula', async () => {
+        const { validator: v, dryRun } = buildValidator();
+        dryRun.execute.mockResolvedValue(SqlDryRunResult.failed('Unrecognized name: x'));
+
+        const result = await validateOne(v);
+
+        expect(result.errors.length).toBeGreaterThan(0);
+        expect(result.resultTypes).toBeUndefined();
+      });
+
+      it('returns no types when the warehouse is unreachable', async () => {
+        const { validator: v, dryRun } = buildValidator();
+        dryRun.execute.mockResolvedValue(SqlDryRunResult.failed('read ECONNRESET'));
+
+        const result = await validateOne(v);
+
+        expect(result.warehouseValidation).toBe('skipped');
+        expect(result.resultTypes).toBeUndefined();
+      });
+    });
+
     it('saves with a skipped stamp when the warehouse is unreachable', async () => {
       const { validator: v, dryRun } = buildValidator();
       dryRun.execute.mockRejectedValue(new Error('ETIMEDOUT'));
@@ -2688,6 +2735,32 @@ describe('CalculatedFieldValidatorService', () => {
       expect(result.warehouseValidation).toBe('passed');
     });
 
+    it('returns the result types of both level batches', async () => {
+      const { validator: v, dryRun } = buildValidator();
+      dryRun.execute
+        .mockResolvedValueOnce(
+          SqlDryRunResult.success(0, new Map([['joined_orders_amount', 'STRING']]))
+        )
+        .mockResolvedValueOnce(
+          SqlDryRunResult.success(0, new Map([['str_field_not_agg', 'BOOLEAN']]))
+        );
+      const schema = reportedSchema();
+
+      const result = await v.validate(
+        schema,
+        DataStorageType.GOOGLE_BIGQUERY,
+        ctx(schema),
+        joinTree
+      );
+
+      expect(result.resultTypes).toEqual(
+        new Map([
+          ['joined_orders_amount', 'STRING'],
+          ['str_field_not_agg', 'BOOLEAN'],
+        ])
+      );
+    });
+
     it('dry-runs each level as its own composed query — the joined one blended, the row-level one flat', async () => {
       const { validator: v, dryRun, resolveBlendingDecision } = buildValidator();
       const schema = reportedSchema();
@@ -2702,6 +2775,8 @@ describe('CalculatedFieldValidatorService', () => {
       // full builder against the Data Mart's own table, not a synthetic `SELECT <fragment>`.
       const flat = submitted.find(sql => sql !== BLENDED_SQL)!;
       expect(flat).toContain("IF(`cost` > 5, 'asd', 'bsd') AS `str_field_not_agg`");
+      // The dry run reads the formula's own type, so nothing casts the projection.
+      expect(flat).not.toContain('CAST(');
       expect(flat).toContain('FROM `proj`.`ds`.`tbl`');
       expect(flat).not.toContain('joined_orders_amount');
 

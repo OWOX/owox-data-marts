@@ -786,6 +786,31 @@ describe('DataMartSchemaSettings calculated-field save feedback', () => {
     });
   });
 
+  it('guardSave keeps the type the server saved, not the type that was sent', async () => {
+    const sent = createSchema(false);
+    const context = createContext('data-mart-a', sent);
+    const savedByServer = createSchema(false);
+    savedByServer.fields[0].type = BigQueryFieldType.BOOLEAN;
+    context.updateDataMartSchema = vi
+      .fn()
+      .mockResolvedValue({ warnings: [], schema: savedByServer });
+    const registerSchemaGuard = vi.fn();
+    context.registerSchemaGuard = registerSchemaGuard;
+    testState.outletContext = context;
+
+    render(<DataMartSchemaSettings definitionType={DataMartDefinitionType.SQL} />);
+
+    const registration = registerSchemaGuard.mock.calls.at(-1)?.[0] as {
+      save: () => Promise<DataMartSchema>;
+    };
+    let resolved: DataMartSchema | undefined;
+    await act(async () => {
+      resolved = await registration.save();
+    });
+
+    expect(resolved?.fields[0].type).toBe(BigQueryFieldType.BOOLEAN);
+  });
+
   it('guardDiscard (the unsaved-changes guard) clears a previous save error banner, like Discard', async () => {
     const context = createContext('data-mart-a', createSchema(false));
     context.updateDataMartSchema = vi.fn().mockRejectedValue({

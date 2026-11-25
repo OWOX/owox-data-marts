@@ -3393,8 +3393,8 @@ describe('AbstractBlendedQueryBuilder — a row-level calculated field on a join
     it('compares the metric filter against the aggregate the outer SELECT prints', () => {
       const numericText: CalculatedFieldPlan = {
         ...sessionKey,
-        // Declared FLOAT over a text formula: legal (a declaration is never validated against the
-        // formula) and the shape that makes the cast observable.
+        // Declared FLOAT over a text formula: legal on every storage (a BigQuery save also keeps
+        // FLOAT over text) and the shape that makes the cast observable.
         type: 'FLOAT',
         isAggregatedByReport: true,
       };

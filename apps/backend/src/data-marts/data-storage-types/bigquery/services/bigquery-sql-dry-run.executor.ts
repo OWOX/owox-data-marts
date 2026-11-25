@@ -1,3 +1,4 @@
+import { TableSchema } from '@google-cloud/bigquery';
 import { Injectable, Logger } from '@nestjs/common';
 import { BusinessViolationException } from '../../../../common/exceptions/business-violation.exception';
 import { SqlDryRunResult } from '../../../dto/domain/sql-dry-run-result.dto';
@@ -8,6 +9,20 @@ import { DataStorageCredentials } from '../../data-storage-credentials.type';
 import { DataStorageType } from '../../enums/data-storage-type.enum';
 import { SqlDryRunExecutor } from '../../interfaces/sql-dry-run-executor.interface';
 import { BigQueryApiAdapterFactory } from '../adapters/bigquery-api-adapter.factory';
+import { BigQueryFieldType, parseBigQueryFieldType } from '../enums/bigquery-field-type.enum';
+
+/** Maps top-level scalar result columns to their BigQuery type; skips repeated and record columns. */
+export function bigQueryColumnTypes(schema: TableSchema | undefined): ReadonlyMap<string, string> {
+  const types = new Map<string, string>();
+  for (const field of schema?.fields ?? []) {
+    if (!field.name || field.mode === 'REPEATED' || !field.type) continue;
+    const type = parseBigQueryFieldType(field.type);
+    if (type && type !== BigQueryFieldType.RECORD && type !== BigQueryFieldType.STRUCT) {
+      types.set(field.name, type);
+    }
+  }
+  return types;
+}
 
 @Injectable()
 export class BigquerySqlDryRunExecutor implements SqlDryRunExecutor {
@@ -34,7 +49,10 @@ export class BigquerySqlDryRunExecutor implements SqlDryRunExecutor {
     try {
       const adapter = this.adapterFactory.create(dataStorageCredentials, dataStorageConfig);
       const result = await adapter.executeDryRunQuery(sql ?? '');
-      return SqlDryRunResult.success(result.totalBytesProcessed);
+      return SqlDryRunResult.success(
+        result.totalBytesProcessed,
+        bigQueryColumnTypes(result.schema)
+      );
     } catch (error) {
       this.logger.debug('Dry run failed', error);
       return SqlDryRunResult.failed(error.message);

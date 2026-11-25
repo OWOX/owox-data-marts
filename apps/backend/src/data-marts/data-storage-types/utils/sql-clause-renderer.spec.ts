@@ -1901,9 +1901,10 @@ describe('SqlClauseRenderer', () => {
     });
   });
 
-  // A calculated field's declared type is the analyst's free choice and is never validated against
-  // the formula, so it reaches the renderer as a name from that DIALECT's field-type
-  // vocabulary — which is not always a SQL type name. The live probe substituted the declared name
+  // A calculated field's declared type is the analyst's free choice. Only a BigQuery save checks it
+  // against the formula, and then only to retype a new or changed field. So it reaches the
+  // renderer as a name from that DIALECT's field-type vocabulary, which is not always a SQL type
+  // name. The live probe substituted the declared name
   // verbatim and BigQuery answered `Type not found: FLOAT at [2:51]`, its SQL spelling being
   // FLOAT64.
   describe('castTypeForDeclaredType — the declared type in each dialect own SQL spelling', () => {
