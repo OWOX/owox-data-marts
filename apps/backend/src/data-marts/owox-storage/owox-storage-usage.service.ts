@@ -35,12 +35,13 @@ export class OwoxStorageUsageService {
     private readonly config: OwoxStorageConfigService
   ) {}
 
-  async getUsage(record: ManagedStorage): Promise<OwoxStorageUsage> {
+  /** `fresh` skips the cached table list, for an explicit refresh. */
+  async getUsage(record: ManagedStorage, fresh = false): Promise<OwoxStorageUsage> {
     const limitBytes = this.limitFor(record);
     if (record.deprovisionedAt) {
       return { usedBytes: 0, limitBytes, tables: [], deletedAt: record.deprovisionedAt };
     }
-    const tables = await this.listTables(record, false);
+    const tables = await this.listTables(record, fresh);
     return { usedBytes: sumSizes(tables), limitBytes, tables, deletedAt: null };
   }
 

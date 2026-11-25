@@ -52,7 +52,17 @@ describe('GetOwoxStorageUsageService', () => {
     const { service, usageService } = makeService();
 
     await expect(service.run(command)).resolves.toEqual(usage);
-    expect(usageService.getUsage).toHaveBeenCalledWith(record);
+    expect(usageService.getUsage).toHaveBeenCalledWith(record, false);
+  });
+
+  it('reads the usage fresh when the command asks for it', async () => {
+    const { service, usageService } = makeService();
+
+    await service.run(
+      new GetOwoxStorageUsageCommand('storage-1', 'proj-1', 'user-1', ['viewer'], true)
+    );
+
+    expect(usageService.getUsage).toHaveBeenCalledWith(record, true);
   });
 
   it('refuses a storage of another project', async () => {

@@ -5,6 +5,7 @@ import {
   Get,
   HttpCode,
   Param,
+  ParseBoolPipe,
   ParseEnumPipe,
   Post,
   Put,
@@ -181,9 +182,10 @@ export class DataStorageController {
   @GetOwoxStorageUsageSpec()
   async getOwoxStorageUsage(
     @AuthContext() context: AuthorizationContext,
-    @Param('id') id: string
+    @Param('id') id: string,
+    @Query('fresh', new ParseBoolPipe({ optional: true })) fresh = false
   ): Promise<OwoxStorageUsageResponseApiDto> {
-    const command = this.mapper.toGetOwoxStorageUsageCommand(id, context);
+    const command = this.mapper.toGetOwoxStorageUsageCommand(id, context, fresh);
     return this.getOwoxStorageUsageService.run(command);
   }
 

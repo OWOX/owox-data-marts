@@ -45,7 +45,7 @@ export class GetOwoxStorageUsageService {
     }
 
     try {
-      return await this.usageService.getUsage(record);
+      return await this.usageService.getUsage(record, command.fresh);
     } catch (error) {
       this.logger.error(
         `OWOX Storage ${record.datasetId} usage read failed${describeGoogleError(error)}`

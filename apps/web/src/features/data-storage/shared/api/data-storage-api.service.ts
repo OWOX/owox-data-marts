@@ -80,11 +80,19 @@ export class DataStorageApiService extends ApiService {
     } as AxiosRequestConfig);
   }
 
-  async getOwoxStorageUsage(storageId: string): Promise<OwoxStorageUsageResponseDto> {
+  /** `fresh` reads the table list again instead of the list the backend caches for 60 s. */
+  async getOwoxStorageUsage(
+    storageId: string,
+    fresh = false
+  ): Promise<OwoxStorageUsageResponseDto> {
     // The usage panel shows its own error with a retry.
-    return this.get<OwoxStorageUsageResponseDto>(`/${storageId}/owox-storage`, undefined, {
-      skipErrorToast: true,
-    } as AxiosRequestConfig);
+    return this.get<OwoxStorageUsageResponseDto>(
+      `/${storageId}/owox-storage`,
+      fresh ? { fresh: true } : undefined,
+      {
+        skipErrorToast: true,
+      } as AxiosRequestConfig
+    );
   }
 
   async deleteOwoxStorageTable(storageId: string, tableName: string): Promise<void> {

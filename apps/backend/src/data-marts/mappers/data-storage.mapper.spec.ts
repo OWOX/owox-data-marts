@@ -319,4 +319,18 @@ describe('DataStorageMapper', () => {
       expect(response.databasePath).toBeUndefined();
     });
   });
+
+  describe('toGetOwoxStorageUsageCommand', () => {
+    const context = { projectId: 'proj-1', userId: 'user-1', roles: ['viewer'] };
+
+    it('reads the cached usage by default and a fresh one on request', () => {
+      expect(
+        mapper.toGetOwoxStorageUsageCommand('storage-1', context as AuthorizationContext).fresh
+      ).toBe(false);
+      expect(
+        mapper.toGetOwoxStorageUsageCommand('storage-1', context as AuthorizationContext, true)
+          .fresh
+      ).toBe(true);
+    });
+  });
 });

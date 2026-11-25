@@ -12,18 +12,22 @@ export function useOwoxStorageUsage(storageId: string) {
   const [restoring, setRestoring] = useState(false);
 
   // Keeps the usage on screen while it reloads; only a failed load clears it.
-  const load = useCallback(async () => {
-    setFailed(false);
-    setLoading(true);
-    try {
-      setUsage(await dataStorageApiService.getOwoxStorageUsage(storageId));
-    } catch {
-      setUsage(null);
-      setFailed(true);
-    } finally {
-      setLoading(false);
-    }
-  }, [storageId]);
+  // `fresh` skips the table list the backend caches for 60 s (the Refresh button).
+  const load = useCallback(
+    async (fresh = false) => {
+      setFailed(false);
+      setLoading(true);
+      try {
+        setUsage(await dataStorageApiService.getOwoxStorageUsage(storageId, fresh));
+      } catch {
+        setUsage(null);
+        setFailed(true);
+      } finally {
+        setLoading(false);
+      }
+    },
+    [storageId]
+  );
 
   useEffect(() => {
     void load();

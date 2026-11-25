@@ -84,7 +84,7 @@ export function OwoxStorageUsage({ storageId }: { storageId: string }) {
           variant='outline'
           size='sm'
           disabled={loading}
-          onClick={() => void load()}
+          onClick={() => void load(true)}
         >
           <RefreshCw className={cn('h-4 w-4', loading && 'animate-spin')} aria-hidden='true' />
           <span>Refresh</span>

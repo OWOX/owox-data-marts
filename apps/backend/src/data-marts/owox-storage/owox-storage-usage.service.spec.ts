@@ -55,6 +55,20 @@ describe('OwoxStorageUsageService', () => {
     });
   });
 
+  describe('fresh read', () => {
+    it('lists tables again on a fresh read and caches the new list', async () => {
+      await service.getUsage(record);
+      tables(100, 200, 300);
+
+      const usage = await service.getUsage(record, true);
+      expect(usage.usedBytes).toBe(600);
+      expect(engine.listTables).toHaveBeenCalledTimes(2);
+
+      await service.getUsage(record);
+      expect(engine.listTables).toHaveBeenCalledTimes(2);
+    });
+  });
+
   describe('size gate', () => {
     beforeEach(() => jest.useFakeTimers());
     afterEach(() => jest.useRealTimers());

@@ -106,6 +106,12 @@ export function GetOwoxStorageUsageSpec() {
   return applyDecorators(
     ApiOperation({ summary: 'Get OWOX Storage usage and its tables' }),
     ApiParam({ name: 'id', description: 'Data Storage ID' }),
+    ApiQuery({
+      name: 'fresh',
+      required: false,
+      schema: { type: 'boolean', default: false },
+      description: 'Read the table list again instead of the list cached for up to 60 seconds.',
+    }),
     ApiOkResponse({ type: OwoxStorageUsageResponseApiDto })
   );
 }

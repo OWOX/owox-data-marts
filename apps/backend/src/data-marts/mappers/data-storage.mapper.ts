@@ -254,13 +254,15 @@ export class DataStorageMapper {
 
   toGetOwoxStorageUsageCommand(
     id: string,
-    context: AuthorizationContext
+    context: AuthorizationContext,
+    fresh = false
   ): GetOwoxStorageUsageCommand {
     return new GetOwoxStorageUsageCommand(
       id,
       context.projectId,
       context.userId,
-      context.roles ?? []
+      context.roles ?? [],
+      fresh
     );
   }
 

@@ -74,6 +74,8 @@ describe('OwoxStorageUsage', () => {
     expect(await screen.findByText('holidays')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Refresh' })).toBeEnabled();
     expect(getOwoxStorageUsage).toHaveBeenCalledTimes(2);
+    expect(getOwoxStorageUsage).toHaveBeenNthCalledWith(1, 's1', false);
+    expect(getOwoxStorageUsage).toHaveBeenNthCalledWith(2, 's1', true);
   });
 
   it('shows a larger limit set by support', async () => {
