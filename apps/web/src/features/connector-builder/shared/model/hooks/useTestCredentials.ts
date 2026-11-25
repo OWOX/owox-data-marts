@@ -1,4 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
+import type { AxiosError } from 'axios';
+import { extractApiError } from '../../../../../app/api/extract-api-error.util';
+import { formatValidationErrors } from '../../../../../shared/utils/showApiErrorToast';
 import { ConnectorBuilderApiService } from '../../api/connector-builder-api.service';
 import type {
   CredentialRequirementDto,
@@ -16,10 +19,25 @@ interface Listed {
 
 export type TestCredentials =
   | { status: 'loading' }
-  | { status: 'error' }
+  | { status: 'error'; reason?: string }
   | ({ status: 'ready' } & Listed);
 
 const PAUSE_MS = 400;
+
+/** The server's message for a refusal that a retry cannot change: a 4xx other than 408 and 429. */
+export function credentialsLoadReason(error: unknown): string | undefined {
+  const status = (error as AxiosError | undefined)?.response?.status;
+  if (status === undefined || status < 400 || status > 499 || status === 408 || status === 429) {
+    return undefined;
+  }
+  const apiError = extractApiError(error);
+  // A proxy can send a non-string message, and trim() on it would throw in the rejection handler.
+  const message: unknown = apiError.message;
+  if (typeof message !== 'string' || !message.trim()) return undefined;
+  // A failed request validation says only "Request validation failed"; its details name the cause.
+  const details = formatValidationErrors(apiError.details?.errors);
+  return details && !message.includes(details) ? `${message.trim()}. ${details}` : message.trim();
+}
 
 /** The Credentials that fit the manifest being tested and what a new one must hold, asked once typing pauses. */
 export function useTestCredentials(
@@ -31,7 +49,7 @@ export function useTestCredentials(
   const [pausedKey, setPausedKey] = useState<string | null>(null);
   const [attempt, setAttempt] = useState(0);
   const [settled, setSettled] = useState<
-    ({ key: string; attempt: number } & ({ error: true } | Listed)) | null
+    ({ key: string; attempt: number } & ({ error: true; reason?: string } | Listed)) | null
   >(null);
 
   useEffect(() => {
@@ -68,8 +86,14 @@ export function useTestCredentials(
             requirement,
           });
       },
-      () => {
-        if (!cancelled) setSettled({ key: pausedKey, attempt, error: true });
+      (error: unknown) => {
+        if (!cancelled)
+          setSettled({
+            key: pausedKey,
+            attempt,
+            error: true,
+            reason: credentialsLoadReason(error),
+          });
       }
     );
     return () => {
@@ -92,7 +116,7 @@ export function useTestCredentials(
   if (key && settled?.key === key) {
     state =
       'error' in settled
-        ? { status: 'error' }
+        ? { status: 'error', ...(settled.reason && { reason: settled.reason }) }
         : {
             status: 'ready',
             ids: settled.ids,

@@ -1,6 +1,7 @@
 import { useContext, useState, type ReactNode } from 'react';
 import { MemoryRouter } from 'react-router';
 import { afterEach, beforeEach, describe, it, expect, vi } from 'vitest';
+import { AxiosError, type AxiosResponse } from 'axios';
 import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { ConfigurationStep } from './ConfigurationStep';
 import type { ConnectorSpecificationResponseApiDto } from '../../../../shared/api';
@@ -1745,6 +1746,65 @@ describe('ConfigurationStep Credential', () => {
       expect(screen.queryByRole('alert')).not.toBeInTheDocument();
     });
 
+    const refused = (status: number, message: string) =>
+      new AxiosError(`Request failed with status code ${status}`, undefined, undefined, undefined, {
+        status,
+        data: { message },
+      } as AxiosResponse);
+
+    it('shows why the server refused the requirement, and offers to try again', async () => {
+      builderApi.credentialRequirement
+        .mockRejectedValueOnce(refused(404, "Custom connector 'MyApi' not found"))
+        .mockImplementation(requirementFor);
+      builderApi.fittingCredentials.mockResolvedValue([]);
+
+      render(
+        inDataMart(
+          <Harness
+            connectorItem={customConnector}
+            specification={customSpecification}
+            initial={{ _id: 'cfg-1', Mode: 'oauth' }}
+          />
+        )
+      );
+
+      const alert = await screen.findByRole('alert');
+      expect(within(alert).getByText('Could not load Credentials.')).toBeInTheDocument();
+      expect(within(alert).getByText("Custom connector 'MyApi' not found")).toBeInTheDocument();
+
+      fireEvent.click(within(alert).getByRole('button', { name: 'Try again' }));
+
+      expect(await screen.findByRole('combobox', { name: 'Credential' })).toBeInTheDocument();
+    });
+
+    it('shows why the server refused the fitting Credentials, and offers to try again', async () => {
+      const reason =
+        'Invalid manifest: ManifestParser: node "items" uniqueKeys names "iid", which is not one of its fields';
+      builderApi.credentialRequirement.mockImplementation(requirementFor);
+      builderApi.fittingCredentials
+        .mockRejectedValueOnce(refused(400, reason))
+        .mockResolvedValue([]);
+
+      render(
+        inDataMart(
+          <Harness
+            connectorItem={customConnector}
+            specification={customSpecification}
+            initial={{ _id: 'cfg-1', Mode: 'oauth' }}
+          />
+        )
+      );
+
+      const alert = await screen.findByRole('alert');
+      expect(within(alert).getByText('Could not load Credentials.')).toBeInTheDocument();
+      expect(within(alert).getByText(reason)).toBeInTheDocument();
+
+      fireEvent.click(within(alert).getByRole('button', { name: 'Try again' }));
+
+      expect(await screen.findByRole('combobox', { name: 'Credential' })).toBeInTheDocument();
+      expect(builderApi.fittingCredentials).toHaveBeenCalledTimes(2);
+    });
+
     it('offers to try again when the fitting Credentials fail to load', async () => {
       builderApi.credentialRequirement.mockImplementation(requirementFor);
       builderApi.fittingCredentials
@@ -2198,12 +2258,13 @@ describe('ConfigurationStep Credential', () => {
         expect(toastMock).toHaveBeenCalledWith(
           'Copied the settings of Other API. Its Credential does not fit this connector version: select a Credential.'
         );
-      });
-      expect(onChange).toHaveBeenLastCalledWith({
-        _id: 'cfg-1',
-        Mode: 'oauth',
-        Account: 'acc-7',
-        _credential_id: 'cc-fit',
+        // onChange comes from an effect after the toast, so it is waited for too.
+        expect(onChange).toHaveBeenLastCalledWith({
+          _id: 'cfg-1',
+          Mode: 'oauth',
+          Account: 'acc-7',
+          _credential_id: 'cc-fit',
+        });
       });
     });
 
