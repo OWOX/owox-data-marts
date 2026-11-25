@@ -16,6 +16,7 @@ import { useAuth } from '../../features/idp';
 import { AuthStatus, type Role } from '../../features/idp/types';
 import { signIn } from '../../features/idp/services';
 import { getRoleDisplayName } from '../../features/idp/utils/role-display-name';
+import { useCloudProjectCreation } from '../../features/project-settings/management/useCloudProjectCreation';
 import { useRequestAccessContext } from '../../features/user-provisioning/hooks/useRequestAccessContext';
 import {
   type RequestAccessResult,
@@ -42,6 +43,8 @@ export function RequestAccessPage() {
   const { search } = useLocation();
   const mcpIntegration = getMcpIntegration(search);
   const mcpClientName = mcpIntegration ? getMcpClientName(mcpIntegration) : null;
+  const creation = useCloudProjectCreation();
+  const useCloudCreation = creation.canCreate && !mcpIntegration;
   const { context, loading, error, refresh } = useRequestAccessContext();
   const [selectedRole, setSelectedRole] = useState<Role>('viewer');
   const [submitted, setSubmitted] = useState<RequestAccessResult | null>(null);
@@ -88,6 +91,10 @@ export function RequestAccessPage() {
   };
 
   const handleCreateProject = async () => {
+    if (useCloudCreation) {
+      await creation.createProject();
+      return;
+    }
     setCreatingProject(true);
     setActionError(null);
     try {
@@ -224,16 +231,22 @@ export function RequestAccessPage() {
 
               <section className='dm-card-block !gap-3'>
                 <div className='flex flex-col-reverse gap-3 sm:flex-row sm:justify-end'>
-                  <Button
-                    variant='outline'
-                    onClick={() => {
-                      void handleCreateProject();
-                    }}
-                    disabled={creatingProject}
-                  >
-                    <Plus className='mr-2 h-4 w-4' />
-                    {creatingProject ? 'Creating...' : 'Create new project'}
-                  </Button>
+                  {!user.viewOnly && (
+                    <Button
+                      variant='outline'
+                      onClick={() => {
+                        void handleCreateProject();
+                      }}
+                      disabled={creation.creating || creatingProject}
+                    >
+                      <Plus className='mr-2 h-4 w-4' />
+                      {useCloudCreation
+                        ? creation.label
+                        : creatingProject
+                          ? 'Creating...'
+                          : 'Create new project'}
+                    </Button>
+                  )}
                   {!submitted && (
                     <Button
                       onClick={() => {

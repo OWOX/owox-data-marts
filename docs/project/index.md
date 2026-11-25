@@ -37,7 +37,7 @@ Open the project menu and select **Create project** to start a new Cloud project
 
 A Project Admin can rename a project from **Project Settings → Overview → Project name**. The new name appears in the project menu and in **My profile → Projects**.
 
-Use **Project deletion** in Overview to delete the project. When outstanding billing delays deletion, Overview shows **Removing**. After deletion completes, OWOX opens **My profile → Projects** with your updated list. When you delete your last project, OWOX opens **My profile → Overview**.
+Use **Project deletion** in Overview to delete the project. Settle any open invoices or negative balance, then select **Delete project** again if billing prevented the first attempt. This also works for projects marked **Removing**. After deletion completes, OWOX opens **My profile → Projects** with your updated list. When you delete your last project and My profile is enabled, OWOX opens **My profile → Overview**.
 
 ## Learn more
 

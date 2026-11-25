@@ -5,7 +5,10 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { RequestStatus } from '../../shared/types/request-status';
 import { UserMenu } from '../../components/AppSidebar/UserMenu';
 import type { Project } from '../idp/types';
-import { CloudProjectCreationProvider } from '../project-settings/management/CloudProjectCreationProvider';
+import {
+  CloudProjectCreationProvider,
+  CloudProjectListRefresh,
+} from '../project-settings/management/CloudProjectCreationProvider';
 import { MyAccountPage } from './MyAccountPage';
 
 const useFlags = vi.hoisted(() => vi.fn());
@@ -62,6 +65,7 @@ function renderProfile(initialPath = '/ui/me/profile', deletedProjectId?: string
   render(
     <QueryClientProvider client={new QueryClient()}>
       <CloudProjectCreationProvider>
+        <CloudProjectListRefresh />
         <MemoryRouter initialEntries={[{ pathname: initialPath, state: { deletedProjectId } }]}>
           <Routes>
             <Route path='/ui/me/profile' element={<MyAccountPage />} />
@@ -102,6 +106,7 @@ describe('My profile', () => {
   }
 
   beforeEach(() => {
+    sessionStorage.clear();
     request.mockReset();
     post.mockReset();
     signIn.mockReset();
@@ -206,6 +211,13 @@ describe('My profile', () => {
         redirect: '/ui/new-project/data-marts',
       });
     });
+  });
+
+  it('shows Removing for a project with a pending removal', async () => {
+    enableCloud();
+    projects = [{ id: 'pending', title: 'Pending', status: 'blocked', removalPending: true }];
+    renderProfile('/ui/me/projects');
+    expect(await screen.findByRole('row', { name: /Pending Removing/ })).toBeVisible();
   });
 
   it('offers to retry setup with the same ID once the new project appears in the list', async () => {

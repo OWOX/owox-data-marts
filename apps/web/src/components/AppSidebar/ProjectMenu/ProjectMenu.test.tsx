@@ -1,8 +1,12 @@
 import type { ReactNode } from 'react';
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { MemoryRouter } from 'react-router';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { User } from '../../../features/idp/types';
-import { CloudProjectCreationProvider } from '../../../features/project-settings/management/CloudProjectCreationProvider';
+import {
+  CloudProjectCreationProvider,
+  CloudProjectListRefresh,
+} from '../../../features/project-settings/management/CloudProjectCreationProvider';
 import { SidebarProjectMenu } from './ProjectMenu';
 
 const state = vi.hoisted(() => ({
@@ -11,12 +15,13 @@ const state = vi.hoisted(() => ({
   create: vi.fn(),
   register: vi.fn(),
   signIn: vi.fn(),
+  loadProjects: vi.fn(),
 }));
 
 vi.mock('../../../app/store/hooks', () => ({ useFlags: () => ({ flags: state.flags }) }));
 vi.mock('../../../features/idp/hooks/useAuthState', () => ({ useUser: () => state.user }));
 vi.mock('../../../features/idp/hooks/useProjects', () => ({
-  useProjects: () => ({ loadProjects: vi.fn() }),
+  useProjects: () => ({ loadProjects: state.loadProjects }),
 }));
 vi.mock('../../../features/idp/services', () => ({ signIn: state.signIn }));
 vi.mock(
@@ -57,8 +62,20 @@ vi.mock('@owox/ui/components/dropdown-menu', () => ({
   ),
 }));
 
+function CreationWrapper({ children }: { children: ReactNode }) {
+  return (
+    <MemoryRouter>
+      <CloudProjectCreationProvider>
+        <CloudProjectListRefresh />
+        {children}
+      </CloudProjectCreationProvider>
+    </MemoryRouter>
+  );
+}
+
 describe('Create project in the sidebar', () => {
   beforeEach(() => {
+    sessionStorage.clear();
     state.flags = {
       IDP_PROVIDER: 'owox-better-auth',
       CLOUD_PROJECT_API_ORIGIN: 'https://ib.example.test',
@@ -67,6 +84,7 @@ describe('Create project in the sidebar', () => {
     state.create.mockReset();
     state.register.mockReset();
     state.signIn.mockReset();
+    state.loadProjects.mockReset();
   });
 
   it('can create with no project role and retries opening without creating again', async () => {
@@ -74,7 +92,7 @@ describe('Create project in the sidebar', () => {
     state.signIn.mockImplementationOnce(() => {
       throw new Error('Could not start sign-in');
     });
-    render(<SidebarProjectMenu restricted />, { wrapper: CloudProjectCreationProvider });
+    render(<SidebarProjectMenu restricted />, { wrapper: CreationWrapper });
 
     fireEvent.click(screen.getByRole('button', { name: 'Create project' }));
     const retry = await screen.findByRole('button', { name: 'Open new project' });
@@ -92,7 +110,7 @@ describe('Create project in the sidebar', () => {
     });
   });
 
-  it('retries a failed registration with the existing ID', async () => {
+  it('recovers a pending registration after reload and reuses the ID under another project', async () => {
     state.create.mockResolvedValueOnce({
       projectId: 'created-project',
       projectTitle: 'New project',
@@ -103,9 +121,13 @@ describe('Create project in the sidebar', () => {
       projectTitle: 'New project',
       registrationPending: false,
     });
-    render(<SidebarProjectMenu />, { wrapper: CloudProjectCreationProvider });
+    const page = render(<SidebarProjectMenu />, { wrapper: CreationWrapper });
     fireEvent.click(screen.getByRole('button', { name: 'Create project' }));
-    fireEvent.click(await screen.findByRole('button', { name: 'Retry project setup' }));
+    expect(await screen.findByRole('button', { name: 'Retry project setup' })).toBeEnabled();
+    page.unmount();
+    state.user = { ...state.user!, projectId: 'another-project' };
+    render(<SidebarProjectMenu />, { wrapper: CreationWrapper });
+    fireEvent.click(screen.getByRole('button', { name: 'Retry project setup' }));
 
     await waitFor(() => {
       expect(state.signIn).toHaveBeenCalledWith({
@@ -116,7 +138,7 @@ describe('Create project in the sidebar', () => {
     expect(state.create).toHaveBeenCalledTimes(1);
     expect(state.register).toHaveBeenCalledExactlyOnceWith(
       'https://ib.example.test',
-      { userId: 'user-1', projectId: 'requested-project' },
+      { userId: 'user-1', projectId: 'another-project' },
       'created-project'
     );
   });
@@ -128,7 +150,7 @@ describe('Create project in the sidebar', () => {
         <SidebarProjectMenu />
         <SidebarProjectMenu />
       </>,
-      { wrapper: CloudProjectCreationProvider }
+      { wrapper: CreationWrapper }
     );
 
     const [first, second] = screen.getAllByRole('button', { name: 'Create project' });
@@ -139,10 +161,32 @@ describe('Create project in the sidebar', () => {
     expect(state.create).toHaveBeenCalledTimes(1);
   });
 
+  it('refreshes the projects before releasing the creation action after an unknown result', async () => {
+    state.create.mockRejectedValue(new Error('Timed out'));
+    let finishRefresh: () => void = () => {
+      throw new Error('Project list refresh did not start');
+    };
+    state.loadProjects.mockReturnValue(
+      new Promise<void>(resolve => {
+        finishRefresh = resolve;
+      })
+    );
+    render(<SidebarProjectMenu />, { wrapper: CreationWrapper });
+    fireEvent.click(screen.getByRole('button', { name: 'Create project' }));
+
+    await waitFor(() => {
+      expect(state.loadProjects).toHaveBeenCalledWith({ force: true });
+    });
+    expect(screen.getByRole('button', { name: 'Setting up project…' })).toBeDisabled();
+    finishRefresh();
+    expect(await screen.findByRole('button', { name: 'Create project' })).toBeEnabled();
+    expect(state.create).toHaveBeenCalledTimes(1);
+  });
+
   it.each(['view-only', 'better-auth', 'none'])('hides creation for %s', scenario => {
     if (scenario === 'view-only') state.user = { ...state.user!, viewOnly: true };
     else state.flags.IDP_PROVIDER = scenario;
-    render(<SidebarProjectMenu />, { wrapper: CloudProjectCreationProvider });
+    render(<SidebarProjectMenu />, { wrapper: CreationWrapper });
     expect(screen.queryByRole('button', { name: 'Create project' })).not.toBeInTheDocument();
   });
 });

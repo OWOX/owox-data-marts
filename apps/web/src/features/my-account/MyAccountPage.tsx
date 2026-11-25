@@ -59,12 +59,13 @@ export function MyAccountPage({
     return <Navigate to='/' replace />;
   }
 
-  const currentProjectDeleted =
+  const currentProjectUnavailable =
     typeof navigationState === 'object' &&
     navigationState !== null &&
-    'deletedProjectId' in navigationState &&
-    typeof navigationState.deletedProjectId === 'string' &&
-    navigationState.deletedProjectId === user.projectId;
+    (('unavailableProjectId' in navigationState &&
+      navigationState.unavailableProjectId === user.projectId) ||
+      ('deletedProjectId' in navigationState &&
+        navigationState.deletedProjectId === user.projectId));
   const tabs = origin ? navigation : [projectsTab];
   const needsProjectAccess = user.roles?.length === 0;
   const projectPath = buildProjectPath(
@@ -82,10 +83,10 @@ export function MyAccountPage({
       <header
         className={cn(
           'flex min-w-0 items-center gap-2 py-4 md:py-6',
-          !currentProjectDeleted && 'md:-ml-10'
+          !currentProjectUnavailable && 'md:-ml-10'
         )}
       >
-        {!currentProjectDeleted && (
+        {!currentProjectUnavailable && (
           <Button variant='ghost' size='icon-sm' asChild>
             <Link
               to={projectPath}
@@ -105,7 +106,7 @@ export function MyAccountPage({
           <NavLink
             key={path}
             to={path}
-            state={currentProjectDeleted ? navigationState : undefined}
+            state={currentProjectUnavailable ? navigationState : undefined}
             end
             className={({ isActive }) =>
               cn(

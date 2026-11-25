@@ -23,6 +23,9 @@ vi.mock('./app/store', () => ({
     return children;
   },
 }));
+vi.mock('./features/project-settings/management/CloudProjectCreationProvider', () => ({
+  CloudProjectCreationProvider: ({ children }: { children: ReactNode }) => children,
+}));
 vi.mock('./app/gtm/GoogleTagManager.tsx', () => ({
   GoogleTagManager: () => {
     mounts.analytics();

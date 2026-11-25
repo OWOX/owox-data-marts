@@ -20,7 +20,9 @@ export function useProjectMenu() {
     }
   }, [loadProjects, isOwoxIdpProvider]);
 
-  const canSwitchProject = projects.length > 1;
+  const canSwitchProject = projects.some(
+    project => project.id !== id && project.status !== 'removed'
+  );
 
   const visibleMenuItems = useMemo(() => {
     const filteredItems = projectMenuItems.filter(item => {

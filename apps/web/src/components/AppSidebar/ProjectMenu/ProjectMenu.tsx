@@ -1,7 +1,9 @@
 import { useState } from 'react';
+import { matchPath, useLocation } from 'react-router';
 import { Plus } from 'lucide-react';
 import { DropdownMenu, DropdownMenuItem } from '@owox/ui/components/dropdown-menu';
 import { useCloudProjectCreation } from '../../../features/project-settings/management/useCloudProjectCreation';
+import { getMcpIntegration } from '../../../features/user-provisioning/utils/mcp-request-access';
 import { ProjectMenuTrigger } from './ProjectMenuTrigger';
 import { ProjectMenuContent } from './ProjectMenuContent';
 
@@ -12,6 +14,9 @@ interface SidebarProjectMenuProps {
 export function SidebarProjectMenu({ restricted = false }: SidebarProjectMenuProps) {
   const [isOpen, setIsOpen] = useState(false);
   const { canCreate, creating, label, createProject } = useCloudProjectCreation();
+  const { pathname, search } = useLocation();
+  const mcpRequestAccess =
+    matchPath('/ui/:projectId/request-access', pathname) && getMcpIntegration(search);
 
   return (
     <div data-slot='sidebar-header' data-sidebar='header' className='flex flex-col gap-2'>
@@ -33,7 +38,7 @@ export function SidebarProjectMenu({ restricted = false }: SidebarProjectMenuPro
                 setIsOpen(false);
               }}
               createProjectItem={
-                canCreate ? (
+                canCreate && !mcpRequestAccess ? (
                   <DropdownMenuItem
                     disabled={creating}
                     onSelect={event => {

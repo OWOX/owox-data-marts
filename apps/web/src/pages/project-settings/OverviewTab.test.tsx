@@ -27,6 +27,12 @@ const projectManagement = vi.hoisted(() => ({
   delete: vi.fn(),
   dispatch: vi.fn(),
   signIn: vi.fn(),
+  showDeleted: vi.fn(),
+  showUnavailable: vi.fn(),
+}));
+
+vi.mock('sonner', () => ({
+  toast: { success: projectManagement.showDeleted, info: projectManagement.showUnavailable },
 }));
 
 vi.mock(
@@ -148,6 +154,8 @@ describe('OverviewTab project status', () => {
     projectManagement.delete.mockReset();
     projectManagement.dispatch.mockReset();
     projectManagement.signIn.mockReset();
+    projectManagement.showDeleted.mockClear();
+    projectManagement.showUnavailable.mockClear();
     settingsFlags.value = {
       IDP_PROVIDER: 'owox-better-auth',
     };
@@ -279,7 +287,7 @@ describe('OverviewTab project status', () => {
     confirmDeletion();
 
     expect(await screen.findByText('Removing')).toBeVisible();
-    expect(screen.queryByRole('button', { name: 'Delete project' })).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Delete project' })).toBeEnabled();
     expect(screen.queryByRole('heading', { name: 'My projects' })).not.toBeInTheDocument();
     expect(projectManagement.signIn).not.toHaveBeenCalled();
   });
@@ -298,7 +306,28 @@ describe('OverviewTab project status', () => {
     });
     renderOverview();
     expect(screen.getByText('Removing')).toBeVisible();
-    expect(screen.queryByRole('button', { name: 'Delete project' })).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Delete project' })).toBeEnabled();
+  });
+
+  it('explains outstanding billing and lets the admin retry the deletion', async () => {
+    enableCloudManagement();
+    projectManagement.delete
+      .mockRejectedValueOnce({
+        isAxiosError: true,
+        response: { status: 409, data: { code: 'PROJECT_BILLING_OUTSTANDING' } },
+      })
+      .mockResolvedValueOnce('removed');
+    renderOverview();
+    confirmDeletion();
+
+    const alert = await screen.findByRole('alert');
+    expect(alert).toHaveTextContent('Settle any open invoices or negative balance');
+    expect(screen.queryByText('Removing')).not.toBeInTheDocument();
+    const dialog = screen.getByRole('dialog', { name: 'Delete project?' });
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Delete project' }));
+
+    expect(await screen.findByRole('heading', { name: 'My projects' })).toBeVisible();
+    expect(projectManagement.delete).toHaveBeenCalledTimes(2);
   });
 
   it.each([
@@ -352,6 +381,29 @@ describe('OverviewTab project status', () => {
     rerender(<OverviewTestRoutes />);
 
     expect(await screen.findByRole('heading', { name: 'My projects' })).toBeVisible();
+  });
+
+  it('refreshes after an uncertain delete and opens Projects without claiming it was deleted', async () => {
+    enableCloudManagement();
+    vi.mocked(projectsContext.value.loadProjects).mockImplementationOnce(async () => {
+      projectsContext.value.callState = RequestStatus.LOADING;
+    });
+    projectManagement.delete.mockRejectedValue(new Error('Request timed out'));
+    const { rerender } = renderOverview();
+    confirmDeletion();
+    expect(await screen.findByRole('alert')).toHaveTextContent('Could not confirm deletion');
+    expect(projectsContext.value.loadProjects).toHaveBeenCalledWith({ force: true });
+
+    projectsContext.value = projectContext({
+      projects: [{ id: 'next-project', title: 'Analytics', status: 'active' }],
+    });
+    rerender(<OverviewTestRoutes />);
+
+    expect(await screen.findByRole('heading', { name: 'My projects' })).toBeVisible();
+    expect(projectManagement.showUnavailable).toHaveBeenCalledWith(
+      'This project is no longer available.'
+    );
+    expect(projectManagement.showDeleted).not.toHaveBeenCalled();
   });
 
   it('does not render a client-built MCP server URL when auth context has no URL', () => {

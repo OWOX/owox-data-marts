@@ -7,8 +7,12 @@ import { useProjects } from '../idp/hooks/useProjects';
 import type { Project } from '../idp/types';
 import { getRoleDisplayName } from '../idp/utils/role-display-name';
 import { useCloudProjectCreation } from '../project-settings/management/useCloudProjectCreation';
+import {
+  getProjectStatus,
+  projectStatusLabels,
+} from '../project-settings/management/project-status';
 import { BaseTable, SortableHeader, TableColumnSearch } from '../../shared/components/Table';
-import { StatusLabel, StatusTypeEnum } from '../../shared/components/StatusLabel';
+import { StatusLabel } from '../../shared/components/StatusLabel';
 import {
   applyFiltersToData,
   TableFilters,
@@ -19,12 +23,6 @@ import {
 import { DEFAULT_FILTERS_STATE } from '../../shared/components/TableFilters/types';
 import { useBaseTable } from '../../shared/hooks/useBaseTable';
 import { RequestStatus } from '../../shared/types/request-status';
-
-const statuses = {
-  active: { label: 'Active', type: StatusTypeEnum.SUCCESS },
-  blocked: { label: 'Blocked', type: StatusTypeEnum.ERROR },
-  removed: { label: 'Removed', type: StatusTypeEnum.NEUTRAL },
-};
 
 const filters: FilterConfigItem[] = [
   {
@@ -42,7 +40,10 @@ const filters: FilterConfigItem[] = [
     label: 'Status',
     dataType: 'enum',
     operators: ['eq', 'neq'],
-    options: Object.entries(statuses).map(([value, status]) => ({ value, label: status.label })),
+    options: Object.entries(projectStatusLabels).map(([value, status]) => ({
+      value,
+      label: status.label,
+    })),
   },
 ];
 
@@ -55,10 +56,12 @@ const columns: ColumnDef<Project>[] = [
   },
   {
     header: ({ column }) => <SortableHeader column={column}>Status</SortableHeader>,
-    accessorKey: 'status',
+    id: 'status',
+    accessorFn: getProjectStatus,
     size: 96,
     cell: ({ row }) => {
-      const status = row.original.status ? statuses[row.original.status] : undefined;
+      const statusKey = getProjectStatus(row.original);
+      const status = statusKey ? projectStatusLabels[statusKey] : undefined;
       return status ? <StatusLabel type={status.type}>{status.label}</StatusLabel> : '—';
     },
   },
@@ -83,7 +86,7 @@ export function AccountProjectsCard() {
     () =>
       applyFiltersToData(projects, appliedFilters, {
         roles: project => project.roles ?? [],
-        status: project => project.status,
+        status: getProjectStatus,
       }),
     [projects, appliedFilters]
   );

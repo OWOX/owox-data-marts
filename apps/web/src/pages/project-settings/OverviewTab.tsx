@@ -24,6 +24,7 @@ import {
   MY_ACCOUNT_PROJECTS_PATH,
 } from '../../features/idp/utils/my-account-path';
 import { getAccountApiOrigin } from '../../features/my-account/use-account-api-origin';
+import { getCloudBillingOrigin } from '../../features/cloud-billing/cloud-billing';
 import { useFlags } from '../../app/store/hooks';
 import { useProjectRoute } from '../../shared/hooks';
 import { checkVisible } from '../../utils/check-visible';
@@ -37,13 +38,19 @@ import { CopyButton, CopyButtonVariant } from '@owox/ui/components/common/copy-b
 import { useClipboard } from '../../hooks/useClipboard';
 import { useProjects } from '../../features/idp/hooks/useProjects';
 import { RequestStatus } from '../../shared/types/request-status';
-import type { ProjectStatus } from '../../features/idp/types';
 import { useIsAdmin } from '../../features/idp/hooks/useRole';
 import { useProjectSettings } from '../../features/project-settings/overview';
 import { InlineEditDescription } from '../../shared/components/InlineEditDescription';
 import { Skeleton } from '@owox/ui/components/skeleton';
 import { ProjectNameEditor } from '../../features/project-settings/management/ProjectNameEditor';
-import { ProjectDeletionCard } from '../../features/project-settings/management/ProjectDeletionCard';
+import {
+  ProjectDeletionCard,
+  type ProjectDeletionOutcome,
+} from '../../features/project-settings/management/ProjectDeletionCard';
+import {
+  getProjectStatus,
+  projectStatusLabels,
+} from '../../features/project-settings/management/project-status';
 import { getCloudProjectApiOrigin } from '../../features/project-settings/management/project-management.service';
 import { StatusLabel, StatusTypeEnum } from '../../shared/components/StatusLabel';
 
@@ -167,16 +174,28 @@ export function OverviewTab() {
   const sessionKey = projectSession ? `${projectSession.userId}:${projectSession.projectId}` : '';
   const [deletion, setDeletion] = useState<{
     sessionKey: string;
-    status: 'removed' | 'removing';
+    status: ProjectDeletionOutcome;
   }>();
   const deletionStatus = deletion?.sessionKey === sessionKey ? deletion.status : undefined;
+  const listedStatus = getProjectStatus(currentProject);
   const projectStatus =
-    currentProject?.status === 'removed'
+    listedStatus === 'removed'
       ? 'removed'
-      : (deletionStatus ?? (currentProject?.removalPending ? 'removing' : currentProject?.status));
+      : ((deletionStatus === 'unknown' ? undefined : deletionStatus) ?? listedStatus);
   const canManage = Boolean(origin && projectSession && isAdmin && !user?.viewOnly);
+  const canUseProjectActions =
+    Boolean(currentProject) &&
+    callState !== RequestStatus.ERROR &&
+    !(deletionStatus === 'unknown' && callState === RequestStatus.LOADING);
+  const projectUnavailable =
+    deletionStatus === 'unknown' && callState === RequestStatus.LOADED && !currentProject;
+  const statusLabel = projectStatus ? projectStatusLabels[projectStatus] : undefined;
 
-  function onProjectDeletion(status: 'removed' | 'removing') {
+  useEffect(() => {
+    if (origin && projectUnavailable) toast.info('This project is no longer available.');
+  }, [origin, projectUnavailable]);
+
+  function onProjectDeletion(status: ProjectDeletionOutcome) {
     void loadProjects({ force: true });
     setDeletion({ sessionKey, status });
     if (status === 'removed') toast.success('Project deleted');
@@ -194,7 +213,7 @@ export function OverviewTab() {
     .join(' · ');
   const mcpServerUrl = user?.mcpServerUrl ?? '';
 
-  if (origin && projectStatus === 'removed') {
+  if (origin && (projectStatus === 'removed' || projectUnavailable)) {
     if (callState === RequestStatus.LOADING || callState === RequestStatus.IDLE) {
       return <LoadingSpinner message='Loading projects…' />;
     }
@@ -209,7 +228,7 @@ export function OverviewTab() {
       <Navigate
         to={openProfile ? MY_ACCOUNT_PATH : MY_ACCOUNT_PROJECTS_PATH}
         replace
-        state={{ deletedProjectId: projectId }}
+        state={{ unavailableProjectId: projectId }}
       />
     );
   }
@@ -233,7 +252,7 @@ export function OverviewTab() {
                     origin={origin}
                     session={projectSession}
                     title={projectTitle}
-                    readOnly={projectStatus === 'removing'}
+                    readOnly={!canUseProjectActions || projectStatus === 'removing'}
                   />
                 ) : (
                   projectTitle
@@ -261,8 +280,10 @@ export function OverviewTab() {
             <DescriptionCard
               label='Status'
               value={
-                deletionStatus || callState === RequestStatus.LOADED ? (
-                  <ProjectStatusBadge status={projectStatus} />
+                statusLabel ? (
+                  <StatusLabel type={statusLabel.type}>{statusLabel.label}</StatusLabel>
+                ) : callState === RequestStatus.LOADED ? (
+                  <StatusLabel type={StatusTypeEnum.NEUTRAL}>Unknown</StatusLabel>
                 ) : (
                   '—'
                 )
@@ -411,11 +432,12 @@ export function OverviewTab() {
           session={projectSession}
           title={projectTitle}
           removing={projectStatus === 'removing'}
+          disabled={!canUseProjectActions}
           onResult={onProjectDeletion}
         />
       )}
 
-      {isOwoxIdpProvider && !origin && (
+      {isOwoxIdpProvider && (!origin || !getCloudBillingOrigin(flags)) && (
         <CollapsibleCard collapsible name='project-legacy-platform'>
           <CollapsibleCardHeader>
             <CollapsibleCardHeaderTitle
@@ -448,21 +470,6 @@ export function OverviewTab() {
       )}
     </div>
   );
-}
-
-function ProjectStatusBadge({ status }: { status?: ProjectStatus | 'removing' }) {
-  switch (status) {
-    case 'active':
-      return <StatusLabel type={StatusTypeEnum.SUCCESS}>Active</StatusLabel>;
-    case 'blocked':
-      return <StatusLabel type={StatusTypeEnum.ERROR}>Blocked</StatusLabel>;
-    case 'removed':
-      return <StatusLabel type={StatusTypeEnum.NEUTRAL}>Removed</StatusLabel>;
-    case 'removing':
-      return <StatusLabel type={StatusTypeEnum.WARNING}>Removing</StatusLabel>;
-    default:
-      return <StatusLabel type={StatusTypeEnum.NEUTRAL}>Unknown</StatusLabel>;
-  }
 }
 
 function DescriptionCard({ label, value }: { label: string; value: React.ReactNode }) {

@@ -5,6 +5,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { setPluginLoading } from '../app/api/api-loading';
 import type { User } from '../features/idp/types';
 import MainLayout from './MainLayout';
+import { CloudProjectCreationProvider } from '../features/project-settings/management/CloudProjectCreationProvider';
 
 const currentUser = vi.hoisted(() => ({
   value: null as User | null,
@@ -109,13 +110,15 @@ describe('MainLayout', () => {
 
 function renderLayout() {
   return render(
-    <MemoryRouter initialEntries={['/ui/project-1/request-access']}>
-      <Routes>
-        <Route path='/ui/:projectId' element={<MainLayout />}>
-          <Route path='request-access' element={<div>Request access page</div>} />
-        </Route>
-      </Routes>
-    </MemoryRouter>
+    <CloudProjectCreationProvider>
+      <MemoryRouter initialEntries={['/ui/project-1/request-access']}>
+        <Routes>
+          <Route path='/ui/:projectId' element={<MainLayout />}>
+            <Route path='request-access' element={<div>Request access page</div>} />
+          </Route>
+        </Routes>
+      </MemoryRouter>
+    </CloudProjectCreationProvider>
   );
 }
 

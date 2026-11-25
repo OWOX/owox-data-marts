@@ -1,4 +1,5 @@
 import { createContext, useContext } from 'react';
+import type { ProjectsActions } from '../../idp/context/ProjectContext.types';
 
 interface CloudProjectCreation {
   canCreate: boolean;
@@ -6,6 +7,7 @@ interface CloudProjectCreation {
   hasCreatedProject: boolean;
   label: string;
   createProject: () => Promise<void>;
+  registerProjectListLoader: (loadProjects: ProjectsActions['loadProjects']) => () => void;
 }
 
 export const CloudProjectCreationContext = createContext<CloudProjectCreation | null>(null);

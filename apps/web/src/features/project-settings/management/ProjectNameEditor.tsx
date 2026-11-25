@@ -38,7 +38,8 @@ export function ProjectNameEditor({
     },
   });
   const name = rename.data?.projectTitle ?? title;
-  const invalidName = isAxiosError(rename.error) && rename.error.response?.status === 400;
+  const errorStatus = isAxiosError(rename.error) ? rename.error.response?.status : undefined;
+  const invalidName = errorStatus === 400;
 
   function save(event: SubmitEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -86,8 +87,10 @@ export function ProjectNameEditor({
       {rename.isError && (
         <p id={errorId} role='alert' className='text-destructive text-xs'>
           {invalidName
-            ? 'Enter a valid project name and try again.'
-            : 'Could not save the project name. Try again.'}
+            ? 'Use up to 255 characters. Use English letters, numbers, spaces, or _ → [ ] * , . - ! ( ).'
+            : errorStatus === 409
+              ? 'This project is being removed. Its name cannot be changed.'
+              : 'Could not save the project name. Try again.'}
         </p>
       )}
       <div className='flex flex-wrap gap-2'>
