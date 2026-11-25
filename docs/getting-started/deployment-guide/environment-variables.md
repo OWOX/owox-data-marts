@@ -35,6 +35,11 @@ renaming and deletion by setting `CLOUD_PROJECT_API_ORIGIN` to the HTTPS origin 
 Backend. Deploy the project-management API and allow the App origin in Integrated Backend
 before setting this optional variable. The app validates the configured origin at startup.
 
+In OWOX Cloud, App uses Integrated Backend to switch projects in an existing session.
+Deploy the read-only project lookup in Analytics first, then deploy the project-switch endpoint
+in Integrated Backend before updating App. Integrated Backend also uses the Analytics lookup
+to refresh existing view-only sessions.
+
 The complete list of all available environment variables is located in the [.env.example](https://github.com/OWOX/owox-data-marts/blob/main/.env.example) file in the project root directory.
 
 ## Configuration Methods

@@ -4,6 +4,7 @@ const mocks = vi.hoisted(() => ({
   token: 'token-a',
   projectId: 'project-a',
   userId: 'user-a',
+  viewOnly: false,
   refresh: vi.fn(),
 }));
 vi.mock('../../shared/utils', () => ({ showApiErrorToast: vi.fn() }));
@@ -12,6 +13,7 @@ vi.mock('./token-provider', () => ({
     getAccessToken: () => mocks.token,
     getProjectId: () => mocks.projectId,
     getUserId: () => mocks.userId,
+    isViewOnly: () => mocks.viewOnly,
     refreshToken: mocks.refresh,
   }),
 }));
@@ -61,6 +63,49 @@ beforeEach(() => {
   mocks.token = 'token-a';
   mocks.projectId = 'project-a';
   mocks.userId = 'user-a';
+  mocks.viewOnly = false;
+});
+
+describe('apiClient project session', () => {
+  it.each(['projectId', 'userId', 'viewOnly'] as const)(
+    'stops a retry when the refreshed session changes %s',
+    async field => {
+      window.history.replaceState({}, '', '/ui/project-a/project-settings/contexts');
+      const { client, send, reject } = await load();
+      const config = await send({ url: '/contexts', method: 'post', headers: {} });
+      mocks.refresh.mockImplementation(async () => {
+        Object.assign(mocks, { [field]: field === 'viewOnly' ? true : 'changed', token: 'fresh' });
+        return 'fresh';
+      });
+
+      await expect(reject({ response: { status: 401 }, config })).rejects.toThrow(
+        'The active project or account changed'
+      );
+      expect(mocks.refresh).toHaveBeenCalledOnce();
+      expect(client).not.toHaveBeenCalled();
+      expect(logout).not.toHaveBeenCalled();
+    }
+  );
+
+  it('allows a refresh and retry in the original session', async () => {
+    window.history.replaceState({}, '', '/ui/project-a/project-settings/contexts');
+    const { client, send, reject } = await load();
+    const config = await send({ url: '/contexts', method: 'post', headers: {} });
+    mocks.refresh.mockImplementation(async () => {
+      mocks.token = 'fresh';
+      return 'fresh';
+    });
+    client.mockResolvedValue({ status: 201 });
+
+    await expect(reject({ response: { status: 401 }, config })).resolves.toEqual({ status: 201 });
+    expect(client).toHaveBeenCalledOnce();
+    expect(client).toHaveBeenCalledWith(
+      expect.objectContaining({
+        headers: expect.objectContaining({ 'X-OWOX-Authorization': 'Bearer fresh' }),
+      })
+    );
+    expect(logout).not.toHaveBeenCalled();
+  });
 });
 afterEach(() => {
   window.removeEventListener('auth:logout', logout);

@@ -1,15 +1,23 @@
-import { render, screen } from '@testing-library/react';
+import { render, screen, waitFor } from '@testing-library/react';
 import { MemoryRouter, Route, Routes, useLocation } from 'react-router';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 const signIn = vi.fn();
-let user: { projectId: string } | null = { projectId: '42' };
+const switchProject = vi.fn();
+let flags: Record<string, unknown> = {};
+vi.mock('../../../app/store/hooks', () => ({
+  useFlags: () => ({ flags, callState: 'loaded' }),
+}));
+let user: { id?: string; projectId: string; viewOnly?: boolean } | null = { projectId: '42' };
 let authState = { isLoading: false };
 vi.mock('../hooks', () => ({
   useAuthState: () => authState,
   useUser: () => user,
 }));
-vi.mock('../services', () => ({ signIn: (...args: unknown[]) => signIn(...args) }));
+vi.mock('../services', () => ({
+  signIn: (...args: unknown[]) => signIn(...args),
+  switchProject: (...args: unknown[]) => switchProject(...args),
+}));
 
 import { ProjectIdGuard } from './ProjectIdGuard';
 
@@ -37,7 +45,9 @@ const renderAt = (path: string) => render(viewAt(path));
 describe('ProjectIdGuard', () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    user = { projectId: '42' };
+    user = { id: 'user-42', projectId: '42' };
+    flags = {};
+    switchProject.mockReset();
     authState = { isLoading: false };
     sessionStorage.clear();
   });
@@ -56,9 +66,54 @@ describe('ProjectIdGuard', () => {
     expect(signIn).toHaveBeenCalledWith({ projectId: '7' });
   });
 
+  it.each([false, true])(
+    'switches the Cloud session with viewOnly=%s without sign-in',
+    async viewOnly => {
+      flags = { IDP_PROVIDER: 'owox-better-auth' };
+      user = { id: 'user-42', projectId: '42', viewOnly };
+      const reload = vi.spyOn(window.location, 'reload').mockImplementation(() => {});
+      switchProject.mockResolvedValue(undefined);
+
+      try {
+        renderAt('/ui/7/plugins?source=pin#report');
+        await waitFor(() => {
+          expect(reload).toHaveBeenCalledOnce();
+        });
+        expect(switchProject).toHaveBeenCalledExactlyOnceWith('7', 'user-42');
+        expect(signIn).not.toHaveBeenCalled();
+      } finally {
+        reload.mockRestore();
+      }
+    }
+  );
+
+  it('keeps the current session available when the project cannot be opened', async () => {
+    flags = { IDP_PROVIDER: 'owox-better-auth' };
+    switchProject.mockRejectedValue({ isAxiosError: true, response: { status: 403 } });
+
+    renderAt('/ui/7/plugins');
+
+    expect(await screen.findByRole('alert')).toHaveTextContent('This project is unavailable');
+    expect(screen.getByRole('link', { name: 'Back to project' })).toHaveAttribute(
+      'href',
+      '/ui/42/data-marts'
+    );
+    expect(signIn).not.toHaveBeenCalled();
+  });
+
+  it.each(['better-auth', 'none'])('uses the original sign-in flow for %s', provider => {
+    flags = { IDP_PROVIDER: provider };
+
+    renderAt('/ui/7/plugins');
+
+    expect(signIn).toHaveBeenCalledWith({ projectId: '7' });
+    expect(switchProject).not.toHaveBeenCalled();
+  });
+
   it('switches to the MCP resource project before rendering its request-access page', () => {
     renderAt('/ui/7/request-access?mcp-integration=claude');
     expect(signIn).toHaveBeenCalledWith({ projectId: '7' });
+    expect(switchProject).not.toHaveBeenCalled();
     expect(screen.queryByText(/^at /)).not.toBeInTheDocument();
   });
 
@@ -82,16 +137,18 @@ describe('ProjectIdGuard', () => {
     expect(signIn).not.toHaveBeenCalled();
   });
 
-  it('removes a loaded connect form when the active project changes', () => {
+  it('uses the existing Connect sign-in flow when the Cloud project changes', () => {
+    flags = { IDP_PROVIDER: 'owox-better-auth' };
     const target = '/ui/42/connect/credentials/setup-1?source=chat#form';
     const page = renderAt(target);
     expect(screen.getByText(`at ${target}`)).toBeInTheDocument();
-    user = { projectId: '7' };
+    user = { id: 'user-42', projectId: '7' };
 
     page.rerender(viewAt(target));
 
     expect(screen.queryByText(/^at /)).not.toBeInTheDocument();
     expect(signIn).toHaveBeenCalledExactlyOnceWith({ projectId: '42', redirect: target });
+    expect(switchProject).not.toHaveBeenCalled();
   });
 
   it('does not repeat a failed automatic switch for a connect URL', () => {

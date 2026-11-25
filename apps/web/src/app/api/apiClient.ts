@@ -8,7 +8,7 @@ import axios, {
 import { showApiErrorToast } from '../../shared/utils';
 import { isBlockedUserError } from '../../features/idp/services/auth-api.service';
 import { AuthStateManager } from './auth-state-manager';
-import { getTokenProvider } from './token-provider';
+import { getTokenProvider, type TokenProvider } from './token-provider';
 import { withLoadingIndicator } from './api-loading';
 import {
   ConnectProjectMismatchError,
@@ -18,13 +18,19 @@ import {
   type ConnectProjectTarget,
 } from '../../features/idp/utils/connect-project';
 
+interface RequestSession {
+  projectId: string;
+  userId: string;
+  viewOnly?: boolean;
+}
+
 // Extend AxiosRequestConfig to include our custom properties
 export interface AxiosRequestConfig extends OriginalAxiosRequestConfig {
   skipLoadingIndicator?: boolean;
   skipAuthHeader?: boolean;
   skipErrorToast?: boolean;
   skipLogoutOnUnauthorizedRetry?: boolean;
-  expectedSession?: { projectId: string; userId: string };
+  expectedSession?: RequestSession;
 }
 
 // Extend InternalAxiosRequestConfig to include our custom properties
@@ -79,12 +85,21 @@ export function refreshMemberAccessToken(): Promise<string> {
   return authStateManager.refreshToken(() => tokenProvider.refreshToken());
 }
 
+function getRequestSession(provider: TokenProvider | null): RequestSession | undefined {
+  const projectId = provider?.getProjectId?.();
+  const userId = provider?.getUserId?.();
+  if (!projectId || !userId || !provider?.getAccessToken()) return;
+  return { projectId, userId, viewOnly: provider.isViewOnly?.() };
+}
+
 function assertExpectedSession(request: ExtendedInternalAxiosRequestConfig, token?: string | null) {
-  if (!request.expectedSession) return;
+  const expected = request.expectedSession;
+  if (!expected) return;
   const provider = getTokenProvider();
   if (
-    provider?.getProjectId?.() !== request.expectedSession.projectId ||
-    provider.getUserId?.() !== request.expectedSession.userId ||
+    provider?.getProjectId?.() !== expected.projectId ||
+    provider.getUserId?.() !== expected.userId ||
+    (expected.viewOnly !== undefined && provider.isViewOnly?.() !== expected.viewOnly) ||
     !provider.getAccessToken() ||
     (token !== undefined && token !== provider.getAccessToken())
   ) {
@@ -124,6 +139,17 @@ apiClient.interceptors.request.use(
     if (config.skipAuthHeader) {
       return config;
     }
+    const tokenProvider = getTokenProvider();
+    if (!config._retry) {
+      if (config.expectedSession) {
+        config.expectedSession = {
+          ...config.expectedSession,
+          viewOnly: config.expectedSession.viewOnly ?? tokenProvider?.isViewOnly?.(),
+        };
+      } else {
+        config.expectedSession = getRequestSession(tokenProvider);
+      }
+    }
     assertExpectedSession(config);
 
     // Keep the original target when a request is retried after navigation or token refresh.
@@ -132,7 +158,7 @@ apiClient.interceptors.request.use(
         window.location.pathname + window.location.search + window.location.hash
       );
       config.connectUserId = config.connectProjectTarget
-        ? (getTokenProvider()?.getUserId?.() ?? null)
+        ? (tokenProvider?.getUserId?.() ?? null)
         : null;
     }
 
@@ -146,8 +172,7 @@ apiClient.interceptors.request.use(
       return config;
     }
 
-    const tokenProvider = getTokenProvider();
-    const accessToken = tokenProvider?.getAccessToken() ?? authStateManager.getAccessToken();
+    const accessToken = tokenProvider?.getAccessToken() ?? null;
     assertConnectSession(config, accessToken);
 
     if (accessToken) {
@@ -165,9 +190,15 @@ apiClient.interceptors.request.use(
 apiClient.interceptors.response.use(
   response => response,
   async (error: AxiosError) => {
-    const originalRequest = error.config as ExtendedInternalAxiosRequestConfig;
+    const originalRequest = error.config as ExtendedInternalAxiosRequestConfig | undefined;
 
-    if (error.response?.status === 401 && !originalRequest._retry) {
+    if (
+      error.response?.status === 401 &&
+      originalRequest?.expectedSession &&
+      !originalRequest.skipAuthHeader &&
+      !originalRequest._retry
+    ) {
+      assertConnectSession(originalRequest, getTokenProvider()?.getAccessToken() ?? null);
       assertExpectedSession(originalRequest);
       originalRequest._retry = true;
 
@@ -215,6 +246,7 @@ apiClient.interceptors.response.use(
 
       // Each request must check a shared refresh result against its original project and account.
       assertConnectSession(originalRequest, newAccessToken);
+      assertExpectedSession(originalRequest, newAccessToken);
       originalRequest.headers['X-OWOX-Authorization'] = `Bearer ${newAccessToken}`;
       try {
         return await apiClient(originalRequest);

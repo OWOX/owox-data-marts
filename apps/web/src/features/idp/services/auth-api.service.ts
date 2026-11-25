@@ -11,6 +11,7 @@ const AUTH_ENDPOINTS = {
   SIGN_IN: '/auth/sign-in',
   SIGN_OUT: '/auth/sign-out',
   ACCESS_TOKEN: '/auth/access-token',
+  SWITCH_PROJECT: '/auth/project/switch',
   API_USER: '/auth/api/user',
   API_PROJECTS: '/auth/api/projects',
 } as const;
@@ -122,20 +123,55 @@ export function isBlockedUserError(error: unknown): boolean {
   return false;
 }
 
+// Both routes rotate the same cookie. Serialize them across App tabs when Web Locks is available.
+async function withRefreshSessionLock<T>(request: () => Promise<T>): Promise<T> {
+  const { locks } = navigator as Partial<Navigator>;
+  return locks ? await locks.request('owox-refresh-session', request) : request();
+}
+
+// A different response may still be delivering its rotated cookie to the browser.
+async function retryWithCurrentCookie<T>(
+  request: () => Promise<T>,
+  isRefreshRejected?: (response: T) => boolean
+): Promise<T> {
+  try {
+    const response = await request();
+    if (!isRefreshRejected?.(response)) return response;
+  } catch (error) {
+    if (!axios.isAxiosError(error) || error.response?.status !== 401) throw error;
+  }
+  await new Promise(resolve => window.setTimeout(resolve, 150));
+  return request();
+}
+
+export async function switchProject(projectId: string, expectedUserId: string): Promise<void> {
+  await withRefreshSessionLock(async () => {
+    const response = await retryWithCurrentCookie(() =>
+      authClient.post(AUTH_ENDPOINTS.SWITCH_PROJECT, { projectId, expectedUserId })
+    );
+    if (response.status !== 204) throw new Error('Project switch was not completed');
+  });
+}
+
 /**
  * Get new access token using refresh token from http-only cookie
  */
 export async function refreshAccessToken(): Promise<AccessTokenResponse> {
   try {
-    const response = await authClient.post<AccessTokenResponse>(AUTH_ENDPOINTS.ACCESS_TOKEN, {});
+    const response = await withRefreshSessionLock(() =>
+      retryWithCurrentCookie(
+        () =>
+          authClient.post<AccessTokenResponse & { reason?: string }>(
+            AUTH_ENDPOINTS.ACCESS_TOKEN,
+            {}
+          ),
+        ({ data }) => data.reason === 'atm4' || data.reason === 'atm9'
+      )
+    );
 
     // Check if server returned an error reason instead of access token
-    if (
-      'reason' in response.data &&
-      typeof (response.data as { reason?: string }).reason === 'string'
-    ) {
-      const reason = (response.data as { reason: string }).reason;
-      throw new Error(`Token refresh failed: ${reason}`);
+    if (typeof response.data.reason === 'string') {
+      throw new Error(`Token refresh failed: ${response.data.reason}`);
     }
 
     return response.data;

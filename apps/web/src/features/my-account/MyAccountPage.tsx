@@ -131,7 +131,9 @@ export function MyAccountPage({
         {origin && section === 'profile' && (
           <AccountDetails key={user.id} origin={origin} {...account} />
         )}
-        {section === 'projects' && <AccountProjectsCard />}
+        {section === 'projects' && (
+          <AccountProjectsCard flags={flags} userId={user.id} viewOnly={viewOnly} />
+        )}
         {origin && section === 'email-preferences' && (
           <AccountEmailPreferencesCard key={user.id} origin={origin} {...account} />
         )}

@@ -1,5 +1,6 @@
 import { AuthResult, Payload } from '@owox/idp-protocol';
 import { NextFunction, Request, Response } from 'express';
+import { z } from 'zod';
 import {
   IdentityOwoxClient,
   IntrospectionRequest,
@@ -21,8 +22,13 @@ import { toPayload } from '../mappers/client-payload-mapper.js';
 import { TokenService, type TokenServiceConfig } from '../services/core/token-service.js';
 import type { DatabaseStore } from '../store/database-store.js';
 import { StoreReason } from '../store/store-result.js';
-import { buildCookieOptions, clearCookie } from '../utils/cookie-policy.js';
+import { buildCookieOptions } from '../utils/cookie-policy.js';
 import type { AuthFlowParams } from '../utils/request-utils.js';
+
+const ProjectSwitchSchema = z.object({
+  projectId: z.string().regex(/^[a-zA-Z0-9_-]+$/),
+  expectedUserId: z.string().min(1),
+});
 
 export type TokenResponseWithContext = TokenResponse & {
   authFlowParams?: AuthFlowParams;
@@ -156,11 +162,51 @@ export class OwoxTokenFacade {
     return response.success;
   }
 
+  async switchProjectMiddleware(req: Request, res: Response): Promise<void> {
+    res.set('Cache-Control', 'no-store');
+    const host = req.get('host');
+    if (!host || req.get('origin') !== `${req.protocol}://${host}`) {
+      res.sendStatus(403);
+      return;
+    }
+    const input = ProjectSwitchSchema.safeParse(req.body);
+    if (!input.success) {
+      res.sendStatus(400);
+      return;
+    }
+    const refreshToken: unknown = req.cookies[this.cookieName];
+    if (typeof refreshToken !== 'string' || !refreshToken) {
+      res.sendStatus(401);
+      return;
+    }
+
+    try {
+      const tokens = await this.identityClient.switchProject(
+        refreshToken,
+        this.config.idpConfig.clientId,
+        input.data.projectId,
+        input.data.expectedUserId
+      );
+      this.setTokenToCookie(res, req, tokens.refreshToken, tokens.refreshTokenExpiresIn);
+      res.sendStatus(204);
+    } catch (error) {
+      if (error instanceof AuthenticationException) {
+        res.sendStatus(401);
+      } else if (error instanceof ForbiddenException) {
+        res.sendStatus(403);
+      } else {
+        this.logger.warn('Could not switch App project');
+        res.sendStatus(502);
+      }
+    }
+  }
+
   async accessTokenMiddleware(
     req: Request,
     res: Response,
     _next: NextFunction
   ): Promise<void | Response> {
+    res.set('Cache-Control', 'no-store');
     try {
       const refreshToken = req.cookies[this.cookieName];
       if (!refreshToken) {
@@ -180,28 +226,25 @@ export class OwoxTokenFacade {
       this.setTokenToCookie(res, req, newRefreshToken, auth.refreshTokenExpiresIn);
       return res.json(auth);
     } catch (error: unknown) {
-      clearCookie(res, this.cookieName, req);
+      // A rejected cookie may already have been replaced by a successful refresh or switch.
       if (error instanceof ForbiddenException) {
         this.logger.info('Access token middleware - identity blocked', {
           path: req.path,
-          ...error.context,
         });
         return res.json({ reason: 'atm9', message: 'Identity inactive or blocked' });
       }
       if (error instanceof AuthenticationException) {
         this.logger.info('Access token middleware auth rejected', {
           path: req.path,
-          ...error.context,
         });
         return res.json({ reason: 'atm4', message: 'Unauthorized' });
       }
 
       if (error instanceof IdpFailedException) {
-        this.logger.error(
-          'Access token middleware failed with unexpected code',
-          { path: req.path, ...error.context },
-          error
-        );
+        this.logger.error('Access token refresh failed upstream', {
+          path: req.path,
+          status: error.status,
+        });
         return res.status(error.status || 500).json({ reason: 'atm5' });
       }
 

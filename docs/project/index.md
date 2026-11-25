@@ -55,6 +55,10 @@ Use **Project deletion** in Overview to delete the project. Settle any open invo
 
 Open the user menu and select **My profile** to see your name, sign-in email, work email, phone, company name, and company website in OWOX Cloud. The user menu is also available on the **Request access** screen, so you can check which account is signed in while you wait for project access.
 
+In **My profile → Projects**, select a project name to open it, or use the row menu to open a
+Project Settings tab. A Project Admin can use the pencil to edit the name in the table. Saving the
+name of another project makes it the active project. Projects remain listed until removal is complete.
+
 ![My profile Overview with personal details and account deletion controls](../res/screens/my-profile-overview.png)
 
 On **Overview**, select **Edit profile** to update your contact and company details. Your sign-in email is read-only. The editor includes links to profile settings help and Google's instructions for changing your account email. Under **Account deletion**, you can submit a request to delete your account and personal data. You can cancel a pending request before it is confirmed.

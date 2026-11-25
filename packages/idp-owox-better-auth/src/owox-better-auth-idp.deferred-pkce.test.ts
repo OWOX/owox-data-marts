@@ -23,6 +23,7 @@ function createCallbackProvider(overrides: Record<string, unknown> = {}): {
   provider: OwoxBetterAuthIdp;
   callback: RouteHandler;
   nonceRoute: RouteHandler;
+  switchRoute: RouteHandler;
 } {
   const routes = new Map<string, RouteHandler>();
   const app = {
@@ -56,7 +57,9 @@ function createCallbackProvider(overrides: Record<string, unknown> = {}): {
   if (!callback) throw new Error('Callback route was not registered');
   const nonceRoute = routes.get(`POST ${AUTH_BASE_PATH}/social-intent/nonce`);
   if (!nonceRoute) throw new Error('Social intent nonce route was not registered');
-  return { provider, callback, nonceRoute };
+  const switchRoute = routes.get(`POST ${AUTH_BASE_PATH}/project/switch`);
+  if (!switchRoute) throw new Error('Project switch route was not registered');
+  return { provider, callback, nonceRoute, switchRoute };
 }
 
 function createProvider(overrides: Record<string, unknown> = {}): OwoxBetterAuthIdp {
@@ -85,6 +88,19 @@ function createProvider(overrides: Record<string, unknown> = {}): OwoxBetterAuth
 }
 
 describe('OwoxBetterAuthIdp - deferred PKCE state until sign-in intent', () => {
+  it('registers project switching as part of the Cloud provider', async () => {
+    const switchProjectMiddleware = jest
+      .fn<(req: Request, res: Response) => Promise<void>>()
+      .mockResolvedValue(undefined);
+    const { switchRoute } = createCallbackProvider({ tokenFacade: { switchProjectMiddleware } });
+    const request = {} as Request;
+    const response = createResponse();
+
+    await switchRoute(request, response);
+
+    expect(switchProjectMiddleware).toHaveBeenCalledWith(request, response);
+  });
+
   describe('signInMiddleware / handleNoState', () => {
     it('bounces to Platform on a plain, unauthenticated page load, so the email/password form has a state ready to submit against', async () => {
       const provider = createProvider();
