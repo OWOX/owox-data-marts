@@ -124,6 +124,38 @@ describe('DeleteDataStorageService', () => {
     expect(warn).toHaveBeenCalled();
   });
 
+  describe('when an AI agent deletes over MCP', () => {
+    const mcpCommand = new DeleteDataStorageCommand(
+      'storage-1',
+      'proj-1',
+      'user-1',
+      ['editor'],
+      false,
+      true
+    );
+
+    it('refuses an OWOX Storage with a reason the agent can pass on, and deletes nothing', async () => {
+      const { service, dataStorageRepository, managedStorages, engine } = makeService([], record);
+
+      await expect(service.run(mcpCommand)).rejects.toThrow(
+        new BusinessViolationException(
+          'AI agents cannot delete an OWOX Storage, because its deletion also deletes its data. Delete it in the OWOX Data Marts web application.'
+        )
+      );
+      expect(managedStorages.markDeleting).not.toHaveBeenCalled();
+      expect(engine.deprovision).not.toHaveBeenCalled();
+      expect(dataStorageRepository.softDelete).not.toHaveBeenCalled();
+    });
+
+    it('still deletes a storage that is not an OWOX Storage', async () => {
+      const { service, dataStorageRepository } = makeService();
+
+      await service.run(mcpCommand);
+
+      expect(dataStorageRepository.softDelete).toHaveBeenCalled();
+    });
+  });
+
   describe('when a plugin deletes', () => {
     const pluginCommand = new DeleteDataStorageCommand('storage-1', 'proj-1', '', [], true);
 

@@ -18,7 +18,7 @@ type Input = z.infer<typeof storageTargetSchema>;
 export class GetStorageTool implements McpToolDefinition<Input> {
   readonly name = 'get_storage';
   readonly description =
-    'Read a Storage that you can inspect. The result includes safe configuration, Credential status, owners, Contexts, and sharing settings.';
+    'Read a Storage that you can inspect. The result includes safe configuration, Credential status, owners, Contexts, sharing settings, and owox_storage for an OWOX Storage.';
   readonly zodSchema = storageTargetSchema;
   readonly outputSchema = storageOutputSchema;
   readonly annotations = {

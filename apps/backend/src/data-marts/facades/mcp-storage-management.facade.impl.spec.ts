@@ -36,6 +36,10 @@ function fixture() {
       .mockResolvedValue({ namespaces: [{ id: 'my-project', secret: 'NEVER_EXPOSE' }] }),
   };
   const remove = { run: jest.fn() };
+  const managed = {
+    findByStorageId: jest.fn().mockResolvedValue(null),
+    findByStorageIds: jest.fn().mockResolvedValue(new Map()),
+  };
   const facade = new McpStorageManagementFacadeImpl(
     list as never,
     get as never,
@@ -44,9 +48,10 @@ function fixture() {
     validate as never,
     resources as never,
     remove as never,
-    new McpStorageMapper()
+    new McpStorageMapper(),
+    managed as never
   );
-  return { facade, storage, list, get, create, update, validate, resources, remove };
+  return { facade, storage, list, get, create, update, validate, resources, remove, managed };
 }
 
 describe('McpStorageManagementFacadeImpl', () => {
@@ -59,6 +64,7 @@ describe('McpStorageManagementFacadeImpl', () => {
         type: DataStorageType.GOOGLE_BIGQUERY,
         createdAt: f.storage.createdAt.toISOString(),
         modifiedAt: f.storage.modifiedAt.toISOString(),
+        owoxStorage: null,
       },
     ]);
     expect(f.get.run).not.toHaveBeenCalled();
@@ -224,5 +230,21 @@ describe('McpStorageManagementFacadeImpl', () => {
     f.remove.run.mockRejectedValue(error);
     await expect(f.facade.delete(actor, 'storage')).rejects.toBe(error);
     expect(f.remove.run).toHaveBeenCalledWith(expect.objectContaining({ ...actor, id: 'storage' }));
+  });
+  it('marks an OWOX Storage with its location and dataset in list and get', async () => {
+    const f = fixture();
+    const owox = { location: 'EU', datasetId: 'owox_eu_0123456789ab' };
+    f.managed.findByStorageIds.mockResolvedValue(new Map([['storage', owox]]));
+    f.managed.findByStorageId.mockResolvedValue(owox);
+
+    expect((await f.facade.list(actor, {}))[0].owoxStorage).toEqual(owox);
+    expect((await f.facade.get(actor, 'storage')).owoxStorage).toEqual(owox);
+    expect(f.managed.findByStorageId).toHaveBeenCalledWith('storage');
+  });
+
+  it('tells the delete use case that the call comes from MCP', async () => {
+    const f = fixture();
+    await f.facade.delete(actor, 'storage');
+    expect(f.remove.run).toHaveBeenCalledWith(expect.objectContaining({ fromMcp: true }));
   });
 });

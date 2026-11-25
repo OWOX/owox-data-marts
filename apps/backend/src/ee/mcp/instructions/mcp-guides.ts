@@ -84,6 +84,8 @@ export const MCP_GUIDES: Record<McpGuideTopic, string> = {
 - Keep drive_folder_url for the add_destination call after Credential setup. Browser Credential setup does not store Destination settings. Changing the Google account can clear an omitted folder. Reuse a folder only if the new account and OWOX have access.
 - Use list_storage_resources to browse supported warehouse resources. It currently supports BigQuery. It does not create a Data Mart.
 - Repeating a successful creation creates another Storage or Destination. Each key-rotation call replaces the current key. If a response is lost, check the result in OWOX before repeating the operation.
+- A Storage with owox_storage set is an OWOX Storage. OWOX creates and manages it, and only the OWOX Data Marts web application can create one. It has no Credential, and its configuration cannot change. Its SQL Data Marts run SELECT queries only. Its connector Data Marts write into its dataset_id.
+- delete_storage refuses an OWOX Storage, because its deletion also deletes its data. If the user wants to delete one, tell them to do it in the OWOX Data Marts web application.
 - Storage deletion fails while Data Marts reference it. Destination deletion fails while Reports reference it. Inspect get_destination_impact before deletion.
 - Never delete dependent Data Marts or Reports just to bypass a deletion restriction.
 - rotate_destination_secret_key supports Looker Studio. Explain that the old key will stop working before rotation. The user must copy the new key from OWOX.

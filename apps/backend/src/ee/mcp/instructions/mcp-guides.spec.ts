@@ -148,4 +148,10 @@ describe('MCP guides', () => {
     expect(MCP_GUIDES.custom_connectors).not.toContain('without saving');
     expect(MCP_GUIDES.custom_connectors).toContain('can change external data');
   });
+  it('keeps agents from changing or deleting an OWOX Storage', () => {
+    const guide = MCP_GUIDES.storages_destinations;
+    expect(guide).toContain('owox_storage');
+    expect(guide).toContain('delete_storage refuses an OWOX Storage');
+    expect(guide).toContain('SELECT queries only');
+  });
 });

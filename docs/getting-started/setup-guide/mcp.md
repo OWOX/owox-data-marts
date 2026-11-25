@@ -674,14 +674,14 @@ a direct link to the Storage in the OWOX Data Marts web UI.
 
 | Tool                      | Inputs and behavior                                                                                                                                                                                                            |
 | ------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `list_storages`           | Optional `storage_type`, `owner_id`, and `owner_filter`. Returns visible Storage IDs, names, types, and timestamps. Use `get_storage` for details.                                                                             |
-| `get_storage`             | Supply `storage_id`. Returns safe configuration, Credential state, owners, Contexts, and sharing settings.                                                                                                                     |
+| `list_storages`           | Optional `storage_type`, `owner_id`, and `owner_filter`. Returns visible Storage IDs, names, types, timestamps, and `owox_storage`. Use `get_storage` for details.                                                             |
+| `get_storage`             | Supply `storage_id`. Returns safe configuration, Credential state, owners, Contexts, sharing settings, and `owox_storage`.                                                                                                     |
 | `create_storage`          | Supply `storage_type`. An optional `title` names the Storage. Returns an unconfigured Storage with use sharing enabled and maintenance sharing disabled.                                                                       |
 | `update_storage`          | Supply `storage_id` and the changed `title`, `configuration`, or `credential_id`. Omitted fields stay unchanged. The Storage type cannot change.                                                                               |
 | `set_storage_access`      | Supply `storage_id` and the changed `owner_ids`, `context_ids`, `available_for_use`, or `available_for_maintenance`. Supplied lists replace their complete lists.                                                              |
 | `validate_storage_access` | Supply `storage_id`. Checks the saved configuration and Credential. Returns a safe validation state and the next step when setup is incomplete.                                                                                |
 | `list_storage_resources`  | Supply `storage_id` and `level`: `namespaces` or `resources`. The `resources` level requires `namespace_id`. Optional `resource_type` filters tables, views, or table patterns. Resource browsing currently supports BigQuery. |
-| `delete_storage`          | Supply `storage_id`. Deletion fails while Data Marts reference the Storage. It preserves the saved Credential and warehouse data.                                                                                              |
+| `delete_storage`          | Supply `storage_id`. Deletion fails while Data Marts reference the Storage. It preserves the saved Credential and warehouse data. It refuses an OWOX Storage.                                                                  |
 
 To configure a Storage:
 
@@ -695,6 +695,11 @@ To configure a Storage:
 
 Legacy BigQuery Storages cannot be created or deleted through these tools.
 Their titles and BigQuery project IDs stay unchanged when you update them.
+
+[OWOX Storages](../../storages/supported-storages/owox-storage.md) cannot be created or deleted through these tools,
+because the deletion of an OWOX Storage also deletes its data. Use the OWOX Data Marts web UI for both.
+`list_storages` and `get_storage` return `owox_storage` with the location and the dataset of an OWOX Storage,
+and `null` for every other Storage. The configuration and the Credential of an OWOX Storage cannot change.
 For access changes, use `list_project_members` and `list_contexts` to find valid IDs.
 Keep every owner or Context that the user still needs in a replacement list.
 

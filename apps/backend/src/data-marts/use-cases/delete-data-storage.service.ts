@@ -65,6 +65,11 @@ export class DeleteDataStorageService {
     if (managed && command.fromPlugin) {
       throw new ForbiddenException('Plugins cannot delete an OWOX Storage.');
     }
+    if (managed && command.fromMcp) {
+      throw new BusinessViolationException(
+        'AI agents cannot delete an OWOX Storage, because its deletion also deletes its data. Delete it in the OWOX Data Marts web application.'
+      );
+    }
 
     const dataMartsForStorage = await this.dataMartService.findByStorage(dataStorage);
 

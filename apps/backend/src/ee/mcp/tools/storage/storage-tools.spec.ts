@@ -94,6 +94,29 @@ describe('Storage MCP tools', () => {
     }
   );
 
+  it('tells an OWOX Storage apart in get_storage and list_storages', async () => {
+    const api = facade();
+    const owox = {
+      ...storage,
+      owoxStorage: { location: 'EU', datasetId: 'owox_eu_0123456789ab' },
+    };
+    api.get.mockResolvedValue(owox);
+    api.list.mockResolvedValue([owox, storage]);
+    const get = new GetStorageTool(api as never, publicOrigin as never);
+    const list = new ListStoragesTool(api as never, publicOrigin as never);
+
+    const read = z
+      .object(get.outputSchema)
+      .parse((await get.handler({ storage_id: 'storage' } as never, context)).structuredContent);
+    const listed = z
+      .object(list.outputSchema)
+      .parse((await list.handler({} as never, context)).structuredContent);
+
+    const marked = { owox_storage: { location: 'EU', dataset_id: 'owox_eu_0123456789ab' } };
+    expect(read).toMatchObject(marked);
+    expect(listed.storages).toMatchObject([marked, { owox_storage: null }]);
+  });
+
   it('rejects Legacy creation', async () => {
     const tool = new CreateStorageTool(facade() as never, publicOrigin as never);
     await expect(

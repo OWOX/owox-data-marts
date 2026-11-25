@@ -138,6 +138,12 @@ const credential = z.discriminatedUnion('access', [
   z.object({ access: z.literal('restricted'), state: credentialState }),
   z.object({ access: z.literal('pending'), state: z.literal('ready') }),
 ]);
+const owoxStorageOutput = z
+  .object({ location: z.enum(['US', 'EU']), dataset_id: z.string() })
+  .nullable()
+  .describe(
+    'Set only for an OWOX Storage, which OWOX creates and manages: its location and its one dataset. null for every other Storage.'
+  );
 export const storageSummaryOutputSchema = {
   storage_id: z.string(),
   url: z.string().describe('URL of this Storage in the OWOX Data Marts web UI.'),
@@ -145,6 +151,7 @@ export const storageSummaryOutputSchema = {
   storage_type: storageTypeSchema,
   created_at: z.string(),
   modified_at: z.string(),
+  owox_storage: owoxStorageOutput,
 };
 export const storageOutputSchema = {
   storage_id: z.string(),
@@ -163,6 +170,7 @@ export const storageOutputSchema = {
   available_for_maintenance: z.boolean(),
   created_at: z.string(),
   modified_at: z.string(),
+  owox_storage: storageSummaryOutputSchema.owox_storage,
 };
 export const storageValidationOutputSchema = {
   storage_id: z.string(),

@@ -105,3 +105,5 @@ OWOX Storage has no interface for direct access yet. It will be added later. Unt
 Delete it as any other Storage: see [Removing a Storage](../manage-storages.md#removing-a-storage). A Storage used by Data Marts cannot be deleted.
 
 > ⚠️ Deleting an OWOX Storage deletes its data.
+
+AI agents that connect to OWOX Data Marts over [MCP](../../getting-started/setup-guide/mcp.md) cannot delete an OWOX Storage. Delete it in the web application.

@@ -6,6 +6,7 @@ import type { StorageCredentialSummary } from '../data-storage-types/storage-cre
 import type { StorageResourceFilter } from '../data-storage-types/interfaces/storage-resource-browser.interface';
 import type { ListStorageResourcesDto } from '../dto/domain/list-storage-resources.dto';
 import type { ContextSummary } from '../utils/extract-context-summaries';
+import type { OwoxStorageLocation } from '../owox-storage/owox-storage-settings';
 
 export interface McpStorageDto {
   id: string;
@@ -19,6 +20,8 @@ export interface McpStorageDto {
   availableForMaintenance: boolean;
   createdAt: string;
   modifiedAt: string;
+  /** Set only for an OWOX Storage, which OWOX creates and manages. */
+  owoxStorage: { location: OwoxStorageLocation; datasetId: string } | null;
 }
 
 export interface McpListStoragesInput {
@@ -60,7 +63,7 @@ export interface McpStorageValidationDto {
 
 export type McpStorageSummary = Pick<
   McpStorageDto,
-  'id' | 'title' | 'type' | 'createdAt' | 'modifiedAt'
+  'id' | 'title' | 'type' | 'createdAt' | 'modifiedAt' | 'owoxStorage'
 >;
 
 export const MCP_STORAGE_MANAGEMENT_FACADE = Symbol('MCP_STORAGE_MANAGEMENT_FACADE');

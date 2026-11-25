@@ -18,34 +18,41 @@ const base = {
 
 describe('McpStorageMapper', () => {
   it('returns only declared configuration and user fields', () => {
-    const result = mapper.toStorage(base as never);
+    const result = mapper.toStorage(base as never, null);
     expect(result.configuration).toEqual({ projectId: 'my-project', location: 'US' });
     expect(JSON.stringify(result)).not.toContain('secret');
     expect(result.owners).toEqual([{ userId: 'owner', name: 'Name', email: 'a@b.com' }]);
   });
 
   it('does not expose restricted Credential identities or extra fields', () => {
-    const result = mapper.toStorage({
-      ...base,
-      reusableCredential: { access: 'restricted', state: 'ready', id: 'hidden', token: 'secret' },
-    } as never);
+    const result = mapper.toStorage(
+      {
+        ...base,
+        reusableCredential: { access: 'restricted', state: 'ready', id: 'hidden', token: 'secret' },
+      } as never,
+      null
+    );
     expect(result.credential).toEqual({ access: 'restricted', state: 'ready' });
     expect(JSON.stringify(result)).not.toContain('hidden');
   });
 
   it('omits invalid persisted Databricks hosts from safe configuration output', () => {
     expect(
-      mapper.toStorage({
-        ...base,
-        type: DataStorageType.DATABRICKS,
-        config: { host: 'https://invalid.example?token=secret', httpPath: '/sql' },
-      } as never).configuration
+      mapper.toStorage(
+        {
+          ...base,
+          type: DataStorageType.DATABRICKS,
+          config: { host: 'https://invalid.example?token=secret', httpPath: '/sql' },
+        } as never,
+        null
+      ).configuration
     ).toBeNull();
   });
 
   it('maps a DuckDB Storage with no configuration', () => {
     expect(
-      mapper.toStorage({ ...base, type: DataStorageType.DUCKDB, config: {} } as never).configuration
+      mapper.toStorage({ ...base, type: DataStorageType.DUCKDB, config: {} } as never, null)
+        .configuration
     ).toBeNull();
   });
 
