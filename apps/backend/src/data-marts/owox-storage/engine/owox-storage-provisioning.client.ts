@@ -14,7 +14,7 @@ const ProvisionedSchema = z.object({
 
 export type IbProvisionedStorage = z.infer<typeof ProvisionedSchema>;
 
-// Integrated Backend ends each call within about 25 s and answers 5xx when IAM is slower, which
+// Integrated Backend starts no step after 20 s of a call and answers 5xx when Google is slower, which
 // fetchWithBackoff retries (3 attempts in all); its load balancer cuts a call at 30 s. This bounds a hung attempt.
 const TIMEOUT_MS = 40_000;
 
@@ -38,7 +38,10 @@ export class OwoxStorageProvisioningClient {
     return ProvisionedSchema.parse(await response.json());
   }
 
-  /** Deletes the service account and both datasets; missing resources are not an error. */
+  /**
+   * Deletes both datasets. After the project's last storage, its service account loses OWOX Storage access; the
+   * account stays. Missing datasets are not an error.
+   */
   async deprovision(projectId: string, datasetId: string): Promise<void> {
     await this.call('DELETE', projectId, datasetId);
   }
