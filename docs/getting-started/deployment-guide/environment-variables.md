@@ -30,7 +30,7 @@ by setting `CLOUD_ACCOUNT_API_ORIGIN` to the HTTPS origin of Integrated Backend.
 Deploy the Account API and allow the App origin in Integrated Backend before
 setting this optional variable. The app validates the configured origin at startup.
 
-The complete list of all available environment variables is located in the [.env.example](https://github.com/OWOX/owox-data-marts/blob/main/.env.example) file in the project root directory.
+The [.env.example](https://github.com/OWOX/owox-data-marts/blob/main/.env.example) file in the project root directory is a starting point with the most common variables. The sections below describe the variables it leaves out.
 
 ## Configuration Methods
 
@@ -294,20 +294,29 @@ this value; contact support to add a domain.
 
 ## Email and run notifications
 
-OWOX Data Marts sends two kinds of email: reports to an [Email destination](../../destinations/supported-destinations/email.md)
-and [run notifications](../../notifications/notification-settings.md) about failed and successful
-Data Mart runs. Both go through SendGrid, and run notifications are off until you turn them on.
-Without a configured email provider no email is sent, and each attempt is logged as an error.
+OWOX Data Marts sends two kinds of email through SendGrid:
 
-| Variable                              | Purpose                                                                                                                                                                                                                                                                                                                                   |
-| ------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `EMAIL_PROVIDER`                      | `sendgrid` or `none`, case-insensitive. Default `none`. Leave it unset rather than empty: an empty or any other value stops startup.                                                                                                                                                                                                      |
-| `SENDGRID_API_KEY`                    | SendGrid API key. A secret. Required with `EMAIL_PROVIDER=sendgrid`. Sign-in emails of `IDP_PROVIDER=owox-better-auth` read the same variable.                                                                                                                                                                                            |
-| `SENDGRID_VERIFIED_SENDER_EMAIL`      | Sender address of Email destination reports. It must be a verified sender in SendGrid. Required with `EMAIL_PROVIDER=sendgrid`.                                                                                                                                                                                                           |
-| `SENDGRID_VERIFIED_SENDER_NAME`       | Sender name of Email destination reports. Optional.                                                                                                                                                                                                                                                                                       |
-| `NOTIFICATIONS_ENABLED`               | `true` or `false`, case-insensitive. Default `false`. Turns run notifications on for the whole deployment. While it is `false`, no notification email or webhook is sent, whatever a project's [notification settings](../../notifications/notification-settings.md) say. A blank value means the default; any other value stops startup. |
-| `NOTIFICATIONS_VERIFIED_SENDER_EMAIL` | Sender address of run notification emails. It must be a verified sender in SendGrid. Required with `EMAIL_PROVIDER=sendgrid`, even while `NOTIFICATIONS_ENABLED` is `false`.                                                                                                                                                              |
-| `NOTIFICATIONS_VERIFIED_SENDER_NAME`  | Sender name of run notification emails. Optional.                                                                                                                                                                                                                                                                                         |
+- reports to the [Email](../../destinations/supported-destinations/email.md),
+  [Slack](../../destinations/supported-destinations/slack.md) and
+  [Microsoft Teams](../../destinations/supported-destinations/microsoft-teams.md) destinations, and to
+  [Google Chat](../../destinations/supported-destinations/google-chat.md) destinations that use
+  **Channel Email** delivery;
+- [run notifications](../../notifications/notification-settings.md) about failed and successful
+  Data Mart runs. They are off until you turn them on.
+
+With `EMAIL_PROVIDER=none` none of these emails is sent, and each attempt is logged as an error.
+Sign-in emails of `IDP_PROVIDER=owox-better-auth` are separate: they always go through SendGrid,
+whatever `EMAIL_PROVIDER` says.
+
+| Variable                              | Purpose                                                                                                                                                                                                                                                                                                                                          |
+| ------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `EMAIL_PROVIDER`                      | `sendgrid` or `none`, case-insensitive. Default `none`. Leave it unset rather than empty: an empty or any other value stops startup.                                                                                                                                                                                                             |
+| `SENDGRID_API_KEY`                    | SendGrid API key. A secret. Required with `EMAIL_PROVIDER=sendgrid`, and always required with `IDP_PROVIDER=owox-better-auth`, which sends sign-in emails from `IDP_OWOX_SENDGRID_VERIFIED_SENDER_EMAIL`.                                                                                                                                        |
+| `SENDGRID_VERIFIED_SENDER_EMAIL`      | Sender address of reports to the destinations listed above. It must be a verified sender in SendGrid. Required with `EMAIL_PROVIDER=sendgrid`.                                                                                                                                                                                                   |
+| `SENDGRID_VERIFIED_SENDER_NAME`       | Sender name of reports to the destinations listed above. Optional.                                                                                                                                                                                                                                                                               |
+| `NOTIFICATIONS_ENABLED`               | `true` or `false`, case-insensitive. Default `false`. Turns run notifications on for the whole deployment. While it is `false`, no run notification is sent by email or webhook, whatever a project's [notification settings](../../notifications/notification-settings.md) say. A blank value means the default; any other value stops startup. |
+| `NOTIFICATIONS_VERIFIED_SENDER_EMAIL` | Sender address of run notification emails. It must be a verified sender in SendGrid. Required with `EMAIL_PROVIDER=sendgrid`, even while `NOTIFICATIONS_ENABLED` is `false`.                                                                                                                                                                     |
+| `NOTIFICATIONS_VERIFIED_SENDER_NAME`  | Sender name of run notification emails. Optional.                                                                                                                                                                                                                                                                                                |
 
 With `EMAIL_PROVIDER=sendgrid`, the application stops at startup when `SENDGRID_API_KEY`,
 `SENDGRID_VERIFIED_SENDER_EMAIL` or `NOTIFICATIONS_VERIFIED_SENDER_EMAIL` is missing, so set all

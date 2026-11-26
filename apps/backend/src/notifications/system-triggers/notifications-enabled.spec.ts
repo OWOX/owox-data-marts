@@ -28,7 +28,7 @@ async function configServiceWith(notificationsEnabled: string | undefined): Prom
     }).compile();
     return moduleRef.get(ConfigService);
   } finally {
-    // ConfigModule copies validated defaults back into process.env; leave no trace for other specs.
+    // ConfigModule copies validated values back into process.env; restore this key between cases.
     if (previous === undefined) {
       delete process.env.NOTIFICATIONS_ENABLED;
     } else {
