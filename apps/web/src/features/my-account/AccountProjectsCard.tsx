@@ -1,9 +1,19 @@
 import { useEffect, useMemo, useState } from 'react';
+import { Link } from 'react-router';
+import { FolderOpen, MoreHorizontal, Plus } from 'lucide-react';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@owox/ui/components/dropdown-menu';
 import type { ColumnDef } from '@tanstack/react-table';
-import { FolderOpen, Plus } from 'lucide-react';
 import { Button } from '@owox/ui/components/button';
 import { LoadingSpinner } from '@owox/ui/components/common/loading-spinner';
+import { refreshMemberAccessToken } from '../../app/api/apiClient';
+import { getTokenProvider } from '../../app/api/token-provider';
 import { useProjects } from '../idp/hooks/useProjects';
+import { switchProject } from '../idp/services';
 import type { Project } from '../idp/types';
 import { getRoleDisplayName } from '../idp/utils/role-display-name';
 import { useCloudProjectCreation } from '../project-settings/management/useCloudProjectCreation';
@@ -23,6 +33,15 @@ import {
 import { DEFAULT_FILTERS_STATE } from '../../shared/components/TableFilters/types';
 import { useBaseTable } from '../../shared/hooks/useBaseTable';
 import { RequestStatus } from '../../shared/types/request-status';
+import { buildProjectPath, PROJECT_PLACEHOLDER } from '../../utils/path';
+import { isValidProjectId } from '../idp/utils/project-id';
+import { ProjectNameEditor } from '../project-settings/management/ProjectNameEditor';
+import {
+  getCloudProjectApiOrigin,
+  isCurrentProjectSession,
+  type ProjectManagementSession,
+} from '../project-settings/management/project-management.service';
+import { getProjectSettingsTabs } from '../project-settings/project-settings-tabs';
 
 const filters: FilterConfigItem[] = [
   {
@@ -40,14 +59,13 @@ const filters: FilterConfigItem[] = [
     label: 'Status',
     dataType: 'enum',
     operators: ['eq', 'neq'],
-    options: Object.entries(projectStatusLabels).map(([value, status]) => ({
-      value,
-      label: status.label,
-    })),
+    options: Object.entries(projectStatusLabels)
+      .filter(([value]) => value !== 'removed')
+      .map(([value, status]) => ({ value, label: status.label })),
   },
 ];
 
-const columns: ColumnDef<Project>[] = [
+const projectColumns: ColumnDef<Project>[] = [
   {
     header: ({ column }) => <SortableHeader column={column}>Project</SortableHeader>,
     accessorKey: 'title',
@@ -73,10 +91,83 @@ const columns: ColumnDef<Project>[] = [
   },
 ];
 
-export function AccountProjectsCard() {
+function isProjectLinkAvailable(project: Project): boolean {
+  return (
+    isValidProjectId(project.id) &&
+    project.id !== PROJECT_PLACEHOLDER &&
+    project.status !== 'removed' &&
+    Boolean(project.roles?.length)
+  );
+}
+
+function projectSettingsPath(project: Project, tab = '.') {
+  return buildProjectPath(
+    project.id,
+    tab === '.' ? '/project-settings' : `/project-settings/${tab}`
+  );
+}
+
+async function prepareProjectRename(session: ProjectManagementSession) {
+  if (isCurrentProjectSession(session)) return;
+  if (getTokenProvider()?.getUserId?.() !== session.userId) {
+    throw new Error('The active account changed');
+  }
+  await switchProject(session.projectId, session.userId);
+  await refreshMemberAccessToken();
+}
+
+function ProjectRowMenu({
+  project,
+  tabs,
+}: {
+  project: Project;
+  tabs: ReturnType<typeof getProjectSettingsTabs>;
+}) {
+  return (
+    <div className='text-right'>
+      <DropdownMenu>
+        <DropdownMenuTrigger asChild>
+          <Button
+            type='button'
+            variant='ghost'
+            size='icon-sm'
+            className='dm-card-table-body-row-actionbtn'
+            aria-label={`Project settings for ${project.title}`}
+          >
+            <MoreHorizontal className='dm-card-table-body-row-actionbtn-icon' aria-hidden='true' />
+          </Button>
+        </DropdownMenuTrigger>
+        <DropdownMenuContent align='end'>
+          {tabs.map(({ name, path, icon: Icon }) => (
+            <DropdownMenuItem asChild key={path}>
+              <Link to={projectSettingsPath(project, path)}>
+                <Icon aria-hidden='true' />
+                {name}
+              </Link>
+            </DropdownMenuItem>
+          ))}
+        </DropdownMenuContent>
+      </DropdownMenu>
+    </div>
+  );
+}
+
+export function AccountProjectsCard({
+  flags,
+  userId,
+  viewOnly,
+}: {
+  flags: Record<string, unknown> | null;
+  userId: string;
+  viewOnly: boolean;
+}) {
   const { projects, callState, loadProjects } = useProjects();
   const creation = useCloudProjectCreation();
   const [appliedFilters, setAppliedFilters] = useState(DEFAULT_FILTERS_STATE);
+  const visibleProjects = useMemo(
+    () => projects.filter(project => project.status !== 'removed'),
+    [projects]
+  );
 
   useEffect(() => {
     if (callState === RequestStatus.IDLE) void loadProjects();
@@ -84,12 +175,63 @@ export function AccountProjectsCard() {
 
   const data = useMemo(
     () =>
-      applyFiltersToData(projects, appliedFilters, {
+      applyFiltersToData(visibleProjects, appliedFilters, {
         roles: project => project.roles ?? [],
         status: getProjectStatus,
       }),
-    [projects, appliedFilters]
+    [visibleProjects, appliedFilters]
   );
+  const columns = useMemo<ColumnDef<Project>[]>(() => {
+    if (flags?.IDP_PROVIDER !== 'owox-better-auth') return projectColumns;
+
+    const tabs = getProjectSettingsTabs(flags);
+    const renameOrigin = viewOnly ? null : getCloudProjectApiOrigin(flags);
+    return [
+      {
+        ...projectColumns[0],
+        cell: ({ row }) => {
+          const project = row.original;
+          if (!isProjectLinkAvailable(project))
+            return <span className='font-medium'>{project.title}</span>;
+
+          const projectPath = buildProjectPath(project.id, '/data-marts');
+          if (renameOrigin && project.roles?.includes('admin') && !project.removalPending) {
+            return (
+              <ProjectNameEditor
+                origin={renameOrigin}
+                session={{ userId, projectId: project.id }}
+                title={project.title}
+                projectPath={projectPath}
+                prepareSession={prepareProjectRename}
+              />
+            );
+          }
+
+          return (
+            <Link
+              className='font-medium break-words underline-offset-4 hover:underline'
+              to={projectPath}
+            >
+              {project.title}
+            </Link>
+          );
+        },
+      },
+      ...projectColumns.slice(1),
+      {
+        id: 'actions',
+        size: 40,
+        enableSorting: false,
+        enableHiding: false,
+        header: () => <span className='sr-only'>Project actions</span>,
+        cell: ({ row }) =>
+          isProjectLinkAvailable(row.original) ? (
+            <ProjectRowMenu project={row.original} tabs={tabs} />
+          ) : null,
+      },
+    ];
+  }, [flags, userId, viewOnly]);
+
   const { table } = useBaseTable({
     data,
     columns,
@@ -124,7 +266,7 @@ export function AccountProjectsCard() {
           {creation.hasCreatedProject && createAction}
         </div>
       ) : callState === RequestStatus.LOADED ? (
-        projects.length === 0 ? (
+        visibleProjects.length === 0 ? (
           <div className='dm-empty-state'>
             <FolderOpen className='dm-empty-state-ico' strokeWidth={1} aria-hidden='true' />
             <h2 className='dm-empty-state-title'>

@@ -2,10 +2,23 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 vi.mock('../../shared/utils', () => ({ showApiErrorToast: vi.fn() }));
 
-const refreshToken = vi.hoisted(() => vi.fn());
+const refreshToken = vi.hoisted(() => vi.fn<() => Promise<string>>());
+const session = vi.hoisted(() => ({
+  projectId: 'project-a',
+  userId: 'user-a',
+  token: 'expired-token',
+}));
 
 vi.mock('./token-provider', () => ({
-  getTokenProvider: () => ({ getAccessToken: () => 'expired-token', refreshToken }),
+  getTokenProvider: () => ({
+    getAccessToken: () => session.token,
+    getProjectId: () => session.projectId,
+    getUserId: () => session.userId,
+    refreshToken: async () => {
+      session.token = await refreshToken();
+      return session.token;
+    },
+  }),
 }));
 
 // The instance must be callable: the interceptor retries the original request through it.
@@ -35,7 +48,13 @@ async function load() {
   return { retry: instance, onRejected, refreshMemberAccessToken };
 }
 
-const expired = () => ({ response: { status: 401 }, config: { headers: {} } });
+const expired = () => ({
+  response: { status: 401 },
+  config: {
+    headers: {},
+    expectedSession: { projectId: session.projectId, userId: session.userId },
+  },
+});
 
 describe('apiClient — token refresh', () => {
   const onLogout = vi.fn();
@@ -43,11 +62,22 @@ describe('apiClient — token refresh', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     vi.resetModules();
+    session.token = 'expired-token';
     window.addEventListener('auth:logout', onLogout);
   });
 
   afterEach(() => {
     window.removeEventListener('auth:logout', onLogout);
+  });
+
+  it('does not refresh or replay a request sent without a captured session', async () => {
+    const { retry, onRejected } = await load();
+    const rejection = { response: { status: 401 }, config: { headers: {} } };
+    await expect(onRejected(rejection)).rejects.toBe(rejection);
+
+    expect(refreshToken).not.toHaveBeenCalled();
+    expect(retry).not.toHaveBeenCalled();
+    expect(onLogout).not.toHaveBeenCalled();
   });
 
   // The retry used to run inside the refresh's try, so a validation error on it signed the user

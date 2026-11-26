@@ -16,6 +16,7 @@ import {
   AuthFlowResponse,
   AuthFlowResponseSchema,
   GoogleIdentityExchangeRequest,
+  IdpAuthenticationErrorResponseSchema,
   IntrospectionRequest,
   IntrospectionResponse,
   IntrospectionResponseSchema,
@@ -29,7 +30,6 @@ import {
   McpOAuthTokenExchangeRequestSchema,
   McpOAuthTokenExchangeResponse,
   McpOAuthTokenExchangeResponseSchema,
-  McpOAuthGrantErrorResponseSchema,
   McpOAuthTokenVerificationRequest,
   McpOAuthTokenVerificationRequestSchema,
   McpOAuthTokenVerificationResponseSchema,
@@ -377,6 +377,38 @@ export class IdentityOwoxClient {
       return AuthFlowResponseSchema.parse(data);
     } catch (err) {
       this.handleAxiosError(err, { request }, 'Failed to complete auth flow');
+    }
+  }
+
+  async switchProject(
+    refreshToken: string,
+    clientId: string,
+    projectId: string,
+    expectedUserId: string
+  ): Promise<TokenResponse> {
+    const headers = await this.getC2cAuthHeader('switch App project', { projectId });
+    try {
+      const { data } = await this.http.post<unknown>(
+        `${this.clientBackchannelPrefix}/idp/project-session/switch`,
+        { refreshToken, clientId, projectId, expectedUserId },
+        { headers }
+      );
+      return TokenResponseSchema.parse(data);
+    } catch (error) {
+      // The Axios error can contain both credentials in its request config.
+      if (axios.isAxiosError(error)) {
+        const response = error.response;
+        if (
+          response?.status === 401 &&
+          IdpAuthenticationErrorResponseSchema.safeParse(response.data).success
+        ) {
+          throw new AuthenticationException('Invalid or expired App session');
+        }
+        if (response?.status === 400 || response?.status === 403) {
+          throw new ForbiddenException('Project is unavailable');
+        }
+      }
+      throw new IdpFailedException('Failed to switch App project');
     }
   }
 
@@ -803,7 +835,7 @@ export class IdentityOwoxClient {
     if (
       axios.isAxiosError(error) &&
       error.response?.status === 401 &&
-      !McpOAuthGrantErrorResponseSchema.safeParse(error.response.data).success
+      !IdpAuthenticationErrorResponseSchema.safeParse(error.response.data).success
     ) {
       throw new IdpFailedException('Failed to exchange MCP OAuth token: 401', {
         cause: error,

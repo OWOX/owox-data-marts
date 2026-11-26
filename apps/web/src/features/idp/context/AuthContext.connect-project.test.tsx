@@ -222,13 +222,15 @@ describe('AuthProvider connect project', () => {
   it('keeps AuthGuard from starting a second sign-in after a connect refresh fails', async () => {
     render(
       <AuthProvider>
-        <MemoryRouter initialEntries={[target]}>
-          <Routes>
-            <Route path='/ui/:projectId/connect' element={<ConnectFlowLayout />}>
-              <Route path='credentials/:setupId' element={<button>Save Credential</button>} />
-            </Route>
-          </Routes>
-        </MemoryRouter>
+        <AppStoreProvider>
+          <MemoryRouter initialEntries={[target]}>
+            <Routes>
+              <Route path='/ui/:projectId/connect' element={<ConnectFlowLayout />}>
+                <Route path='credentials/:setupId' element={<button>Save Credential</button>} />
+              </Route>
+            </Routes>
+          </MemoryRouter>
+        </AppStoreProvider>
       </AuthProvider>
     );
     await screen.findByRole('button', { name: 'Save Credential' });
