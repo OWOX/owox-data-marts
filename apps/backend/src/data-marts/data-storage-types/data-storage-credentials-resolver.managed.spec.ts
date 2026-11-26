@@ -9,6 +9,7 @@ const record = (storageId: string, email: string) =>
     serviceAccountEmail: email,
     datasetId: `ds_${storageId}`,
     internalDatasetId: `ds_${storageId}_internal`,
+    processProjectId: 'owox-process',
     modifiedAt: new Date(1700000000000),
   }) as ManagedStorage;
 
@@ -41,6 +42,7 @@ describe('DataStorageCredentialsResolver (managed storage)', () => {
       serviceAccountEmail: 'a@x.iam',
       datasetId: 'ds_a',
       internalDatasetId: 'ds_a_internal',
+      processProjectId: 'owox-process',
     });
     expect(result).toHaveProperty('authClient', await identity.impersonate.mock.results[0].value);
     expect(identity.impersonate).toHaveBeenCalledWith('a@x.iam', '1700000000000');

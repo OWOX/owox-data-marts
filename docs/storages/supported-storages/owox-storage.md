@@ -47,6 +47,8 @@ An OWOX Storage needs no [Credential](../../project/credentials.md). The **Crede
 
 A SQL Data Mart on an OWOX Storage runs `SELECT` queries only. Any other statement is refused with the error "OWOX Storage runs SELECT queries only. This query is a `<statement type>`."
 
+Write each table name in full, with the project ID: `<Project ID>.<Dataset>.<table>`. A name without the project ID, such as `<Dataset>.<table>`, is not found.
+
 ## Connector Data Marts
 
 A connector Data Mart on an OWOX Storage writes into the storage's one dataset. The setup wizard offers no other dataset.

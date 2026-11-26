@@ -6,7 +6,10 @@ export interface ProvisionedManagedStorage {
   engine: 'bigquery';
   /** The OWOX project that owns the storage. */
   projectId: string;
+  /** The GCP project that holds the datasets. */
   gcpProjectId: string;
+  /** The GCP project where the storage's jobs run; a job reads `dataset.table` in it. */
+  processProjectId: string;
   location: OwoxStorageLocation;
   datasetId: string;
   internalDatasetId: string;

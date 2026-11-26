@@ -32,6 +32,7 @@ describe('ManagedStorageService.recordUse', () => {
       projectId: `project-${storageId}`,
       engine: 'bigquery',
       gcpProjectId: 'gcp-1',
+      processProjectId: 'gcp-process-1',
       location: 'US',
       datasetId: 'owox_aaaaaaaaaaaa',
       internalDatasetId: 'owox_aaaaaaaaaaaa_internal',

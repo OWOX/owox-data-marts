@@ -88,7 +88,11 @@ export class BigQueryApiAdapter {
     this.owoxStorage = credentials.type === BIGQUERY_MANAGED_TYPE;
     const shouldAutodetectLocation = config.location === BIGQUERY_AUTODETECT_LOCATION;
     this.bigQuery = new BigQuery({
-      projectId: config.projectId,
+      // The jobs of an OWOX Storage run in its process project; table names carry config.projectId.
+      projectId:
+        credentials.type === BIGQUERY_MANAGED_TYPE
+          ? credentials.processProjectId
+          : config.projectId,
       authClient: auth,
       ...(shouldAutodetectLocation ? {} : { location: config.location }),
     });

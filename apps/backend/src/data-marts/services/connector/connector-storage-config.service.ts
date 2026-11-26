@@ -105,7 +105,8 @@ export class ConnectorStorageConfigService {
       DestinationProjectID: storageConfig.projectId,
       DestinationDatasetName: datasetId,
       DestinationTableNameOverride: `${connector.source.node} ${tableName}`,
-      ProjectID: storageConfig.projectId,
+      // The load jobs of an OWOX Storage run in its process project.
+      ProjectID: managed?.processProjectId ?? storageConfig.projectId,
     };
 
     // Ahead of the key branch: the credentials hold a live client and must never be serialised.

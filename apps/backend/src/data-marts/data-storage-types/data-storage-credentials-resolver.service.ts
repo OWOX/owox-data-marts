@@ -103,6 +103,7 @@ export class DataStorageCredentialsResolver {
         serviceAccountEmail: managed.serviceAccountEmail,
         datasetId: managed.datasetId,
         internalDatasetId: managed.internalDatasetId,
+        processProjectId: managed.processProjectId,
       } satisfies BigQueryManagedCredentials;
     }
     const bound = await this.storageCredentials.resolveForStorage(storage);

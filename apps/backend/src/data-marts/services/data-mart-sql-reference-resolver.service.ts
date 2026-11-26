@@ -287,7 +287,7 @@ export class DataMartSqlReferenceResolver implements DataMartDefinitionResolver 
     }
 
     if (!isSqlDefinition(definition)) {
-      const built = await this.queryBuilderFacade.buildQuery(scope.storage.type, definition);
+      const built = await this.queryBuilderFacade.buildQuery(scope.storage, definition);
       return renderDerivedTable(typeof built === 'string' ? built : built.sql, labelOf(target));
     }
 

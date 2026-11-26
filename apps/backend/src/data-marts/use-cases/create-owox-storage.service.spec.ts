@@ -16,6 +16,7 @@ describe('CreateOwoxStorageService', () => {
   const provisioned = {
     engine: 'bigquery' as const,
     gcpProjectId: 'owox-managed',
+    processProjectId: 'owox-process',
     location: 'EU' as const,
     datasetId: 'owox_abc',
     internalDatasetId: 'owox_abc_internal',

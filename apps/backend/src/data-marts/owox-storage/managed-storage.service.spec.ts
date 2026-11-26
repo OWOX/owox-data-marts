@@ -8,6 +8,7 @@ function record(storageId: string, projectId = 'project-1'): ManagedStorage {
     projectId,
     engine: 'bigquery',
     gcpProjectId: 'gcp-1',
+    processProjectId: 'gcp-process-1',
     location: 'US',
     datasetId: 'owox_aaaaaaaaaaaa',
     internalDatasetId: 'owox_aaaaaaaaaaaa_internal',

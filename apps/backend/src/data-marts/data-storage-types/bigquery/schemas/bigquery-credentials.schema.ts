@@ -32,6 +32,8 @@ export interface BigQueryManagedCredentials {
   serviceAccountEmail: string;
   datasetId: string;
   internalDatasetId: string;
+  /** Where the storage's jobs run; its datasets are in the storage config's projectId. */
+  processProjectId: string;
 }
 
 export type BigQueryCredentials =

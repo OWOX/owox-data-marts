@@ -6,6 +6,7 @@ import type { OwoxStorageLocation } from '../owox-storage-settings';
 
 const ProvisionedSchema = z.object({
   gcpProjectId: z.string().min(1),
+  processProjectId: z.string().min(1),
   datasetId: z.string().min(1),
   internalDatasetId: z.string().min(1),
   location: z.enum(['US', 'EU']),

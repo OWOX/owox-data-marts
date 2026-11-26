@@ -32,6 +32,7 @@ describe('CreateManagedStorageTable migration', () => {
         'projectId',
         'engine',
         'gcpProjectId',
+        'processProjectId',
         'location',
         'datasetId',
         'internalDatasetId',

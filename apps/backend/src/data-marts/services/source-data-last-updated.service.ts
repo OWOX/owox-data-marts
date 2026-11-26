@@ -69,7 +69,7 @@ export class SourceDataLastUpdatedService {
     try {
       // Referenced Data Marts' sources count as this Data Mart's sources too.
       const definition = await this.sqlReferenceResolver.resolveDefinition(dataMart);
-      const built = await this.queryBuilderFacade.buildQuery(dataMart.storage.type, definition!);
+      const built = await this.queryBuilderFacade.buildQuery(dataMart.storage, definition!);
       sql = typeof built === 'string' ? built : built.sql;
       params = typeof built === 'string' ? undefined : built.params;
     } catch (error) {

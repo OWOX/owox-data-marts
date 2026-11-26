@@ -186,6 +186,7 @@ describe('ConnectorStorageConfigService', () => {
       serviceAccountEmail: 'owox-st-abc@p.iam.gserviceaccount.com',
       datasetId: 'owox_abc',
       internalDatasetId: 'owox_abc_internal',
+      processProjectId: 'owox-process',
     });
     const dm = {
       ...baseDataMart,
@@ -206,6 +207,9 @@ describe('ConnectorStorageConfigService', () => {
 
     expect(config.DestinationDatasetName.value).toBe('owox_abc');
     expect(config.DestinationDatasetID.value).toBe('p.owox_abc');
+    // The data stays in the storage's project; the load jobs run in its process project.
+    expect(config.DestinationProjectID.value).toBe('p');
+    expect(config.ProjectID.value).toBe('owox-process');
     expect(config.DestinationTableNameOverride.value).toBe('test_node table');
     expect(config.ImpersonateServiceAccount.value).toBe('owox-st-abc@p.iam.gserviceaccount.com');
     expect(config.DestinationDatasetExists.value).toBe(true);

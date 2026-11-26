@@ -17,6 +17,7 @@ export class CreateManagedStorageTable1795564800000 implements MigrationInterfac
           { name: 'projectId', type: 'varchar', length: '255' },
           { name: 'engine', type: 'varchar', length: '32' },
           { name: 'gcpProjectId', type: 'varchar', length: '255' },
+          { name: 'processProjectId', type: 'varchar', length: '255' },
           { name: 'location', type: 'varchar', length: '16' },
           { name: 'datasetId', type: 'varchar', length: '255' },
           { name: 'internalDatasetId', type: 'varchar', length: '255' },

@@ -72,7 +72,7 @@ describe('ReportSqlComposerService — aggregations wiring', () => {
     await service.compose(report, {} as never);
 
     expect(queryBuilderFacade.buildQuery).toHaveBeenCalledWith(
-      'GOOGLE_BIGQUERY',
+      expect.objectContaining({ type: 'GOOGLE_BIGQUERY' }),
       expect.anything(),
       expect.objectContaining({ aggregations: [{ column: 'revenue', function: 'SUM' }] })
     );
@@ -145,7 +145,7 @@ describe('ReportSqlComposerService — aggregations wiring', () => {
     await service.compose(report, {} as never);
 
     expect(queryBuilderFacade.buildQuery).toHaveBeenCalledWith(
-      'GOOGLE_BIGQUERY',
+      expect.objectContaining({ type: 'GOOGLE_BIGQUERY' }),
       expect.anything(),
       expect.objectContaining({ uniqueCount: true, primaryKeyColumns: ['id'] })
     );
@@ -174,7 +174,7 @@ describe('ReportSqlComposerService — aggregations wiring', () => {
     await service.compose(report, {} as never);
 
     expect(queryBuilderFacade.buildQuery).toHaveBeenCalledWith(
-      'GOOGLE_BIGQUERY',
+      expect.objectContaining({ type: 'GOOGLE_BIGQUERY' }),
       expect.anything(),
       expect.objectContaining({
         primaryKeyColumns: [],
@@ -205,7 +205,7 @@ describe('ReportSqlComposerService — aggregations wiring', () => {
     await service.compose(report, {} as never);
 
     expect(queryBuilderFacade.buildQuery).toHaveBeenCalledWith(
-      'GOOGLE_BIGQUERY',
+      expect.objectContaining({ type: 'GOOGLE_BIGQUERY' }),
       expect.anything(),
       expect.objectContaining({ sort: [{ column: 'Unique Count', direction: 'desc' }] })
     );
@@ -220,7 +220,7 @@ describe('ReportSqlComposerService — aggregations wiring', () => {
     await service.compose(report, {} as never);
 
     expect(queryBuilderFacade.buildQuery).toHaveBeenCalledWith(
-      'GOOGLE_BIGQUERY',
+      expect.objectContaining({ type: 'GOOGLE_BIGQUERY' }),
       expect.anything(),
       expect.objectContaining({ uniqueCount: false })
     );
@@ -239,7 +239,7 @@ describe('ReportSqlComposerService — aggregations wiring', () => {
     await service.compose(report, {} as never);
 
     expect(queryBuilderFacade.buildQuery).toHaveBeenCalledWith(
-      'GOOGLE_BIGQUERY',
+      expect.objectContaining({ type: 'GOOGLE_BIGQUERY' }),
       expect.anything(),
       expect.objectContaining({ dateTruncs: [{ column: 'date', unit: 'MONTH' }] })
     );
@@ -345,7 +345,7 @@ describe('ReportSqlComposerService — aggregations wiring', () => {
       );
 
       expect(queryBuilderFacade.buildQuery).toHaveBeenCalledWith(
-        'GOOGLE_BIGQUERY',
+        expect.objectContaining({ type: 'GOOGLE_BIGQUERY' }),
         expect.anything(),
         expect.objectContaining({ mainTableReference: 'p.d.t' })
       );

@@ -17,6 +17,7 @@ describe('BigQueryApiAdapter (OWOX Storage)', () => {
   const managed = {
     type: BIGQUERY_MANAGED_TYPE,
     authClient: {},
+    processProjectId: 'owox-process',
   } as never;
   const serviceAccount = {
     type: 'service_account',
@@ -238,6 +239,21 @@ describe('BigQueryApiAdapter (OWOX Storage)', () => {
     await new BigQueryApiAdapter(managed, config).checkAccess();
 
     expect(createQueryJob).not.toHaveBeenCalled();
+  });
+
+  // The jobs of an OWOX Storage run in its process project; its datasets stay in config.projectId.
+  it('runs the jobs of an OWOX Storage in its process project', () => {
+    new BigQueryApiAdapter(managed, config);
+
+    expect(BigQuery).toHaveBeenLastCalledWith(
+      expect.objectContaining({ projectId: 'owox-process' })
+    );
+  });
+
+  it('runs the jobs of a regular storage in its own project', () => {
+    new BigQueryApiAdapter(serviceAccount, config);
+
+    expect(BigQuery).toHaveBeenLastCalledWith(expect.objectContaining({ projectId: 'p' }));
   });
 
   it('createFromStorage accepts managed credentials', async () => {

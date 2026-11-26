@@ -107,6 +107,13 @@ export interface DataMartQueryOptions {
    * projection that carries no metric — never stored on a `Report`.
    */
   distinct?: boolean;
+
+  /**
+   * BigQuery: the project of the storage. A connector names its table `dataset.table`, and a job
+   * reads such a name in its own project; an OWOX Storage runs its jobs in another project than its
+   * datasets. The facade sets it from the storage, never a producer.
+   */
+  storageProjectId?: string;
 }
 
 /**
@@ -123,7 +130,7 @@ export interface DataMartQueryOptions {
  */
 export type RoutedDataMartQueryOptions = Omit<
   DataMartQueryOptions,
-  'filters' | 'groupRestriction'
+  'filters' | 'groupRestriction' | 'storageProjectId'
 > & {
   filters?: RoutedFilterRule[];
   groupRestriction?: RoutedGroupRestriction;

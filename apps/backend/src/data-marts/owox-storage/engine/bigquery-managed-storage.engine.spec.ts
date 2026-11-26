@@ -6,6 +6,7 @@ import type { OwoxStorageProvisioningClient } from './owox-storage-provisioning.
 const EMAIL = 'owox-st-abcdef012345@owox-storage-sa.iam.gserviceaccount.com';
 const CREATED = {
   gcpProjectId: 'owox-gcp',
+  processProjectId: 'owox-gcp-process',
   datasetId: 'owox_eu_abcdef012345',
   internalDatasetId: 'owox_eu_abcdef012345_internal',
   location: 'EU' as const,
@@ -103,7 +104,8 @@ describe('BigQueryManagedStorageEngine', () => {
 
       await engine.provision({ projectId: 'p1', location: 'EU' });
 
-      expect(identity.bigQueryAs).toHaveBeenCalledWith(EMAIL, 'owox-gcp', 'EU');
+      // The jobs of a storage run in the process project, not in the project of its datasets.
+      expect(identity.bigQueryAs).toHaveBeenCalledWith(EMAIL, 'owox-gcp-process', 'EU');
       expect(createQueryJob).toHaveBeenCalledWith({ query: 'SELECT 1', dryRun: true });
       expect(createQueryJob).toHaveBeenCalledTimes(2);
       expect(sleep.mock.calls.map(([ms]) => ms)).toEqual([1000]);
@@ -250,6 +252,16 @@ describe('BigQueryManagedStorageEngine', () => {
     expect(identity.impersonate).not.toHaveBeenCalled();
   });
 
+  // Every query of the storage runs in the stored process project.
+  it('restore refuses another process project than the stored one', async () => {
+    const { engine, client, identity } = setup();
+    client.provision.mockResolvedValueOnce({ ...CREATED, processProjectId: 'other-process' });
+    jest.spyOn(Logger.prototype, 'error').mockImplementation(() => undefined);
+
+    await expect(engine.restore(stored, 'p1', true)).rejects.toThrow('another process project');
+    expect(identity.impersonate).not.toHaveBeenCalled();
+  });
+
   it('deprovision drops the cached token and asks Integrated Backend to delete the storage', async () => {
     const { engine, client, identity } = setup();
     await engine.deprovision(stored);
@@ -270,6 +282,7 @@ describe('BigQueryManagedStorageEngine', () => {
       engine: 'bigquery' as const,
       projectId: 'p1',
       gcpProjectId: 'owox-gcp',
+      processProjectId: 'owox-gcp-process',
       location: 'US' as const,
       datasetId: 'owox_abc',
       internalDatasetId: 'owox_abc_internal',

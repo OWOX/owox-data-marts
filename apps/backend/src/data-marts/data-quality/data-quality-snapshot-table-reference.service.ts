@@ -49,7 +49,7 @@ export class DataQualitySnapshotTableReferenceService {
       buildQuery: async columns =>
         mainTableReference
           ? `SELECT ${columns.length > 0 ? columns.join(', ') : '*'} FROM ${mainTableReference}`
-          : this.queryBuilder.buildQuery(input.storage.type, definition, { columns }),
+          : this.queryBuilder.buildQuery(input.storage, definition, { columns }),
     };
   }
 

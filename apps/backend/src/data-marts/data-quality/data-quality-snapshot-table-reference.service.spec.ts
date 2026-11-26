@@ -68,7 +68,7 @@ describe('DataQualitySnapshotTableReferenceService', () => {
 
     await expect(reference.buildQuery(['`id`'])).resolves.toBe('SELECT `id` FROM saved_table');
     expect(queryBuilder.buildQuery).toHaveBeenCalledWith(
-      DataStorageType.GOOGLE_BIGQUERY,
+      expect.objectContaining({ type: DataStorageType.GOOGLE_BIGQUERY }),
       { fullyQualifiedName: 'warehouse.dataset.saved_table' },
       { columns: ['`id`'] }
     );

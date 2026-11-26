@@ -73,7 +73,9 @@ export class BigQueryDataMartValidator implements DataMartValidator {
     }
     try {
       const adapter = this.adapterFactory.create(credentials, config);
-      const built = await this.bigQueryQueryBuilder.buildQuery(definition);
+      const built = await this.bigQueryQueryBuilder.buildQuery(definition, {
+        storageProjectId: config.projectId,
+      });
       const query = typeof built === 'string' ? built : built.sql;
       const result = await adapter.executeDryRunQuery(query);
       if (

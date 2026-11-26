@@ -117,7 +117,7 @@ export class RefreshDataMartDataLastUpdatedService {
     for (const dataMart of dataMarts) {
       try {
         const definition = await this.sqlReferenceResolver.resolveDefinition(dataMart);
-        const built = await this.queryBuilderFacade.buildQuery(dataMart.storage.type, definition!);
+        const built = await this.queryBuilderFacade.buildQuery(dataMart.storage, definition!);
         items.push(
           typeof built === 'string'
             ? { key: dataMart.id, sql: built }

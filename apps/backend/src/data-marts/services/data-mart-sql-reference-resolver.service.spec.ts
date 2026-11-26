@@ -104,7 +104,7 @@ describe('DataMartSqlReferenceResolver', () => {
       });
 
       expect(queryBuilderFacade.buildQuery).toHaveBeenCalledWith(
-        DataStorageType.GOOGLE_BIGQUERY,
+        expect.objectContaining({ type: DataStorageType.GOOGLE_BIGQUERY }),
         costs.definition
       );
       expect(sql).toBe(

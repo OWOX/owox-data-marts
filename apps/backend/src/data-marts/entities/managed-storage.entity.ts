@@ -23,6 +23,10 @@ export class ManagedStorage {
   @Column({ type: 'varchar', length: 255 })
   gcpProjectId: string;
 
+  // Where the storage's jobs run; the datasets stay in gcpProjectId.
+  @Column({ type: 'varchar', length: 255 })
+  processProjectId: string;
+
   @Column({ type: 'varchar', length: 16 })
   location: OwoxStorageLocation;
 

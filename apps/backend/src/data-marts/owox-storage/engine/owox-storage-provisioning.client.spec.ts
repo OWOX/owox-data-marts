@@ -18,6 +18,7 @@ const ENV: Record<string, string> = {
 
 const CREATED = {
   gcpProjectId: 'owox-gcp',
+  processProjectId: 'owox-gcp-process',
   datasetId: 'owox_abcdef012345',
   internalDatasetId: 'owox_abcdef012345_internal',
   location: 'US',
@@ -95,6 +96,14 @@ describe('OwoxStorageProvisioningClient', () => {
 
   it('rejects a response without a service account', async () => {
     respond(200, { ...CREATED, serviceAccountEmail: '' });
+
+    await expect(client().provision('p1', 'owox_abcdef012345', 'US')).rejects.toThrow();
+  });
+
+  // The jobs of a storage run in this project; without it no query of the storage can run.
+  it('rejects a response without the process project', async () => {
+    const { processProjectId: _, ...withoutProcessProject } = CREATED;
+    respond(200, withoutProcessProject);
 
     await expect(client().provision('p1', 'owox_abcdef012345', 'US')).rejects.toThrow();
   });

@@ -96,6 +96,10 @@ export class BigQueryManagedStorageEngine implements ManagedStorageEngine {
         // Every run impersonates the stored account; a different one would fail them all.
         throw new Error(`OWOX Storage ${datasetId} restore returned another service account`);
       }
+      if (restored.processProjectId !== target.processProjectId) {
+        // Every run starts its jobs in the stored process project.
+        throw new Error(`OWOX Storage ${datasetId} restore returned another process project`);
+      }
     } catch (error) {
       this.logger.error(`OWOX Storage ${datasetId} restore failed (${castError(error).message})`);
       throw error;
@@ -151,15 +155,16 @@ export class BigQueryManagedStorageEngine implements ManagedStorageEngine {
    * logged, not thrown.
    */
   private async waitUntilUsable(storage: IbProvisionedStorage): Promise<void> {
-    const { serviceAccountEmail, gcpProjectId, location, datasetId } = storage;
+    const { serviceAccountEmail, processProjectId, location, datasetId } = storage;
     for (let attempt = 0; ; attempt++) {
       try {
         const client = await this.identity.impersonate(serviceAccountEmail);
         await client.getAccessToken();
-        // roles/bigquery.jobUser comes after the token creator grant, and a project IAM change can apply later.
+        // roles/bigquery.jobUser in the process project comes after the token creator grant, and a project IAM
+        // change can apply later.
         const bigQuery = await this.identity.bigQueryAs(
           serviceAccountEmail,
-          gcpProjectId,
+          processProjectId,
           location
         );
         await bigQuery.createQueryJob({ query: 'SELECT 1', dryRun: true });
