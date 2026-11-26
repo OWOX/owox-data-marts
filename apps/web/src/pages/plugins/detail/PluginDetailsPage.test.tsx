@@ -978,6 +978,20 @@ describe('PluginDetailsPage', () => {
       expect(screen.getByRole('dialog', { name: 'Install this plugin?' })).toBeInTheDocument();
     });
 
+    it('keeps the banner Install secondary next to the primary header Install', () => {
+      plugin = entry({ visibleViaScopes: [] });
+      renderOpen();
+
+      expect(screen.getAllByRole('button', { name: 'Install' })).toHaveLength(2);
+      const banner = within(screen.getByRole('alert')).getByRole('button', { name: 'Install' });
+      const header = screen
+        .getAllByRole('button', { name: 'Install' })
+        .find(button => button !== banner);
+      expect(banner).not.toHaveClass('bg-primary');
+      expect(banner).toHaveClass('border');
+      expect(header).toHaveClass('bg-primary');
+    });
+
     it.each([
       [
         'the banner',

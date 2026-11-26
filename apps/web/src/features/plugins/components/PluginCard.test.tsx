@@ -20,6 +20,7 @@ vi.mock('../services/plugins.service', () => ({
 }));
 
 const service = pluginsService as unknown as Record<string, ReturnType<typeof vi.fn>>;
+const onInstall = vi.fn();
 
 const XSS_NAME = '<img src=x onerror=alert(1)>';
 const XSS_DESCRIPTION = '<script>alert(1)</script>';
@@ -49,10 +50,11 @@ function renderCards(...cards: PluginGalleryEntry[]) {
           <Route
             path='/ui/project-1/plugins'
             element={cards.map(card => (
-              <PluginCard key={card.pluginId} plugin={card} onInstall={vi.fn()} />
+              <PluginCard key={card.pluginId} plugin={card} onInstall={onInstall} />
             ))}
           />
-          <Route path='/ui/project-1/plugins/:pluginId' element={<div>Plugin page</div>} />
+          <Route path='/ui/project-1/plugins/p1' element={<div>Plugin page</div>} />
+          <Route path='/ui/project-1/plugins/p1/open' element={<div>Plugin open</div>} />
         </Routes>
       </MemoryRouter>
     </QueryClientProvider>
@@ -67,12 +69,6 @@ describe('PluginCard', () => {
       updated: false,
       currentSemver: '1.2.3',
     });
-  });
-
-  it('opens the plugin page from the card body', async () => {
-    renderCards(plugin({ installationState: 'installed' }));
-    fireEvent.click(screen.getByText('Does a thing'));
-    expect(await screen.findByText('Plugin page')).toBeInTheDocument();
   });
 
   /**
@@ -91,7 +87,7 @@ describe('PluginCard', () => {
   });
 
   // Kept on the Plugins page by the member's own installation after it left the Gallery:
-  // the card leads to its page, where uninstall lives, and says why it is still here.
+  // the gear leads to its page, where uninstall lives, and the card says why it is still here.
   it('marks an installed plugin nothing lists and leads to its settings', () => {
     renderCards(plugin({ installationState: 'installed', visibleViaScopes: [] }));
 
@@ -112,6 +108,7 @@ describe('PluginCard', () => {
       expect(toast).toHaveBeenCalledWith('Example Plugin is up to date — v1.2.3');
     });
     expect(screen.queryByText('Plugin page')).toBeNull();
+    expect(screen.queryByText('Plugin open')).toBeNull();
   });
 
   it('disables only the card whose check is running', async () => {
@@ -179,6 +176,64 @@ describe('PluginCard', () => {
     fireEvent.click(tooltip);
 
     expect(screen.queryByText('Plugin page')).toBeNull();
+    expect(screen.queryByText('Plugin open')).toBeNull();
     expect(service.checkNow).not.toHaveBeenCalled();
+  });
+
+  describe('card navigation', () => {
+    it.each<[string, Partial<PluginGalleryEntry>]>([
+      ['an installed', {}],
+      ['an installed suspended', { suspended: true }],
+      ['an installed unlisted', { visibleViaScopes: [] }],
+    ])('opens %s plugin from the card body', async (_name, over) => {
+      renderCards(plugin({ installationState: 'installed', ...over }));
+
+      fireEvent.click(screen.getByText('Does a thing'));
+
+      expect(await screen.findByText('Plugin open')).toBeInTheDocument();
+    });
+
+    it('opens the plugin page from the gear of an installed card', async () => {
+      renderCards(plugin({ installationState: 'installed' }));
+
+      fireEvent.click(screen.getByRole('button', { name: 'Open Example Plugin settings' }));
+
+      expect(await screen.findByText('Plugin page')).toBeInTheDocument();
+    });
+
+    it.each([
+      ['a not_installed', { installationState: 'not_installed' }],
+      ['an uninstalled', { installationState: 'uninstalled' }],
+      ['a not_installed suspended', { installationState: 'not_installed', suspended: true }],
+    ] as const)('opens the plugin page from the body of %s card', async (_name, over) => {
+      renderCards(plugin(over));
+
+      fireEvent.click(screen.getByText('Does a thing'));
+
+      expect(await screen.findByText('Plugin page')).toBeInTheDocument();
+      expect(screen.queryByText('Plugin open')).toBeNull();
+    });
+
+    it('does not navigate when the gear tooltip is clicked', async () => {
+      renderCards(plugin({ installationState: 'installed' }));
+
+      fireEvent.focus(screen.getByRole('button', { name: 'Open Example Plugin settings' }));
+      const tooltip = (await screen.findAllByText('Settings'))[0];
+      fireEvent.click(tooltip);
+
+      expect(screen.queryByText('Plugin page')).toBeNull();
+      expect(screen.queryByText('Plugin open')).toBeNull();
+    });
+
+    it('installs from the + without leaving the Plugins page', () => {
+      const entry = plugin({ installationState: 'not_installed' });
+      renderCards(entry);
+
+      fireEvent.click(screen.getByRole('button', { name: 'Install Example Plugin' }));
+
+      expect(onInstall).toHaveBeenCalledWith(entry);
+      expect(screen.queryByText('Plugin page')).toBeNull();
+      expect(screen.queryByText('Plugin open')).toBeNull();
+    });
   });
 });

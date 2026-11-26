@@ -1917,7 +1917,8 @@ appeared in, or left, this project. Events within the same second may appear in 
 
 Publish the first release to **Only me**, install it, and test it inside OWOX Data Marts. The
 page can run locally with `npm run dev` for UI work. Verify the real `@owox/plugin-sdk` handshake,
-sandbox behavior, and backend actions from the installed plugin.
+sandbox behavior, and backend actions from the installed plugin. To open it, select its card on the
+**Plugins** page or its row under **Plugins** in the sidebar.
 
 Exercise the key flows with the installing member's real access. Confirm loading, empty, error,
 and success states; light and dark themes; narrow and wide layouts; navigation; and every
