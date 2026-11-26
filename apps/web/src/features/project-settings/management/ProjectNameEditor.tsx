@@ -4,6 +4,7 @@ import { useMutation } from '@tanstack/react-query';
 import { isAxiosError } from 'axios';
 import { Pencil } from 'lucide-react';
 import { useForm } from 'react-hook-form';
+import { Link } from 'react-router';
 import { z } from 'zod';
 import { Button } from '@owox/ui/components/button';
 import { Form, FormControl, FormField, FormItem, FormMessage } from '@owox/ui/components/form';
@@ -52,23 +53,31 @@ export function ProjectNameEditor({
   origin,
   session,
   title,
-  readOnly,
+  readOnly = false,
+  projectPath,
+  prepareSession,
 }: {
   origin: string;
   session: ProjectManagementSession;
   title: string;
-  readOnly: boolean;
+  readOnly?: boolean;
+  projectPath?: string;
+  prepareSession?: (session: ProjectManagementSession) => Promise<void>;
 }) {
   const [editing, setEditing] = useState(false);
   const form = useForm({
     resolver: zodResolver(renameProjectSchema),
-    defaultValues: { title: '' },
+    defaultValues: { title },
     mode: 'onChange',
   });
   const dispatch = useAppDispatch();
   const { loadProjects } = useProjects();
   const rename = useMutation({
-    mutationFn: (name: string) => renameCloudProject(origin, session, name),
+    scope: { id: 'rename-cloud-project' },
+    mutationFn: async (name: string) => {
+      await prepareSession?.(session);
+      return renameCloudProject(origin, session, name);
+    },
     onError: error => {
       if (isAxiosError(error) && error.response?.status === 400) {
         form.setError('title', {
@@ -99,12 +108,22 @@ export function ProjectNameEditor({
   if (!editing) {
     return (
       <span className='flex items-center gap-2'>
-        <span className='min-w-0 break-words'>{name}</span>
+        {projectPath ? (
+          <Link
+            className='min-w-0 font-medium break-words underline-offset-4 hover:underline'
+            to={projectPath}
+          >
+            {name}
+          </Link>
+        ) : (
+          <span className='min-w-0 break-words'>{name}</span>
+        )}
         <Button
           type='button'
           size='icon-sm'
           variant='ghost'
-          aria-label='Edit project name'
+          className='shrink-0'
+          aria-label={projectPath ? `Edit project name for ${name}` : 'Edit project name'}
           onClick={() => {
             form.reset({ title: name });
             setEditing(true);
@@ -131,6 +150,7 @@ export function ProjectNameEditor({
               <FormControl>
                 <Input
                   {...field}
+                  autoFocus
                   aria-label='Project name'
                   disabled={rename.isPending}
                   required

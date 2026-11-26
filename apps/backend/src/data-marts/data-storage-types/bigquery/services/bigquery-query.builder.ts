@@ -64,7 +64,9 @@ export class BigQueryQueryBuilder implements DataMartQueryBuilderAsync {
       // DISTINCT is an output control on the SELECT itself: without this, a report with
       // no other control (a bare wildcard projection) would take the backward-compatible path
       // below, which never sees `queryOptions.distinct` at all.
-      queryOptions?.distinct === true;
+      queryOptions?.distinct === true ||
+      // The plain branch ignores a group restriction, so its metric filters would keep every row.
+      (queryOptions?.groupRestriction?.having.length ?? 0) > 0;
 
     const selectList = this.buildSelectList(queryOptions?.columns);
 
@@ -165,7 +167,10 @@ export class BigQueryQueryBuilder implements DataMartQueryBuilderAsync {
 
     // Not aggregated, so every remaining calculated field is row-level: a projected expression
     // and nothing else. SELECT/projection stays unqualified, as it is above.
-    assertNoHavingRules(queryOptions?.filters ?? [], 'BigQueryQueryBuilder plain query');
+    assertNoHavingRules(
+      [...(queryOptions?.filters ?? []), ...(queryOptions?.groupRestriction?.having ?? [])],
+      'BigQueryQueryBuilder plain query'
+    );
     const plainSelect = composePlainSelectBody(
       selectList,
       this.clauseRenderer.renderCalculatedSelectItems(calculatedFields)

@@ -7,8 +7,7 @@ import { useIsAdmin } from '../../features/idp/hooks/useRole';
 import { useProjectId, useRecordSheet } from '../../shared/hooks';
 import { McpPromoCard, buildMcpPrompt, useIsMcpPromoAvailable } from '../../features/mcp-promo';
 import { useFlags } from '../../app/store/hooks';
-import { getCloudBillingOrigin } from '../../features/cloud-billing/cloud-billing';
-import { checkVisible } from '../../utils/check-visible';
+import { getProjectSettingsTabs } from '../../features/project-settings/project-settings-tabs';
 import { contextService } from '../../features/contexts/services/context.service';
 import { projectMembersService } from '../../features/project-members/services/project-members.service';
 import type { ContextDto, MemberWithScopeDto } from '../../features/contexts/types/context.types';
@@ -19,12 +18,6 @@ import { MembersSettingsProvider } from '../../features/project-settings/members
 import { MembershipRequestSheet } from '../../features/project-settings/members/components/MembershipRequestSheet/MembershipRequestSheet';
 import { useTombstonedCollection } from '../../features/project-settings/members/model/useTombstonedCollection';
 import { useRefreshSetupProgress } from '../../components/AppSidebar/SetupChecklist/useSetupProgress';
-
-interface TabLink {
-  name: string;
-  path: string;
-  end: boolean;
-}
 
 /**
  * Project Settings shell: one page with tabs for Overview, Members, Contexts,
@@ -42,10 +35,6 @@ export function ProjectSettingsPage() {
   const projectId = useProjectId();
   const isMcpAvailable = useIsMcpPromoAvailable();
   const { flags } = useFlags();
-  const showBillingTabs =
-    getCloudBillingOrigin(flags) !== null ||
-    checkVisible('IDP_PROVIDER', 'owox-better-auth', flags);
-  const licenseKeysEnabled = checkVisible('LICENSE_ISSUANCE_ENABLED', 'true', flags);
   const [contexts, setContexts] = useState<ContextDto[]>([]);
   const [members, setMembers] = useState<MemberWithScopeDto[]>([]);
   const [loading, setLoading] = useState(true);
@@ -143,19 +132,7 @@ export function ProjectSettingsPage() {
     [openRequestSheet]
   );
 
-  const navigation: TabLink[] = [
-    { name: 'Overview', path: '.', end: true },
-    { name: 'Members', path: 'members', end: false },
-    { name: 'Contexts', path: 'contexts', end: false },
-    ...(showBillingTabs
-      ? [
-          { name: 'Credit consumption', path: 'credit', end: false },
-          { name: 'Subscription', path: 'subscription', end: false },
-        ]
-      : []),
-    ...(licenseKeysEnabled ? [{ name: 'License keys', path: 'license-keys', end: false }] : []),
-    { name: 'Notifications', path: 'notifications', end: false },
-  ];
+  const navigation = getProjectSettingsTabs(flags);
 
   // Stabilize the context value object so consumers do not re-render every
   // time `ProjectSettingsPage` itself rerenders for unrelated reasons (sheet
@@ -211,7 +188,7 @@ export function ProjectSettingsPage() {
             <NavLink
               key={item.name}
               to={item.path}
-              end={item.end}
+              end={item.path === '.'}
               className={({ isActive }) =>
                 cn(
                   'border-b-2 px-4 py-4 text-sm font-medium whitespace-nowrap',

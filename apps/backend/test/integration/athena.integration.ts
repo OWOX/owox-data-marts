@@ -362,6 +362,25 @@ AS SELECT * FROM (VALUES
       expect(Number(unrestricted[0]['id | SUM'])).toBe(10);
     }, 120000);
 
+    it('fan-out: a read groups the kept rows by its own column (real Athena)', async () => {
+      // active=true (1+3+4=8) passes, so beta (id 2) is not read; each name is one row.
+      const rows = await runWithAggregations({
+        columns: ['name', 'id'],
+        aggregations: [{ column: 'id', function: 'SUM' }],
+        sort: [{ column: 'name', direction: 'asc' }],
+        groupRestriction: {
+          dimensions: ['active'],
+          having: [{ column: 'id', function: 'SUM', operator: 'gt', value: 5, clause: 'having' }],
+        },
+      } as never);
+
+      expect(rows.map(r => [r.name, Number(r['id | SUM'])])).toEqual([
+        ['alpha', 1],
+        ['alphabet', 4],
+        ['gamma', 3],
+      ]);
+    }, 120000);
+
     const aggBuilder = new AthenaQueryBuilder(new AthenaClauseRenderer());
     const aggDefinition: TableDefinition = {
       get fullyQualifiedName() {

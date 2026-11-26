@@ -290,6 +290,8 @@ export function PluginRuntime({
             ? 'An administrator has suspended this plugin across the whole deployment. Your installation is untouched and will work again once it is resumed.'
             : 'It may have been removed, or you may no longer have access to it.'
         }
+        // A release that needs a new Credential lands here; its settings page has the Credentials tab.
+        settingsHref={openBase.replace(/\/open$/, '')}
         backHref={scope('/plugins')}
       />
     );

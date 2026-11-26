@@ -45,11 +45,15 @@ describe('LoadingProvider with the API client', () => {
     'preserves the auth error and stops loading when %s',
     async scenario => {
       if (scenario !== 'token provider is missing') {
+        let token = 'expired-token';
         setTokenProvider({
-          getAccessToken: () => 'expired-token',
+          getAccessToken: () => token,
+          getUserId: () => 'user-a',
+          getProjectId: () => 'project-a',
           refreshToken: async () => {
             if (scenario === 'refresh fails') throw new Error('Session expired');
-            return 'fresh-token';
+            token = 'fresh-token';
+            return token;
           },
         });
       }
@@ -63,7 +67,10 @@ describe('LoadingProvider with the API client', () => {
       });
 
       expect(failure).toBeInstanceOf(Error);
-      expect(failure).toHaveProperty('message', 'Token refresh failed');
+      expect(failure).toHaveProperty(
+        'message',
+        scenario === 'token provider is missing' ? 'Unauthorized' : 'Token refresh failed'
+      );
       expect(result.current.isLoading).toBe(false);
     }
   );
@@ -71,6 +78,8 @@ describe('LoadingProvider with the API client', () => {
   it('does not finish a foreground request when a silent request fails to refresh its token', async () => {
     setTokenProvider({
       getAccessToken: () => 'expired-token',
+      getUserId: () => 'user-a',
+      getProjectId: () => 'project-a',
       refreshToken: async () => {
         throw new Error('Session expired');
       },
@@ -231,9 +240,15 @@ describe('LoadingProvider with the API client', () => {
   );
 
   it('stops loading after a successful token refresh and retried request', async () => {
+    let token = 'expired-token';
     setTokenProvider({
-      getAccessToken: () => 'expired-token',
-      refreshToken: async () => 'fresh-token',
+      getAccessToken: () => token,
+      getUserId: () => 'user-a',
+      getProjectId: () => 'project-a',
+      refreshToken: async () => {
+        token = 'fresh-token';
+        return token;
+      },
     });
     const { result } = renderHook(useLoading, { wrapper: LoadingProvider });
     const retried = pendingResponse();

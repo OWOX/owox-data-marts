@@ -138,7 +138,7 @@ export interface BlendedQueryContext {
    */
   calculatedFields?: readonly CalculatedFieldPlan[];
   /**
-   * Calculated fields a FILTER (or the Totals restriction's HAVING) names, whether or not this
+   * Calculated fields a FILTER (or the group restriction's HAVING) names, whether or not this
    * query projects them. A predicate on one compares the field's FORMULA — its
    * name is a SELECT alias with no column behind it — so the plan must reach the renderer even
    * when the field is not selected. Deliberately not folded into `calculatedFields`: that list is
@@ -148,9 +148,8 @@ export interface BlendedQueryContext {
   calculatedFilterMetrics?: readonly CalculatedFieldPlan[];
   fieldIndex?: ReadonlyMap<string, BlendedFieldEntry>;
   /**
-   * Restricts this query to the rows of the GROUPS that survive the report's metric (HAVING)
-   * filters. Set only for the Totals query: Totals have no GROUP BY, so a per-group constraint
-   * has nothing to filter there — without this they summarise rows the report itself hides.
+   * Restricts this query to the rows of the GROUPS that survive the metric (HAVING) filters. Set
+   * by Totals (no GROUP BY to filter) and by a `havingGroupBy` read (a different grain).
    *
    * The builder recomputes the surviving groups as one more CTE over the SAME sources and
    * semi-joins it (a GROUP BY result has distinct tuples, so the join adds no fan-out). Every

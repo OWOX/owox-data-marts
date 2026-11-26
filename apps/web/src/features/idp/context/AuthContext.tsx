@@ -221,7 +221,8 @@ export function AuthProvider({ children }: AuthProviderProps) {
             () => accessToken,
             async () => (await refreshSession()).accessToken,
             () => user.projectId,
-            () => user.id
+            () => user.id,
+            () => isViewOnlySession(user)
           )
         );
         if (currentTarget) sessionStorage.removeItem(CONNECT_SWITCH_ATTEMPT_KEY);
@@ -305,6 +306,12 @@ export function AuthProvider({ children }: AuthProviderProps) {
             window.location.replace(target);
             return;
           }
+        }
+
+        const routeProjectId = getProjectIdFromPath(currentPath);
+        if (hasEmptyProjectRoles(user) && routeProjectId && routeProjectId !== user.projectId) {
+          // Let ProjectIdGuard resolve the target project before applying the current roles.
+          return;
         }
 
         if (

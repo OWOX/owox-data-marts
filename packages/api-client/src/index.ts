@@ -17,6 +17,7 @@ export {
   type TraverseDataAggregationRule,
   type TraverseDataDateTruncRule,
   type TraverseDataFilterRule,
+  type TraverseDataHavingGroupBy,
   type TraverseDataOptions,
   type TraverseDataRelativeDatePreset,
   type TraverseDataSortRule,

@@ -226,7 +226,7 @@ export abstract class AbstractBlendedQueryBuilder implements BlendedQueryBuilder
       having.sql.replace(/\n/g, '\n    ');
 
     const label = sanitizeSqlComment(
-      `groups kept by the report's metric filter(s) — Totals summarise only these rows`
+      'groups that pass the metric filter(s); only their rows are read'
     );
     const sql = `  -- ${label}\n  ${this.quoteIdentifier(cteName)} AS (\n    ${body}\n  )`;
 
@@ -1090,7 +1090,10 @@ export abstract class AbstractBlendedQueryBuilder implements BlendedQueryBuilder
       `${selectKeyword}\n  ${selectClause}\nFROM ${this.quoteIdentifier('main')}` +
       (joinParts.length > 0 ? '\n' + joinParts.join('\n') : '');
 
-    assertNoHavingRules(postJoinFilters, 'buildBlendedQuery ungrouped query');
+    assertNoHavingRules(
+      [...postJoinFilters, ...(context.groupRestriction?.having ?? [])],
+      'buildBlendedQuery ungrouped query'
+    );
     const where = renderer
       ? renderer.renderWhere(
           postJoinFilters,

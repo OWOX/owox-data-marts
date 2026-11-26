@@ -39,6 +39,18 @@ const configSchema = z
 
     SCHEDULER_TIMEZONE: z.string().trim().default('UTC'),
 
+    // Switches the run notification processors on (email and webhook). Off when unset or blank.
+    // Validated here rather than left to passthrough: ConfigService would hand the processors the
+    // raw string, and 'false' is truthy, so NOTIFICATIONS_ENABLED=false switched them on.
+    NOTIFICATIONS_ENABLED: blankAsUnset(
+      z
+        .string()
+        .trim()
+        .toLowerCase()
+        .pipe(z.enum(['true', 'false']))
+        .optional()
+    ).transform(val => val === 'true'),
+
     SERVER_TIMEOUT_MS: z.coerce.number().default(DEFAULT_SERVER_TIMEOUT_MS),
     KEEP_ALIVE_TIMEOUT_MS: z.coerce.number().default(DEFAULT_KEEP_ALIVE_TIMEOUT_MS),
     HEADERS_TIMEOUT_MS: z.coerce.number().default(DEFAULT_HEADERS_TIMEOUT_MS),

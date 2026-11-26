@@ -487,6 +487,26 @@ describe('BigQueryQueryBuilder', () => {
           })
         ).rejects.toThrow(/ctr/);
       });
+
+      // A restriction alone is an output control: a SQL mart then reads its view, not its SQL.
+      it('reads the view of a SQL mart when a restriction is the only control', async () => {
+        const viewRef = '`proj`.`dataset`.`view_abc`';
+        const having: RoutedFilterRule[] = [
+          { column: 'ctr', operator: 'gt', value: 0.5, clause: 'having' },
+        ];
+        const result = await builder.buildQuery(sqlDefinition('SELECT day, status FROM raw'), {
+          columns: ['day'],
+          filters: [],
+          mainTableReference: viewRef,
+          calculatedFilterMetrics: [CTR_PLAN],
+          groupRestriction: { dimensions: ['status'], having },
+        });
+        if (!isQueryBuildResult(result)) throw new Error('expected QueryBuildResult');
+        expect(result.sql).toContain(`FROM ${viewRef} AS src`);
+        expect(result.sql).not.toContain('FROM raw');
+        expect(result.sql).toContain('GROUP BY\n  `day`');
+        expect(result.sql).toMatch(/\nJOIN \([\s\S]+\) AS `_kept_groups` ON /);
+      });
     });
   });
 });

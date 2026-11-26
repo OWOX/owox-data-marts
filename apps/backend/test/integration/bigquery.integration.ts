@@ -4357,6 +4357,19 @@ describeIfCredentials('Totals restricted to the groups a metric filter keeps', (
     expect(Number(rows[0]['orders__orderId | COUNTUNIQUE'])).toBe(2);
   }, 120000);
 
+  it('fan-out: a read groups the kept rows by its own column: o1 100/1, o2 50/1, no o3', async () => {
+    // US and CA pass, DE (o3) does not; ev1 (US) and ev3 (CA) both reach o1, which counts once.
+    const restricted = context(true);
+    const rows = await runBlend({ ...restricted, columns: ['orderId', ...restricted.columns] });
+
+    const byOrder = new Map(rows.map(r => [String(r.orderId), r]));
+    expect([...byOrder.keys()].sort()).toEqual(['o1', 'o2']);
+    expect(Number(byOrder.get('o1')!['orders__amount | SUM'])).toBe(100);
+    expect(Number(byOrder.get('o1')!['orders__orderId | COUNTUNIQUE'])).toBe(1);
+    expect(Number(byOrder.get('o2')!['orders__amount | SUM'])).toBe(50);
+    expect(Number(byOrder.get('o2')!['orders__orderId | COUNTUNIQUE'])).toBe(1);
+  }, 120000);
+
   // The restriction must be recomputed at the REPORT's grain. A Totals query carries no
   // dateTruncs of its own, so a bucket that does not travel with the restriction regroups it by
   // RAW date: the monthly seed below has no single day above 60, so the kept set comes back

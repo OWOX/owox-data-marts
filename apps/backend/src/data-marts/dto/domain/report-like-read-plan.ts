@@ -6,6 +6,7 @@ import { RoutedGroupRestriction } from './group-restriction';
 import { SortConfig } from '../schemas/sort-config.schema';
 import { AggregationConfig } from '../schemas/aggregation-config.schema';
 import { DateTruncConfig } from '../schemas/date-trunc-config.schema';
+import { HavingGroupBy } from '../schemas/having-group-by.schema';
 import { UniqueCountConfig } from '../schemas/unique-count-config.schema';
 import { AutoAggregationOptOut } from '../schemas/auto-aggregation-opt-out.schema';
 import { normalizeUniqueCountSources } from '../schemas/unique-count-sources';
@@ -22,14 +23,15 @@ export interface ReportLikeReadPlan {
   limitConfig?: number | null;
   aggregationConfig?: AggregationConfig;
   /**
-   * Totals only: restrict the query to rows of the groups the report's metric (HAVING) filters
-   * keep. Totals have no GROUP BY, so those filters cannot apply there directly — see
-   * `ReportSqlComposerService.composeTotals`.
+   * Restrict the query to rows of the groups the report's metric (HAVING) filters keep. Set by
+   * `ReportSqlComposerService.composeTotals`; a read sets `havingGroupBy`, which builds the same
+   * restriction. The two never travel together.
    *
-   * `having` carries the ROUTED rules: this plan is handed straight to the query
-   * builder facade, so the verdict has to be decided before it is built, not after.
+   * `having` carries the ROUTED rules: the verdict is decided before the plan is built.
    */
   groupRestriction?: RoutedGroupRestriction;
+  /** HTTP Data reads only: check the metric (HAVING) filters at this grouping. */
+  havingGroupBy?: HavingGroupBy;
   dateTruncConfig?: DateTruncConfig;
   uniqueCountConfig?: UniqueCountConfig;
   autoAggregationOptOut?: AutoAggregationOptOut;

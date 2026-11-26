@@ -1,4 +1,5 @@
 import { BusinessViolationException } from '../../../common/exceptions/business-violation.exception';
+import { HavingGroupBy } from '../../dto/schemas/having-group-by.schema';
 import { ReportingColumns } from './http-data-column-sets.util';
 import { HttpDataColumnValidator } from './http-data-column-validator.service';
 
@@ -149,6 +150,54 @@ describe('HttpDataColumnValidator', () => {
       'Unique Count source not available for reporting: refunds'
     );
     expect(() => validator.validate(read(['']), columns)).not.toThrow();
+  });
+
+  describe('havingGroupBy', () => {
+    const read = (havingGroupBy: HavingGroupBy) => ({ selectedColumns: ['date'], havingGroupBy });
+
+    it('rejects an unknown key as "Unknown column"', () => {
+      expect(() => validator.validate(read({ column: ['ghost'] }), columns)).toThrow(
+        'Unknown column: ghost'
+      );
+    });
+
+    it('rejects an unknown date bucket column as "Unknown column"', () => {
+      const grain: HavingGroupBy = {
+        column: ['date'],
+        dateTrunc: [{ column: 'ghost', unit: 'MONTH' }],
+      };
+      expect(() => validator.validate(read(grain), columns)).toThrow('Unknown column: ghost');
+    });
+
+    it('accepts a native key and a visible joined key that the read does not select', () => {
+      expect(() =>
+        validator.validate(read({ column: ['revenue', 'orders__cost'] }), columns)
+      ).not.toThrow();
+    });
+
+    it.each(['orders__secret', 'refunds__amount'])(
+      'rejects %s, a key outside the known native and visible joined columns',
+      column => {
+        expect(() => validator.validate(read({ column: [column] }), columns)).toThrow(
+          `Unknown column: ${column}`
+        );
+      }
+    );
+
+    it('rejects a Unique Count key even when uniqueCount requests it', () => {
+      const withOrders: ReportingColumns = { ...columns, reportableSources: ['orders'] };
+      const grainOf = (column: string) => ({
+        ...read({ column: [column] }),
+        uniqueCount: ['', 'orders'],
+      });
+
+      expect(() => validator.validate(grainOf('Unique Count'), withOrders)).toThrow(
+        'Unknown column: Unique Count'
+      );
+      expect(() => validator.validate(grainOf('orders__unique_count'), withOrders)).toThrow(
+        'Unknown column: orders__unique_count'
+      );
+    });
   });
 
   it('ignores pre-join filter columns (resolved by aliasPath downstream, not by name here)', () => {

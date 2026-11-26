@@ -2,6 +2,9 @@ import { fireEvent, render, screen } from '@testing-library/react';
 import { Link, MemoryRouter, Route, Routes } from 'react-router';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
+const usePluginInstallations = vi.fn<
+  (includeUninstalled?: boolean) => { installations: typeof installations; isLoading: boolean }
+>(() => ({ installations, isLoading: false }));
 let installations: { installationId: string; pluginId: string; uninstalledAt: string | null }[] =
   [];
 let detailsMounts = 0;
@@ -11,7 +14,8 @@ vi.mock('../../../features/plugins', async () => {
     typeof import('../../../features/plugins/runtime/pluginRoute')
   >('../../../features/plugins/runtime/pluginRoute');
   return {
-    usePluginInstallations: () => ({ installations, isLoading: false }),
+    usePluginInstallations: (includeUninstalled?: boolean) =>
+      usePluginInstallations(includeUninstalled),
     routeFromLocation: actual.routeFromLocation,
   };
 });
@@ -64,6 +68,7 @@ const renderAt = (path: string) =>
 
 describe('PluginOpenPage', () => {
   beforeEach(() => {
+    vi.clearAllMocks();
     installations = [];
     detailsMounts = 0;
     runtimeMounts = 0;
@@ -109,6 +114,19 @@ describe('PluginOpenPage', () => {
     expect(screen.getByText('details with install')).toBeInTheDocument();
   });
 
+  it('reads the list an install refreshes before it resolves', () => {
+    renderAt('/ui/project-1/plugins/p1/open');
+    expect(usePluginInstallations).toHaveBeenCalledWith(true);
+  });
+
+  it('offers the install for a plugin the member uninstalled', () => {
+    installations = [
+      { installationId: 'i1', pluginId: 'p1', uninstalledAt: '2026-07-01T00:00:00Z' },
+    ];
+    renderAt('/ui/project-1/plugins/p1/open');
+    expect(screen.getByText('details with install')).toBeInTheDocument();
+  });
+
   it("ignores another plugin's installation", () => {
     installations = [{ installationId: 'i9', pluginId: 'p9', uninstalledAt: null }];
     renderAt('/ui/project-1/plugins/p1/open');
@@ -134,7 +152,9 @@ describe('PluginOpenPage', () => {
     const { rerender } = render(view());
     expect(screen.getByText(/runtime i1 at \/d\/42/)).toBeInTheDocument();
 
-    installations = [];
+    installations = [
+      { installationId: 'i1', pluginId: 'p1', uninstalledAt: '2026-07-01T00:00:00Z' },
+    ];
     rerender(view());
 
     expect(screen.getByText('plugin page')).toBeInTheDocument();
@@ -160,7 +180,9 @@ describe('PluginOpenPage', () => {
     fireEvent.click(screen.getByRole('link', { name: 'Other plugin' }));
     expect(await screen.findByText('details mount 1')).toBeInTheDocument();
 
-    installations = [];
+    installations = [
+      { installationId: 'i1', pluginId: 'p1', uninstalledAt: '2026-07-01T00:00:00Z' },
+    ];
     rerender(view());
     fireEvent.click(screen.getByRole('link', { name: 'Back to the first' }));
 

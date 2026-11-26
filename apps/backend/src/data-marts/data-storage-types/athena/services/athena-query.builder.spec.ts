@@ -291,4 +291,27 @@ describe('AthenaQueryBuilder output controls', () => {
     // Filtered, not selected: the field must not reach the projection.
     expect(out.sql).not.toContain('AS "ctr"');
   });
+
+  // A restriction alone must reach the grouped branch: the plain branch ignores it.
+  it('groups and joins the kept groups when a restriction is the only control', () => {
+    const out = builder.buildQuery(tableDefinition('db.orders'), {
+      columns: ['day'],
+      filters: [],
+      calculatedFilterMetrics: [
+        {
+          outputName: 'total',
+          type: 'DOUBLE',
+          formula: 'SUM({{ref field="revenue"}})',
+          level: 'metric' as const,
+        },
+      ],
+      groupRestriction: {
+        dimensions: ['status'],
+        having: [{ column: 'total', operator: 'gt', value: 100, clause: 'having' }],
+      },
+    } as never);
+    if (typeof out === 'string') throw new Error('expected QueryBuildResult');
+    expect(out.sql).toContain('GROUP BY\n  "day"');
+    expect(out.sql).toMatch(/\nJOIN \([\s\S]+\) AS "_kept_groups" ON /);
+  });
 });

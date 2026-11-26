@@ -58,7 +58,7 @@ import {
   type CalculatedSchemaField,
 } from '../calculated-fields/calculated-field.utils';
 import { partitionCalculatedPlans } from '../calculated-fields/calculated-plan-grain';
-import { routeFilterClauses } from '../calculated-fields/filter-clause-routing';
+import { filtersAndRestrictionOf } from './having-group-by.util';
 import {
   buildFormulaOwnerPlan,
   type FormulaOwnerAnalysis,
@@ -185,6 +185,7 @@ export class BlendedReportDataService {
       dataMartSchemaFields: dataMart.schema?.fields,
       precomputedBlendableSchema: blendableSchema,
       rejectUnavailableUniqueCountSources: options?.rejectUnavailableUniqueCountSources,
+      havingGroupBy: 'havingGroupBy' in report ? report.havingGroupBy : undefined,
     });
 
     const postJoinFilterColumns: string[] = [];
@@ -198,8 +199,11 @@ export class BlendedReportDataService {
     }
     const sortColumns = (sortConfig ?? []).map(s => s.column);
     const hasPreJoinFilters = preJoinFilterColumns.length > 0;
-    // Totals only — a persisted `Report` never carries a restriction (see composeTotals).
-    const groupRestriction = 'groupRestriction' in report ? report.groupRestriction : undefined;
+    // Set by Totals and by a havingGroupBy read; a persisted `Report` never carries one.
+    const { filters: routedFilters, groupRestriction } = filtersAndRestrictionOf(
+      report,
+      dataMart.schema?.fields ?? []
+    );
     const restrictionColumns = [
       ...(groupRestriction?.dimensions ?? []),
       ...(groupRestriction?.having ?? []).map(rule => rule.column),
@@ -214,6 +218,7 @@ export class BlendedReportDataService {
       if (
         postJoinFilterColumns.length === 0 &&
         sortColumns.length === 0 &&
+        restrictionColumns.length === 0 &&
         !hasPreJoinFilters &&
         uniqueCountAliasPaths.size === 0
       ) {
@@ -226,8 +231,8 @@ export class BlendedReportDataService {
         accessor
       );
       const blendedFieldsByName = new Map(blendableSchema.blendedFields.map(f => [f.name, f]));
-      const blendedRefs = [...postJoinFilterColumns, ...sortColumns].filter(c =>
-        blendedFieldsByName.has(c)
+      const blendedRefs = [...postJoinFilterColumns, ...sortColumns, ...restrictionColumns].filter(
+        c => blendedFieldsByName.has(c)
       );
       if (blendedRefs.length === 0 && !hasPreJoinFilters && uniqueCountAliasPaths.size === 0) {
         return withDegradedSort({ needsBlending: false, primaryKeyColumns });
@@ -257,10 +262,10 @@ export class BlendedReportDataService {
     );
 
     const blendedFieldsByName = new Map(blendableSchema.blendedFields.map(f => [f.name, f]));
-    // The restriction's own columns count as projected: a Totals plan carries its dimensions and
-    // metric filters there instead of in `columnConfig`, and `referencedColumns` below folds them
-    // in for exactly that reason — so a joined formula named only by a restriction reaches the
-    // chain builder by the same route a selected one does.
+    // The restriction's own columns count as projected: Totals and a `havingGroupBy` read carry
+    // keys there that `columnConfig` lacks, and `referencedColumns` below folds them in for that
+    // reason — so a joined formula named only by a restriction reaches the chain builder by the
+    // same route a selected one does.
     this.assertNoJoinedCalculatedColumns(
       dataMart,
       [...columnConfig, ...restrictionColumns],
@@ -341,9 +346,8 @@ export class BlendedReportDataService {
       ...nonMetricColumns,
       ...postJoinFilterColumns,
       ...sortColumns,
-      // A Totals plan projects only metrics and carries no HAVING in `filterConfig` — its
-      // dimensions and metric filters live in `groupRestriction` instead. They are
-      // nonetheless referenced by the emitted SQL, so they must count as referenced here too:
+      // Totals and a `havingGroupBy` read keep restriction keys outside `columnConfig`. The
+      // emitted SQL still references them, so they must count as referenced here too:
       // otherwise a JOINED restriction dimension never reaches `buildRelationshipChains`, its
       // qualifier falls back to `main."<alias>"` (unrecognized name), its source is never
       // access-checked, and a report whose ONLY blended reference was that dimension is routed
@@ -512,9 +516,7 @@ export class BlendedReportDataService {
           calculatedFilterMetrics.length > 0 ? calculatedFilterMetrics : undefined,
         // The clause each predicate belongs in is decided here, from the rule and the field's
         // level, and carried on the rule — the builder reads it and never re-derives it.
-        filters: report.filterConfig?.length
-          ? routeFilterClauses(report.filterConfig, schemaFields)
-          : undefined,
+        filters: routedFilters.length > 0 ? routedFilters : undefined,
         sort: sortConfig ?? undefined,
         limit: report.limitConfig ?? undefined,
         aggregations: normalizedAggregations ?? report.aggregationConfig ?? undefined,

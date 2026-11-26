@@ -4,6 +4,7 @@ import { SortConfigSchema } from './sort-config.schema';
 import { AggregationConfigSchema } from './aggregation-config.schema';
 import { DateTruncConfigSchema } from './date-trunc-config.schema';
 import { UNIQUE_COUNT_CONFIG_MAX_SOURCES } from './unique-count-config.schema';
+import { HavingGroupBySchema } from './having-group-by.schema';
 
 export const HTTP_DATA_MAX_ENCODED_PARAM_LENGTH = 8192;
 
@@ -149,6 +150,7 @@ export const HttpDataQuerySchema = z
     aggregation: AggregationParamSchema.optional(),
     dateTrunc: DateTruncParamSchema.optional(),
     uniqueCount: UniqueCountParamSchema.optional(),
+    havingGroupBy: makeEncodedConfigParam(HavingGroupBySchema, 'havingGroupBy').optional(),
     limit: LimitParamSchema.optional(),
     includeTotalRowCount: z.enum(['true', 'false']).optional(),
   })
@@ -208,6 +210,7 @@ export const HttpDataQuerySchema = z
     aggregation: value.aggregation,
     dateTrunc: value.dateTrunc,
     uniqueCount: value.uniqueCount,
+    havingGroupBy: value.havingGroupBy,
     limit: value.limit,
     includeTotalRowCount: value.includeTotalRowCount === 'true',
   }));

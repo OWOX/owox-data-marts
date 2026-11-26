@@ -50,7 +50,9 @@ export class LegacyBigQueryQueryBuilder extends BigQueryQueryBuilder {
       (queryOptions?.calculatedFields?.length ?? 0) > 0 ||
       // Mirrors the parent's addition for the same reason: otherwise a distinct-only
       // request (no other control) takes the legacy non-OC path below, which never applies it.
-      queryOptions?.distinct === true;
+      queryOptions?.distinct === true ||
+      // The non-OC path ignores a group restriction, so its metric filters would keep every row.
+      (queryOptions?.groupRestriction?.having.length ?? 0) > 0;
 
     // Output controls reference the materialized BQ view (mainTableReference), which is
     // already ODM-preprocessed at view-creation time, so the parent BigQuery builder does

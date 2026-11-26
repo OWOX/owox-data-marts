@@ -14,18 +14,26 @@ import { MyAccountPage } from './MyAccountPage';
 const useFlags = vi.hoisted(() => vi.fn());
 const request = vi.hoisted(() => vi.fn());
 const post = vi.hoisted(() => vi.fn());
+const patch = vi.hoisted(() => vi.fn());
 const signIn = vi.hoisted(() => vi.fn());
+const switchProject = vi.hoisted(() => vi.fn());
+const refreshMemberAccessToken = vi.hoisted(() => vi.fn());
 const loadProjects = vi.hoisted(() => vi.fn());
-vi.mock('../../app/api/apiClient', () => ({ default: { request, post } }));
+const dispatch = vi.hoisted(() => vi.fn());
+vi.mock('../../app/api/apiClient', () => ({
+  default: { request, post, patch },
+  refreshMemberAccessToken,
+}));
+vi.mock('../../app/store/core/store-hooks', () => ({ useAppDispatch: () => dispatch }));
 vi.mock('../../app/api/token-provider', () => ({
   getTokenProvider: () => ({
     getUserId: () => 'account-1',
-    getProjectId: () => 'project-1',
+    getProjectId: () => auth.projectId,
     getAccessToken: () => 'interactive-app-token',
   }),
 }));
-vi.mock('../idp/services', () => ({ signIn }));
-const auth = vi.hoisted(() => ({ viewOnly: false }));
+vi.mock('../idp/services', () => ({ signIn, switchProject }));
+const auth = vi.hoisted(() => ({ projectId: 'project-1', viewOnly: false }));
 const projectList: Project[] = [
   { id: 'project-2', title: 'Marketing', roles: ['viewer'], status: 'active' },
   { id: 'project-3', title: 'Sales analytics', roles: ['editor', 'admin'], status: 'blocked' },
@@ -33,7 +41,7 @@ const projectList: Project[] = [
 let projects: Project[];
 const getUser = () => ({
   id: 'account-1',
-  projectId: 'project-1',
+  projectId: auth.projectId,
   roles: [],
   viewOnly: auth.viewOnly,
 });
@@ -109,8 +117,13 @@ describe('My profile', () => {
     sessionStorage.clear();
     request.mockReset();
     post.mockReset();
+    patch.mockReset();
     signIn.mockReset();
+    switchProject.mockReset();
+    refreshMemberAccessToken.mockReset();
     loadProjects.mockReset();
+    dispatch.mockReset();
+    auth.projectId = 'project-1';
     projects = projectList;
   });
 
@@ -254,6 +267,187 @@ describe('My profile', () => {
 
     expect(screen.getByRole('heading', { name: 'No projects yet' })).toBeVisible();
     expect(screen.queryByRole('button', { name: 'Create project' })).not.toBeInTheDocument();
+  });
+
+  function enableProjectLinks(licenseKeys = false) {
+    useFlags.mockReturnValue({
+      callState: RequestStatus.LOADED,
+      flags: {
+        IDP_PROVIDER: 'owox-better-auth',
+        CLOUD_ACCOUNT_API_ORIGIN: 'https://ib.example.test',
+        CLOUD_PROJECT_API_ORIGIN: 'https://ib.example.test',
+        LICENSE_ISSUANCE_ENABLED: licenseKeys ? 'true' : 'false',
+      },
+    });
+  }
+
+  it('opens the name editor in the row for a project admin without switching on edit or cancel', () => {
+    enableProjectLinks();
+    renderProfile('/ui/me/projects');
+
+    expect(screen.getByRole('link', { name: 'Marketing' })).toHaveAttribute(
+      'href',
+      '/ui/project-2/data-marts'
+    );
+    expect(
+      screen.queryByRole('button', { name: 'Edit project name for Marketing' })
+    ).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Edit project name for Sales analytics' }));
+    const table = within(screen.getByRole('table', { name: 'My projects' }));
+    expect(table.getByRole('textbox', { name: 'Project name' })).toHaveValue('Sales analytics');
+    fireEvent.click(table.getByRole('button', { name: 'Cancel' }));
+    expect(table.getByRole('link', { name: 'Sales analytics' })).toBeVisible();
+    expect(switchProject).not.toHaveBeenCalled();
+    expect(patch).not.toHaveBeenCalled();
+  });
+
+  it.each(['project-1', 'project-3'])(
+    'saves the selected project name from session %s without leaving the table',
+    async projectId => {
+      enableProjectLinks();
+      auth.projectId = projectId;
+      switchProject.mockResolvedValue(undefined);
+      refreshMemberAccessToken.mockImplementation(() => {
+        auth.projectId = 'project-3';
+        return Promise.resolve('switched-access-token');
+      });
+      patch.mockImplementation(() => {
+        expect(auth.projectId).toBe('project-3');
+        return Promise.resolve({
+          data: { projectId: 'project-3', projectTitle: 'Sales reporting' },
+        });
+      });
+      renderProfile('/ui/me/projects');
+      fireEvent.click(
+        screen.getByRole('button', { name: 'Edit project name for Sales analytics' })
+      );
+      fireEvent.change(screen.getByRole('textbox', { name: 'Project name' }), {
+        target: { value: 'Sales reporting' },
+      });
+      const save = screen.getByRole('button', { name: 'Save' });
+      await waitFor(() => {
+        expect(save).toBeEnabled();
+      });
+      fireEvent.click(save);
+
+      expect(await screen.findByRole('link', { name: 'Sales reporting' })).toBeVisible();
+      if (projectId === 'project-1') {
+        expect(switchProject).toHaveBeenCalledWith('project-3', 'account-1');
+        expect(refreshMemberAccessToken).toHaveBeenCalledOnce();
+      } else {
+        expect(switchProject).not.toHaveBeenCalled();
+        expect(refreshMemberAccessToken).not.toHaveBeenCalled();
+      }
+      expect(patch).toHaveBeenCalledWith(
+        '/api/bi-projects/project-3',
+        { title: 'Sales reporting' },
+        expect.objectContaining({
+          expectedSession: { userId: 'account-1', projectId: 'project-3' },
+        })
+      );
+      expect(loadProjects).toHaveBeenCalledWith({ force: true });
+    }
+  );
+
+  it('keeps the new name in the row when switching to the selected project is forbidden', async () => {
+    enableProjectLinks();
+    switchProject.mockRejectedValue({ isAxiosError: true, response: { status: 403 } });
+    renderProfile('/ui/me/projects');
+    fireEvent.click(screen.getByRole('button', { name: 'Edit project name for Sales analytics' }));
+    const input = screen.getByRole('textbox', { name: 'Project name' });
+    fireEvent.change(input, { target: { value: 'Sales reporting' } });
+    const save = screen.getByRole('button', { name: 'Save' });
+    await waitFor(() => {
+      expect(save).toBeEnabled();
+    });
+    fireEvent.click(save);
+
+    expect(
+      await screen.findByText('You do not have permission to rename this project.')
+    ).toBeVisible();
+    expect(input).toHaveValue('Sales reporting');
+    expect(refreshMemberAccessToken).not.toHaveBeenCalled();
+    expect(patch).not.toHaveBeenCalled();
+  });
+
+  it.each([false, true])(
+    'lists project settings in the target project when licenses are %s',
+    async licenseKeys => {
+      enableProjectLinks(licenseKeys);
+      renderProfile('/ui/me/projects');
+
+      fireEvent.keyDown(screen.getByRole('button', { name: 'Project settings for Marketing' }), {
+        key: 'Enter',
+      });
+      const menu = within(await screen.findByRole('menu'));
+      for (const [name, path] of [
+        ['Overview', ''],
+        ['Members', '/members'],
+        ['Contexts', '/contexts'],
+        ['Credit consumption', '/credit'],
+        ['Subscription', '/subscription'],
+        ['Notifications', '/notifications'],
+      ]) {
+        expect(menu.getByRole('menuitem', { name })).toHaveAttribute(
+          'href',
+          `/ui/project-2/project-settings${path}`
+        );
+      }
+      if (licenseKeys) {
+        expect(menu.getByRole('menuitem', { name: 'License keys' })).toHaveAttribute(
+          'href',
+          '/ui/project-2/project-settings/license-keys'
+        );
+      } else {
+        expect(menu.queryByRole('menuitem', { name: 'License keys' })).not.toBeInTheDocument();
+      }
+    }
+  );
+
+  it('keeps read-only navigation while hiding admin edits in view-only mode', () => {
+    enableProjectLinks();
+    auth.viewOnly = true;
+    renderProfile('/ui/me/projects');
+
+    expect(screen.getByRole('link', { name: 'Sales analytics' })).toBeVisible();
+    expect(
+      screen.getByRole('button', { name: 'Project settings for Sales analytics' })
+    ).toBeVisible();
+    expect(screen.queryByRole('button', { name: /Edit project name/ })).not.toBeInTheDocument();
+  });
+
+  it('keeps removing projects visible and omits removed projects', () => {
+    enableProjectLinks();
+    projects = [
+      ...projectList,
+      { id: 'removed', title: 'Removed admin project', roles: ['admin'], status: 'removed' },
+      {
+        id: 'removing',
+        title: 'Pending admin project',
+        roles: ['admin'],
+        status: 'blocked',
+        removalPending: true,
+      },
+    ];
+    renderProfile('/ui/me/projects');
+
+    expect(screen.queryByText('Removed admin project')).not.toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'Pending admin project' })).toBeVisible();
+    expect(
+      screen.queryByRole('button', { name: 'Edit project name for Pending admin project' })
+    ).not.toBeInTheDocument();
+  });
+
+  it('opens Cloud projects without requiring the project-management API', () => {
+    enableCloud();
+    renderProfile('/ui/me/projects');
+
+    expect(screen.getByRole('link', { name: 'Marketing' })).toHaveAttribute(
+      'href',
+      '/ui/project-2/data-marts'
+    );
+    expect(screen.getByRole('button', { name: 'Project settings for Marketing' })).toBeVisible();
+    expect(screen.queryByRole('button', { name: /Edit project name/ })).not.toBeInTheDocument();
   });
 
   it('shows the projects table after deletion without a link back to the deleted project', async () => {

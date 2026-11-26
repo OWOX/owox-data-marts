@@ -399,6 +399,10 @@ describe('PluginRuntimePage', () => {
       'href',
       '/ui/project-1/plugins'
     );
+    expect(screen.getByRole('link', { name: 'Plugin settings' })).toHaveAttribute(
+      'href',
+      '/ui/project-1/plugins/p1'
+    );
   });
 
   it('hands the route it was opened at to the plugin', async () => {

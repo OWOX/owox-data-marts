@@ -667,7 +667,8 @@ the declared scopes, the request fails with `CREDENTIAL_SCOPE_INVALID` (400); fi
 ## Read Data Mart data
 
 `ctx.owox.dataMarts.traverseData()` streams a Data Mart's rows. Its columns, filters, sorting,
-aggregation, date buckets, and Unique Count (`uniqueCount`) are documented in the
+aggregation, date buckets, the grouping for metric filters (`havingGroupBy`), and Unique Count
+(`uniqueCount`) are documented in the
 [API client reference](../api/api-client.md#stream-data-mart-rows). Five things are not visible
 from the rows:
 
@@ -1834,8 +1835,8 @@ pin an older version.
 ## Publish and install
 
 Publishing makes a plugin findable. **Publish & Install** also offers to install it for you; every
-other member decides whether to install it, and unpublishing later does not uninstall existing
-installations.
+other member decides whether to install it. **Install** on the **Plugins** page or on the plugin's
+page opens the plugin. Unpublishing later does not uninstall existing installations.
 
 ### Publish in OWOX Data Marts
 
@@ -1917,7 +1918,8 @@ appeared in, or left, this project. Events within the same second may appear in 
 
 Publish the first release to **Only me**, install it, and test it inside OWOX Data Marts. The
 page can run locally with `npm run dev` for UI work. Verify the real `@owox/plugin-sdk` handshake,
-sandbox behavior, and backend actions from the installed plugin.
+sandbox behavior, and backend actions from the installed plugin. To open it, select its card on the
+**Plugins** page or its row under **Plugins** in the sidebar.
 
 Exercise the key flows with the installing member's real access. Confirm loading, empty, error,
 and success states; light and dark themes; narrow and wide layouts; navigation; and every
@@ -1927,9 +1929,10 @@ eligible release before sharing the plugin more broadly.
 ## Update or roll back
 
 For a normal update, change and test the plugin, deploy it, and create a higher production release
-such as `v0.1.1`. OWOX Data Marts checks relevant repositories daily. Ask for an immediate check
-when needed, with **Check and Update** next to the version on the plugin's page or from the command
-line:
+such as `v0.1.1`. OWOX Data Marts checks relevant repositories daily. To check now, select
+**Check and Update** next to the version on the plugin's page. If you installed the plugin, this
+button also appears next to the version when you point to its card on the **Plugins** page. You can
+also use the command line:
 
 ```bash
 owox-ctl plugins update OWNER/PLUGIN_NAME
