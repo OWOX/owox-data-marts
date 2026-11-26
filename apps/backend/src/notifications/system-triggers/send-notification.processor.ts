@@ -24,7 +24,7 @@ export class SendNotificationProcessor extends BaseSystemTaskProcessor {
   }
 
   override isEnabled(): boolean {
-    return this.configService.get<boolean>('NOTIFICATIONS_ENABLED') ?? false;
+    return super.isEnabled() && (this.configService.get<boolean>('NOTIFICATIONS_ENABLED') ?? false);
   }
 
   getType() {

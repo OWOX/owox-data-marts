@@ -44,6 +44,35 @@ describe('validateConfig', () => {
     });
   });
 
+  // A raw environment string reaches consumers through ConfigService.get<boolean>(), and the
+  // string 'false' is truthy, so the schema has to hand them a real boolean.
+  describe('NOTIFICATIONS_ENABLED', () => {
+    it.each([['true'], ['TRUE'], [' True ']])('turns %p into true', value => {
+      expect(validateConfig({ NOTIFICATIONS_ENABLED: value }).NOTIFICATIONS_ENABLED).toBe(true);
+    });
+
+    it.each([['false'], ['FALSE'], [' False ']])('turns %p into false', value => {
+      expect(validateConfig({ NOTIFICATIONS_ENABLED: value }).NOTIFICATIONS_ENABLED).toBe(false);
+    });
+
+    it('is off when unset', () => {
+      expect(validateConfig({}).NOTIFICATIONS_ENABLED).toBe(false);
+    });
+
+    it.each([[''], ['  ']])('treats the blank value %p as unset', value => {
+      expect(validateConfig({ NOTIFICATIONS_ENABLED: value }).NOTIFICATIONS_ENABLED).toBe(false);
+    });
+
+    it.each([['yes'], ['1'], ['0'], ['enabled']])(
+      'rejects %p at boot instead of reading it as true',
+      value => {
+        expect(() => validateConfig({ NOTIFICATIONS_ENABLED: value })).toThrow(
+          /Configuration validation failed/
+        );
+      }
+    );
+  });
+
   describe('CONNECTOR_RUN_LOG_FLUSH_INTERVAL_MS', () => {
     it('defaults to 2000 when unset', () => {
       expect(validateConfig({}).CONNECTOR_RUN_LOG_FLUSH_INTERVAL_MS).toBe(2_000);
