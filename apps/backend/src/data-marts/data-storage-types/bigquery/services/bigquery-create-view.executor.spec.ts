@@ -322,6 +322,7 @@ describe('BigQueryCreateViewExecutor', () => {
       expect(executeViewDdl).toHaveBeenCalledWith(
         `CREATE OR REPLACE VIEW \`proj-abc.owox_abc_internal.v\` OPTIONS(labels=[('owox_sql_hash', '${sqlHash}')]) AS SELECT 1`
       );
+      expect(mockAdapter.executeDryRunQuery).toHaveBeenCalledWith(sql);
       expect(mockAdapter.executeQuery).not.toHaveBeenCalled();
       expect(result).toEqual({ fullyQualifiedName: 'proj-abc.owox_abc_internal.v' });
     });

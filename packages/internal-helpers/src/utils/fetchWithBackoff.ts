@@ -10,12 +10,15 @@ export async function fetchWithBackoff(
   initialDelay = 300
 ): Promise<Response> {
   const logger = LoggerFactory.createNamedLogger('fetchWithBackoff');
+  let lastStatus: number | undefined;
   for (let attempt = 1; attempt <= maxRetries; attempt++) {
     try {
       const res = await fetchWithTimeout(url, options, timeoutMs);
 
       // Retry on 5xx or 429
       if (res.status >= 500 || res.status === 429) {
+        lastStatus = res.status;
+        if (attempt === maxRetries) break;
         const retryAfter = parseInt(res.headers.get('retry-after') ?? '0', 10);
         const backoff =
           retryAfter > 0 ? retryAfter * 1000 : initialDelay * Math.pow(2, attempt - 1);
@@ -47,7 +50,12 @@ export async function fetchWithBackoff(
     }
   }
 
-  throw new Error('fetchWithBackoff: exceeded max retries');
+  throw Object.assign(
+    new Error(`fetchWithBackoff: exceeded max retries, last status ${lastStatus}`),
+    {
+      status: lastStatus,
+    }
+  );
 }
 
 export async function fetchWithTimeout(

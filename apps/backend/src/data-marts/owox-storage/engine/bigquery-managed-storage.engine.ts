@@ -76,7 +76,7 @@ export class BigQueryManagedStorageEngine implements ManagedStorageEngine {
       exception.cause = error;
       throw exception;
     }
-    await this.waitUntilUsable(created.serviceAccountEmail, datasetId);
+    await this.waitUntilUsable(created);
     return { engine: 'bigquery', projectId: input.projectId, ...created };
   }
 
@@ -100,7 +100,7 @@ export class BigQueryManagedStorageEngine implements ManagedStorageEngine {
       this.logger.error(`OWOX Storage ${datasetId} restore failed (${castError(error).message})`);
       throw error;
     }
-    await this.waitUntilUsable(serviceAccountEmail, datasetId);
+    await this.waitUntilUsable(target);
   }
 
   async deprovision(target: ProvisionedManagedStorage): Promise<void> {
@@ -146,17 +146,29 @@ export class BigQueryManagedStorageEngine implements ManagedStorageEngine {
     await bigQuery.dataset(target.datasetId).table(tableName).delete();
   }
 
-  /** Waits until ODM can impersonate the new account; one still refused is logged, not thrown. */
-  private async waitUntilUsable(serviceAccountEmail: string, datasetId: string): Promise<void> {
+  /**
+   * Waits until ODM can impersonate the new account and the account can run jobs; one still refused is
+   * logged, not thrown.
+   */
+  private async waitUntilUsable(storage: IbProvisionedStorage): Promise<void> {
+    const { serviceAccountEmail, gcpProjectId, location, datasetId } = storage;
     for (let attempt = 0; ; attempt++) {
       try {
         const client = await this.identity.impersonate(serviceAccountEmail);
         await client.getAccessToken();
+        // roles/bigquery.jobUser comes after the token creator grant, and a project IAM change can apply later.
+        const bigQuery = await this.identity.bigQueryAs(
+          serviceAccountEmail,
+          gcpProjectId,
+          location
+        );
+        await bigQuery.createQueryJob({ query: 'SELECT 1', dryRun: true });
         return;
       } catch (error) {
-        const status = (error as { status?: unknown } | null)?.status;
-        // 403: the token creator grant is not applied yet; 404: IAM does not see the account yet.
-        if ((status !== 403 && status !== 404) || attempt >= USABLE_WAITS_MS.length) {
+        const { status, code } = (error ?? {}) as { status?: unknown; code?: unknown };
+        // 403: a grant is not applied yet; 404: IAM does not see the account yet.
+        const refused = status ?? code;
+        if ((refused !== 403 && refused !== 404) || attempt >= USABLE_WAITS_MS.length) {
           this.logger.warn(
             `OWOX Storage ${datasetId}: ODM cannot use its service account yet${describeGoogleError(error)}; its first load can fail`
           );

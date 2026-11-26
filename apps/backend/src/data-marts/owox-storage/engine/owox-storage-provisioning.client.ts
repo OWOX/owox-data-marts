@@ -72,15 +72,25 @@ export class OwoxStorageProvisioningClient {
         body: body ? JSON.stringify(body) : undefined,
       },
       TIMEOUT_MS
-    );
+    ).catch((error: unknown) => {
+      // After the last retry of a 5xx or 429 answer, fetchWithBackoff throws with the status of that answer.
+      const status = (error as { status?: number } | null)?.status;
+      throw status ? this.answered(status, method) : error;
+    });
     if (!response.ok) {
       // No response body: it can carry project and account ids.
-      // The code lets describeGoogleError log the status, so ops can tell a 409 from a 502.
-      throw Object.assign(
-        new Error(`Integrated Backend answered ${response.status} to OWOX Storage ${method}`),
-        { code: response.status }
-      );
+      throw this.answered(response.status, method);
     }
     return response;
+  }
+
+  /** The code lets describeGoogleError log the status, so ops can tell a 409 from a 502. */
+  private answered(status: number, method: string): Error {
+    return Object.assign(
+      new Error(`Integrated Backend answered ${status} to OWOX Storage ${method}`),
+      {
+        code: status,
+      }
+    );
   }
 }

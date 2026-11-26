@@ -170,6 +170,11 @@ export class BigQueryApiAdapter {
       if (this.owoxStorage && isDailyQuotaRefusal(errors?.[0]?.reason, message)) {
         throw new OwoxStorageQueryLimitException();
       }
+      // A refused job creation, and so every dry run, can name the account too.
+      if (this.owoxStorage && error instanceof Error) {
+        error.message = withoutServiceAccount(error.message);
+        if (error.stack) error.stack = withoutServiceAccount(error.stack);
+      }
       throw error;
     }
   }

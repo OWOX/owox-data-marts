@@ -68,16 +68,29 @@ describe('OwoxStorageProvisioningClient', () => {
   });
 
   it('throws on an error status without the response body', async () => {
-    respond(503, { message: 'project owox-secret-gcp is not configured' });
+    respond(409, { message: 'project owox-secret-gcp is not configured' });
 
     const error = await client()
       .deprovision('p1', 'owox_abcdef012345')
       .catch((e: Error) => e);
 
     expect(error).toBeInstanceOf(Error);
-    expect((error as Error).message).toBe('Integrated Backend answered 503 to OWOX Storage DELETE');
+    expect((error as Error).message).toBe('Integrated Backend answered 409 to OWOX Storage DELETE');
     // describeGoogleError logs the code, so ops can tell a 409 from a 502.
-    expect((error as { code?: number }).code).toBe(503);
+    expect((error as { code?: number }).code).toBe(409);
+  });
+
+  it('names the status of the last answer after the retries of a 5xx', async () => {
+    fetchMock.mockRejectedValue(
+      Object.assign(new Error('fetchWithBackoff: exceeded max retries, last status 503'), {
+        status: 503,
+      })
+    );
+
+    await expect(client().provision('p1', 'owox_abcdef012345', 'US')).rejects.toMatchObject({
+      message: 'Integrated Backend answered 503 to OWOX Storage PUT',
+      code: 503,
+    });
   });
 
   it('rejects a response without a service account', async () => {

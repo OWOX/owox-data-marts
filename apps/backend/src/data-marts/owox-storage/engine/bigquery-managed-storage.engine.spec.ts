@@ -41,9 +41,10 @@ function setup() {
     ]);
   const ownDataset = jest.fn(() => ({ getTables }));
   const getAccessToken = jest.fn().mockResolvedValue({ token: 'token' });
+  const createQueryJob = jest.fn().mockResolvedValue([{}]);
   const identity = {
     bigQuery: jest.fn(() => ({ query, dataset: ownDataset })),
-    bigQueryAs: jest.fn(() => Promise.resolve({ dataset })),
+    bigQueryAs: jest.fn(() => Promise.resolve({ dataset, createQueryJob })),
     impersonate: jest.fn(() => Promise.resolve({ getAccessToken })),
     forget: jest.fn(),
   };
@@ -62,6 +63,7 @@ function setup() {
     getTables,
     ownDataset,
     getAccessToken,
+    createQueryJob,
     sleep,
     dataset,
     table,
@@ -91,6 +93,23 @@ describe('BigQueryManagedStorageEngine', () => {
   });
 
   describe('waiting until ODM can use the new account', () => {
+    // roles/bigquery.jobUser comes after the token creator grant, and a project IAM change can apply later.
+    it('waits until the account can run jobs', async () => {
+      const { engine, identity, createQueryJob, sleep } = setup();
+      createQueryJob.mockRejectedValueOnce(
+        Object.assign(new Error('Access Denied: bigquery.jobs.create'), { code: 403 })
+      );
+      const warn = jest.spyOn(Logger.prototype, 'warn').mockImplementation(() => undefined);
+
+      await engine.provision({ projectId: 'p1', location: 'EU' });
+
+      expect(identity.bigQueryAs).toHaveBeenCalledWith(EMAIL, 'owox-gcp', 'EU');
+      expect(createQueryJob).toHaveBeenCalledWith({ query: 'SELECT 1', dryRun: true });
+      expect(createQueryJob).toHaveBeenCalledTimes(2);
+      expect(sleep.mock.calls.map(([ms]) => ms)).toEqual([1000]);
+      expect(warn).not.toHaveBeenCalled();
+    });
+
     it.each([403, 404])('waits while the token call answers %s, then returns', async status => {
       const { engine, getAccessToken, sleep } = setup();
       getAccessToken

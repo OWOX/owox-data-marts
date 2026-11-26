@@ -156,6 +156,28 @@ describe('BigQueryApiAdapter (OWOX Storage)', () => {
       expect(error.message).toBe('Access Denied: User <service account> does not have permission');
     });
 
+    it('keeps the account email out of a refused dry run on an OWOX Storage', async () => {
+      const email = 'id-0123456789ab@owox-p-access-001.iam.gserviceaccount.com';
+      createQueryJob.mockRejectedValue(
+        Object.assign(
+          new Error(`Access Denied: ${email} does not have storage.objects.list access`),
+          {
+            code: 403,
+          }
+        )
+      );
+
+      const error = await new BigQueryApiAdapter(managed, config)
+        .executeQuery('SELECT 1')
+        .catch(e => e);
+
+      expect(error.message).toBe(
+        'Access Denied: <service account> does not have storage.objects.list access'
+      );
+      expect(error.stack).not.toContain(email);
+      expect(error.code).toBe(403);
+    });
+
     it('keeps other quota errors as they are', async () => {
       failJob('quotaExceeded', 'Exceeded rate limits: too many concurrent queries');
 
