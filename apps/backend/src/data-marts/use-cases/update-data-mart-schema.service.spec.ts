@@ -685,6 +685,169 @@ describe('UpdateDataMartSchemaService', () => {
     });
   });
 
+  describe('setting calculated field types from the formula result', () => {
+    const FORMULA = 'IF({{ref field="ts"}} IS NULL, FALSE, TRUE)';
+    const flag = (type: string, formula = FORMULA) => ({
+      name: 'flag',
+      type,
+      calculated: { formula, level: 'row' },
+    });
+    const schema = (fields: unknown[]) => ({ type: 'bigquery-data-mart-schema', fields });
+
+    const save = async (
+      persisted: unknown[] | null,
+      submitted: unknown[],
+      resultTypes: [string, string][] = [['flag', 'BOOLEAN']],
+      resolveCredentials?: jest.Mock
+    ) => {
+      const validate = jest.fn().mockResolvedValue({
+        errors: [],
+        warnings: [],
+        warehouseValidation: 'passed',
+        resultTypes: new Map(resultTypes),
+      });
+      const parsed = schema(submitted) as { fields: unknown[] };
+      // Like the real inheritance: a changed schema comes back as shallow copies of its fields.
+      const schemaInheritance = {
+        applyInheritance: jest.fn(async () => ({
+          schema: { ...parsed, fields: parsed.fields.map(f => ({ ...(f as object) })) },
+          changed: true,
+        })),
+        propagateFrom: jest.fn().mockResolvedValue([]),
+      };
+      const { service, dataMartService } = buildService({
+        validate,
+        parsedSchema: parsed,
+        schemaInheritance,
+        resolveCredentials,
+        dataMart: {
+          id: 'target-1',
+          projectId: 'project-1',
+          storage: {
+            type: DataStorageType.GOOGLE_BIGQUERY,
+            config: { projectId: 'p', location: 'US' },
+          },
+          schema: persisted ? schema(persisted) : null,
+        },
+      });
+      const result = await service.run(
+        new UpdateDataMartSchemaCommand('target-1', 'project-1', {} as never)
+      );
+      const saved = dataMartService.save.mock.calls[0][0] as {
+        schema: { fields: { name: string; type: string }[] };
+      };
+      const types = Object.fromEntries(saved.schema.fields.map(f => [f.name, f.type]));
+      return {
+        type: types['flag'],
+        types,
+        warnings: result.warnings.map(w => `${w.field}:${w.code}`),
+      };
+    };
+    const WARNING = 'flag:FORMULA_TYPE_SET_FROM_RESULT';
+
+    it('sets the type of a new field on the saved schema object', async () => {
+      const r = await save([], [flag('STRING')]);
+      expect(r.type).toBe('BOOLEAN');
+      expect(r.warnings).toContain(WARNING);
+    });
+
+    it('keeps the type of a field the save did not change', async () => {
+      const r = await save([flag('STRING')], [flag('STRING')]);
+      expect(r.type).toBe('STRING');
+      expect(r.warnings).not.toContain(WARNING);
+    });
+
+    it('sets the type of a field whose formula changed', async () => {
+      const r = await save([flag('STRING', 'TRUE')], [flag('STRING')]);
+      expect(r.type).toBe('BOOLEAN');
+      expect(r.warnings).toContain(WARNING);
+    });
+
+    it('sets the type of a field whose declared type changed', async () => {
+      const r = await save([flag('STRING')], [flag('DATE')]);
+      expect(r.type).toBe('BOOLEAN');
+      expect(r.warnings).toContain(WARNING);
+    });
+
+    it('keeps a declared FLOAT over a STRING result', async () => {
+      const r = await save([], [flag('FLOAT')], [['flag', 'STRING']]);
+      expect(r.type).toBe('FLOAT');
+      expect(r.warnings).not.toContain(WARNING);
+    });
+
+    it('changes no type when the warehouse check was skipped', async () => {
+      const r = await save(
+        [],
+        [flag('STRING')],
+        undefined,
+        jest.fn().mockRejectedValue(new Error('no credential'))
+      );
+      expect(r.type).toBe('STRING');
+      expect(r.warnings).not.toContain(WARNING);
+    });
+
+    it('counts a renamed field as a new field', async () => {
+      const r = await save(
+        [flag('STRING')],
+        [{ ...flag('STRING'), name: 'flag2' }],
+        [['flag2', 'BOOLEAN']]
+      );
+      expect(r.types['flag2']).toBe('BOOLEAN');
+      expect(r.warnings).toContain('flag2:FORMULA_TYPE_SET_FROM_RESULT');
+    });
+
+    it('does not change a field when only the line endings of its stored formula differ', async () => {
+      const formula = 'IF(\n{{ref field="ts"}} IS NULL, FALSE, TRUE)';
+      const r = await save(
+        [flag('STRING', formula.replace(/\n/g, '\r\n'))],
+        [flag('STRING', formula)]
+      );
+      expect(r.type).toBe('STRING');
+      expect(r.warnings).not.toContain(WARNING);
+    });
+
+    describe('a field that reads a changed field', () => {
+      const reader = (type: string) => ({
+        name: 'b',
+        type,
+        calculated: { formula: '{{ref field="flag"}}', level: 'row' },
+      });
+      const other = {
+        name: 'c',
+        type: 'BOOLEAN',
+        calculated: { formula: 'TRUE', level: 'row' },
+      };
+      const results: [string, string][] = [
+        ['flag', 'STRING'],
+        ['b', 'STRING'],
+        ['c', 'STRING'],
+      ];
+
+      it('is changed too, and an unrelated field is not', async () => {
+        const r = await save(
+          [flag('BOOLEAN', 'TRUE'), reader('BOOLEAN'), other],
+          [flag('BOOLEAN'), reader('BOOLEAN'), other],
+          results
+        );
+        expect(r.types).toEqual({ flag: 'STRING', b: 'STRING', c: 'BOOLEAN' });
+        expect(r.warnings).toEqual([WARNING, 'b:FORMULA_TYPE_SET_FROM_RESULT']);
+      });
+
+      it('is not changed when only the type of the field it reads changed', async () => {
+        const r = await save(
+          [flag('STRING'), reader('STRING')],
+          [flag('FLOAT'), reader('STRING')],
+          [
+            ['flag', 'STRING'],
+            ['b', 'INTEGER'],
+          ]
+        );
+        expect(r.types).toEqual({ flag: 'FLOAT', b: 'STRING' });
+        expect(r.warnings).toEqual([]);
+      });
+    });
+  });
+
   it('validates against the parsed schema and the data mart storage type', async () => {
     const parsedSchema = { type: 'bigquery-data-mart-schema', fields: [] };
     const validate = jest.fn().mockResolvedValue({ errors: [], warnings: [] });

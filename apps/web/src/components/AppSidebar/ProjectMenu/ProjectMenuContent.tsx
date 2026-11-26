@@ -1,4 +1,5 @@
 import { Link } from 'react-router';
+import type { ReactNode } from 'react';
 import {
   DropdownMenuContent,
   DropdownMenuItem,
@@ -12,17 +13,27 @@ import { useProjectRoute } from '../../../shared/hooks';
 interface ProjectMenuContentProps {
   onClose?: () => void;
   restricted?: boolean;
+  createProjectItem?: ReactNode;
 }
 
-export function ProjectMenuContent({ onClose, restricted = false }: ProjectMenuContentProps) {
+export function ProjectMenuContent({
+  onClose,
+  restricted = false,
+  createProjectItem,
+}: ProjectMenuContentProps) {
   if (restricted) {
-    return <RestrictedProjectMenuContent />;
+    return <RestrictedProjectMenuContent createProjectItem={createProjectItem} />;
   }
 
-  return <RegularProjectMenuContent onClose={onClose ?? ignoreMenuClose} />;
+  return (
+    <RegularProjectMenuContent
+      onClose={onClose ?? ignoreMenuClose}
+      createProjectItem={createProjectItem}
+    />
+  );
 }
 
-function RestrictedProjectMenuContent() {
+function RestrictedProjectMenuContent({ createProjectItem }: { createProjectItem?: ReactNode }) {
   return (
     <DropdownMenuContent align='start' side='right' className='w-56'>
       <SwitchProjectMenu
@@ -31,13 +42,20 @@ function RestrictedProjectMenuContent() {
         excludeCurrentProject
         showSeparator={false}
       />
+      {createProjectItem}
     </DropdownMenuContent>
   );
 }
 
 const ignoreMenuClose = () => undefined;
 
-function RegularProjectMenuContent({ onClose }: { onClose: () => void }) {
+function RegularProjectMenuContent({
+  onClose,
+  createProjectItem,
+}: {
+  onClose: () => void;
+  createProjectItem?: ReactNode;
+}) {
   const { visibleMenuItems, canSwitchProject } = useProjectMenu();
   const { scope } = useProjectRoute();
 
@@ -80,6 +98,7 @@ function RegularProjectMenuContent({ onClose }: { onClose: () => void }) {
         );
       })}
       {canSwitchProject && <SwitchProjectMenu key='switch-project' />}
+      {createProjectItem}
     </DropdownMenuContent>
   );
 }

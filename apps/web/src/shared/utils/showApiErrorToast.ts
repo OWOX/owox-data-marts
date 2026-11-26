@@ -27,7 +27,7 @@ function humanizeValidationCode(code: string): string {
  * push a wall of text into a toast that stays until dismissed. The first few name the problem;
  * the count tells the user there is more to fix.
  */
-function formatValidationErrors(errors: ApiValidationError[] | undefined): string | null {
+export function formatValidationErrors(errors: ApiValidationError[] | undefined): string | null {
   // Shape-checked, not just length-checked: this runs inside an error handler, and a body whose
   // `details.errors` is a string (or anything else array-like) would throw on `.map` — turning a
   // reportable failure into an unhandled one.

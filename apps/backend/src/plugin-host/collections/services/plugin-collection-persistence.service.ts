@@ -239,13 +239,9 @@ export class PluginCollectionPersistenceService {
     });
   }
 
-  private async findForMutation(namespaceKey: string, documentKey: string) {
-    const query = this.documents
-      .createQueryBuilder('document')
-      .where('document.namespaceKey = :namespaceKey', { namespaceKey })
-      .andWhere('document.documentKey = :documentKey', { documentKey });
-    if (this.dataSource.options.type === 'mysql') query.setLock('pessimistic_write');
-    return query.getOne();
+  // No FOR UPDATE: the namespace usage lock serializes writers, and a gap lock deadlocks inserts.
+  private findForMutation(namespaceKey: string, documentKey: string) {
+    return this.documents.findOneBy({ namespaceKey, documentKey });
   }
 
   private async lockUsageRows(
@@ -282,7 +278,13 @@ export class PluginCollectionPersistenceService {
         totalBytes: '0',
       },
     ];
-    await this.usages.createQueryBuilder().insert().values(values).orIgnore().execute();
+    // Upsert, not INSERT IGNORE: its shared lock on existing rows deadlocks parallel writers.
+    await this.usages
+      .createQueryBuilder()
+      .insert()
+      .values(values)
+      .orUpdate(['level'], ['usageKey'])
+      .execute();
     const query = this.usages
       .createQueryBuilder('usage')
       .where('usage.usageKey IN (:...keys)', { keys: values.map(row => row.usageKey) })

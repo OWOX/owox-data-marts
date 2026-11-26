@@ -166,6 +166,24 @@ describe('PkceFlowOrchestrator', () => {
     expect(res.clearCookie).toHaveBeenCalled();
   });
 
+  it('falls back to sign-in without clearing the cookie when refresh is rejected', async () => {
+    const req = createReq();
+    const res = createRes();
+    tokenFacade.refreshToken.mockRejectedValue(new AuthenticationException('Refresh rejected'));
+
+    const result = await service.completeWithIdentityRefreshToken(
+      'current-session',
+      { source: SOURCE.PLATFORM },
+      req,
+      res
+    );
+
+    expect(result).toBeNull();
+    expect(res.clearCookie).not.toHaveBeenCalled();
+    expect(tokenFacade.revokeToken).not.toHaveBeenCalled();
+    expect(userContextService.resolveFromToken).not.toHaveBeenCalled();
+  });
+
   it('completes with social session token and builds redirect', async () => {
     const req = createReq({
       cookies: { 'idp-owox-state': 'state-2' },

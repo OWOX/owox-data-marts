@@ -36,7 +36,13 @@ export class PluginCollectionAuditService {
     const cutoff = new Date(
       Date.now() - PLUGIN_COLLECTION_LIMITS.auditRetentionDays * 24 * 60 * 60 * 1000
     );
-    await this.repository.delete({ projectId: context.projectId, createdAt: LessThan(cutoff) });
+    // Delete by id, not by range: a range DELETE gap-locks the audit inserts of other projects.
+    const expired = await this.repository.find({
+      select: { id: true },
+      where: { projectId: context.projectId, createdAt: LessThan(cutoff) },
+      take: PLUGIN_COLLECTION_LIMITS.auditRetentionBatchRows,
+    });
+    if (expired.length) await this.repository.delete({ id: In(expired.map(event => event.id)) });
     await this.trimOldest(
       { pluginId: context.pluginId, projectId: context.projectId },
       PLUGIN_COLLECTION_LIMITS.maxAuditRowsPerPluginProject

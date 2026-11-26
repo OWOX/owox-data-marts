@@ -12,7 +12,7 @@ var observationsFields = {
     'GoogleBigQueryPartitioned': true
   },
   'label': {
-    'description': 'The currency code (e.g., USD, EUR, GBP).',
+    'description': 'The currency pair (e.g., USDCAD).',
     'type': DATA_TYPES.STRING,
   },
   'rate': {

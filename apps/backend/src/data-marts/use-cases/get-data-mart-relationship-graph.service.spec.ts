@@ -84,6 +84,9 @@ function build(opts: {
     fetchRelevantUserProjections: jest.fn().mockResolvedValue({ getByUserId: () => null }),
   };
   const accessDecisionService = {
+    canAccess: jest
+      .fn()
+      .mockImplementation((_u, _r, _t, id: string) => Promise.resolve(accessMap.get(id) ?? false)),
     canAccessMany: jest.fn().mockResolvedValue(accessMap),
   };
 
@@ -100,6 +103,21 @@ function build(opts: {
 
 const command = (rootId = 'dm-root') =>
   new GetRelationshipGraphCommand(rootId, 'proj-1', 'user-1', ['viewer']);
+
+// Every data mart joins every other one: 8 data marts give far more than 5000 graph nodes.
+const completeGraph = (): RelFixture[] => {
+  const ids = ['dm-root', ...Array.from({ length: 7 }, (_, i) => `dm-${i}`)];
+  return ids.flatMap(sourceId =>
+    ids
+      .filter(targetId => targetId !== sourceId)
+      .map(targetId => ({
+        id: `${sourceId}-${targetId}`,
+        sourceId,
+        targetId,
+        targetAlias: targetId.replace('-', '_'),
+      }))
+  );
+};
 
 describe('GetDataMartRelationshipGraphService', () => {
   beforeEach(() => jest.clearAllMocks());
@@ -153,14 +171,25 @@ describe('GetDataMartRelationshipGraphService', () => {
     });
 
     await expect(service.run(command())).rejects.toThrow(ForbiddenException);
-    expect(accessDecisionService.canAccessMany).toHaveBeenCalledWith(
+    expect(accessDecisionService.canAccess).toHaveBeenCalledWith(
       'user-1',
       ['viewer'],
       EntityType.DATA_MART,
-      ['dm-root'],
+      'dm-root',
       Action.SEE,
       'proj-1'
     );
+    expect(accessDecisionService.canAccessMany).not.toHaveBeenCalled();
+  });
+
+  it('throws ForbiddenException, not the join path limit, for an inaccessible root above the limit', async () => {
+    const { service, relationshipService } = build({
+      relationships: completeGraph(),
+      accessMap: new Map([['dm-root', false]]),
+    });
+
+    await expect(service.run(command())).rejects.toThrow(ForbiddenException);
+    expect(relationshipService.findByStorageId).not.toHaveBeenCalled();
   });
 
   it('returns an empty node list when the root has no relationships', async () => {
@@ -307,5 +336,12 @@ describe('GetDataMartRelationshipGraphService', () => {
 
     const idsArg = accessDecisionService.canAccessMany.mock.calls[0][3] as string[];
     expect(new Set(idsArg)).toEqual(new Set(['dm-root', 'dm-a', 'dm-b']));
+  });
+
+  it('rejects a graph above the join path limit instead of walking every path', async () => {
+    const { service, accessDecisionService } = build({ relationships: completeGraph() });
+
+    await expect(service.run(command())).rejects.toMatchObject({ code: 'TOO_MANY_JOIN_PATHS' });
+    expect(accessDecisionService.canAccessMany).not.toHaveBeenCalled();
   });
 });

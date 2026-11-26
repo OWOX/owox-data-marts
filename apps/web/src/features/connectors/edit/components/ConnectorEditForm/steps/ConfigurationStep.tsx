@@ -14,16 +14,15 @@ import { Unplug } from 'lucide-react';
 import { toast } from 'react-hot-toast';
 import { SECRET_MASK } from '../../../../../../shared/constants/secrets';
 import { ConfigurationListRender } from './ConfigurationStep/ConfigurationListRender';
-import {
-  ConnectorCredentialField,
-  CredentialsLoadError,
-} from './ConfigurationStep/ConnectorCredentialField';
+import { ConnectorCredentialField } from './ConfigurationStep/ConnectorCredentialField';
+import { CredentialsLoadError } from '../../../../../connector-builder/shared/components/CredentialsLoadError';
 import { AUTH_TYPE, bundledKeyNames } from './ConfigurationStep/connector-credential-keys';
 import { useAddSpreadsheetAction } from './ConfigurationStep/useAddSpreadsheetAction';
 import { DataMartContext } from '../../../../../data-marts/edit/model/context/context';
 import { CopyConfigurationButton } from '../../../../../data-marts/edit/components/DataMartDefinitionSettings/form/CopyConfigurationButton';
 import type { DataMartResponseDto } from '../../../../../data-marts/shared/types/api';
 import { credentialsService, sourceAuthVariant, type Credential } from '../../../../../credentials';
+import { credentialsLoadReason } from '../../../../../connector-builder/shared/model/hooks/useTestCredentials';
 import { ConnectorBuilderApiService } from '../../../../../connector-builder/shared/api/connector-builder-api.service';
 import type {
   CredentialRequirementDto,
@@ -223,6 +222,7 @@ export function ConfigurationStep({
   const [requirement, setRequirement] = useState<{
     key: string;
     value: CredentialRequirementDto | null;
+    reason?: string;
   } | null>(null);
   const [requirementAttempt, setRequirementAttempt] = useState(0);
   useEffect(() => {
@@ -230,10 +230,20 @@ export function ConfigurationStep({
     let cancelled = false;
     void new ConnectorBuilderApiService()
       .credentialRequirement(JSON.parse(requirementKey) as FittingCredentialsQuery)
-      .catch(() => null)
-      .then(value => {
-        if (!cancelled) setRequirement({ key: requirementKey, value });
-      });
+      .then(
+        value => {
+          if (!cancelled) setRequirement({ key: requirementKey, value });
+        },
+        (error: unknown) => {
+          if (!cancelled) {
+            setRequirement({
+              key: requirementKey,
+              value: null,
+              reason: credentialsLoadReason(error),
+            });
+          }
+        }
+      );
     return () => {
       cancelled = true;
     };
@@ -652,6 +662,7 @@ export function ConfigurationStep({
         <StepperHeroBlock connector={connector} />
         <AppWizardStepSection>
           <CredentialsLoadError
+            reason={requirement?.reason}
             onRetry={() => {
               setRequirement(null);
               setRequirementAttempt(attempt => attempt + 1);

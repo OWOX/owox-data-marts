@@ -1093,6 +1093,56 @@ describe('HTTP Data API (e2e)', () => {
     });
   });
 
+  describe('havingGroupBy', () => {
+    const b64 = (v: unknown) => Buffer.from(JSON.stringify(v)).toString('base64url');
+    const aggregation = [{ column: 'revenue', function: 'SUM' }];
+    const metricFilter = { column: 'revenue', operator: 'gt', value: 100, function: 'SUM' };
+    const read = (query: Record<string, unknown>) =>
+      agent
+        .get(`/api/external/http-data/data-marts/${dataMartId}.ndjson`)
+        .query({ column: ['date', 'revenue'], aggregation: b64(aggregation), ...query })
+        .set(AUTH_HEADER);
+
+    it.each([
+      ['no filter', {}],
+      ['only a WHERE filter', { filter: b64([{ column: 'date', operator: 'eq', value: 'x' }]) }],
+    ])('returns 400 HAVING_GROUP_BY_REQUIRES_METRIC_FILTER with %s', async (_name, query) => {
+      const res = await read({ ...query, havingGroupBy: b64({ column: ['date'] }) });
+
+      expect(res.status).toBe(400);
+      expect(res.body.details.errors).toEqual([
+        expect.objectContaining({
+          code: 'HAVING_GROUP_BY_REQUIRES_METRIC_FILTER',
+          source: 'havingGroupBy',
+        }),
+      ]);
+    });
+
+    it('returns 400 for an unknown key', async () => {
+      const res = await read({
+        filter: b64([metricFilter]),
+        havingGroupBy: b64({ column: ['ghost'] }),
+      });
+
+      expect(res.status).toBe(400);
+      expect(res.body.message).toBe('Unknown column: ghost');
+    });
+
+    it('keeps the groups of the separate grouping and records it in the run', async () => {
+      const havingGroupBy = { column: ['date'], dateTrunc: [{ column: 'date', unit: 'MONTH' }] };
+
+      const res = await read({ filter: b64([metricFilter]), havingGroupBy: b64(havingGroupBy) });
+
+      expect(res.status).toBe(200);
+      const run = await agent
+        .get(`/api/data-marts/${dataMartId}/runs/${res.headers['x-owox-run-id']}`)
+        .set(AUTH_HEADER);
+      const httpData = run.body.additionalParams?.httpData;
+      expect(httpData?.havingGroupBy).toEqual(havingGroupBy);
+      expect(httpData?.executionSqlQuery).toContain('_kept_groups');
+    });
+  });
+
   // ---------------------------------------------------------------------------
   // Unique Count — an INTEGER primary key, the case COUNT_DISTINCT aggregation refuses
   // ---------------------------------------------------------------------------

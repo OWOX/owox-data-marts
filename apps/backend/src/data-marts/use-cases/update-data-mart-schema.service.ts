@@ -2,11 +2,17 @@ import { Injectable, Logger, ForbiddenException, Optional } from '@nestjs/common
 import { Transactional } from 'typeorm-transactional';
 import { BusinessViolationException } from '../../common/exceptions/business-violation.exception';
 import { DataMart } from '../entities/data-mart.entity';
-import { calculatedFieldsOf, isCalculatedField } from '../calculated-fields/calculated-field.utils';
+import {
+  calculatedFieldsOf,
+  formulaDependencyGraph,
+  isCalculatedField,
+} from '../calculated-fields/calculated-field.utils';
 import {
   CalculatedFieldValidatorService,
   DryRunContext,
 } from '../calculated-fields/calculated-field-validator.service';
+import { applyResultTypes } from '../calculated-fields/formula-result-type';
+import { storedFormula } from '../calculated-fields/formula-reference';
 import { FormulaViolations } from '../calculated-fields/formula-violations';
 import { withoutUntouchedJoinAdvisories } from '../calculated-fields/join-grain';
 import { DataStorageCredentialsResolver } from '../data-storage-types/data-storage-credentials-resolver.service';
@@ -76,8 +82,10 @@ export class UpdateDataMartSchemaService {
     // assign here: `dataMart` stays unsaved until `dataMartService.save` below, so a validation
     // failure afterwards just leaves the in-memory mutation unpersisted.
     // Alias and description of a field inherited from a referenced Data Mart are read-only: a save
-    // carrying other values gets the inherited ones back. Calculated fields are never inherited,
-    // so the objects the validator below works on are the very ones saved.
+    // carrying other values gets the inherited ones back. When no inherited value changed, the
+    // saved objects are the `parsed` ones. Otherwise they are shallow copies that share
+    // `calculated`. So a write inside `calculated` reaches the save either way, but a top-level
+    // write such as `type` must go to `dataMart.schema`.
     dataMart.schema =
       (await this.schemaInheritance?.applyInheritance(dataMart, parsed))?.schema ?? parsed;
     if (introducesNativeField) {
@@ -119,18 +127,19 @@ export class UpdateDataMartSchemaService {
       }
     }
 
-    const { errors, warnings, warehouseValidation } = await this.calculatedFieldValidator.validate(
-      parsed,
-      dataMart.storage.type,
-      ctx,
-      // Passed whether or not the storage is configured: a joined reference resolves against the
-      // Data Mart's relationships, which exist independently of the warehouse.
-      {
-        dataMartId: dataMart.id,
-        projectId: command.projectId,
-        accessor: { userId: command.userId, roles: command.roles },
-      }
-    );
+    const { errors, warnings, warehouseValidation, resultTypes } =
+      await this.calculatedFieldValidator.validate(
+        parsed,
+        dataMart.storage.type,
+        ctx,
+        // Passed whether or not the storage is configured: a joined reference resolves against the
+        // Data Mart's relationships, which exist independently of the warehouse.
+        {
+          dataMartId: dataMart.id,
+          projectId: command.projectId,
+          accessor: { userId: command.userId, roles: command.roles },
+        }
+      );
     if (errors.length > 0) {
       // All violations in one round trip: the editor shows every offending field at once, instead
       // of making the analyst rediscover them one save at a time.
@@ -156,6 +165,17 @@ export class UpdateDataMartSchemaService {
         field.calculated.warehouseValidation = effectiveWarehouseValidation;
       }
     }
+
+    // Types go to `dataMart.schema`, never to `parsed`: inheritance may have copied the fields.
+    // Only a passed warehouse check returns types that can be trusted.
+    const savedCalculatedFields = calculatedFieldsOf(dataMart.schema.fields);
+    warnings.push(
+      ...applyResultTypes(
+        savedCalculatedFields,
+        effectiveWarehouseValidation === 'passed' ? resultTypes : undefined,
+        changedCalculatedFields(previousFields, savedCalculatedFields)
+      )
+    );
 
     await this.saveAndInvalidate(dataMart);
     await this.searchIndexInvalidation?.scheduleDataMartSchemaChanged(
@@ -276,11 +296,64 @@ function editedCalculatedFields(
   calculatedFields: ReturnType<typeof calculatedFieldsOf>
 ): Set<string> {
   const previous = new Map(
-    calculatedFieldsOf(previousFields).map(field => [field.name, field.calculated.formula])
+    calculatedFieldsOf(previousFields).map(field => [
+      field.name,
+      canonicalFormula(field.calculated.formula),
+    ])
   );
   return new Set(
     calculatedFields
-      .filter(field => previous.get(field.name) !== field.calculated.formula)
+      .filter(field => previous.get(field.name) !== canonicalFormula(field.calculated.formula))
       .map(field => field.name)
   );
+}
+
+/**
+ * The calculated fields this save added, or whose formula or declared type it changed, and every
+ * calculated field that reads a new or formula-changed one. A reader inlines the formula it reads
+ * with no cast, so a type-only change cannot change a reader's result type.
+ */
+function changedCalculatedFields(
+  previousFields: readonly DataMartSchemaField[],
+  calculatedFields: ReturnType<typeof calculatedFieldsOf>
+): Set<string> {
+  const previous = new Map(calculatedFieldsOf(previousFields).map(field => [field.name, field]));
+  const formulaChanged = (field: (typeof calculatedFields)[number]): boolean => {
+    const before = previous.get(field.name);
+    return !before || canonicalFormula(before.calculated.formula) !== field.calculated.formula;
+  };
+  const seeds = calculatedFields.filter(formulaChanged).map(field => field.name);
+  const changed = new Set([
+    ...seeds,
+    ...calculatedFields
+      .filter(field => previous.get(field.name)?.type !== field.type)
+      .map(field => field.name),
+  ]);
+
+  const reads = formulaDependencyGraph(
+    calculatedFields,
+    new Map(calculatedFields.map(field => [field.name, field]))
+  );
+  // A name enters `walked` once, so a cycle cannot loop.
+  const walked = new Set(seeds);
+  const queue = [...seeds];
+  for (const name of queue) {
+    for (const [reader, dependencies] of reads) {
+      if (dependencies.includes(name) && !walked.has(reader)) {
+        walked.add(reader);
+        changed.add(reader);
+        queue.push(reader);
+      }
+    }
+  }
+  return changed;
+}
+
+/** The stored spelling of a formula; falls back to the raw text when it does not parse. */
+function canonicalFormula(formula: string): string {
+  try {
+    return storedFormula(formula);
+  } catch {
+    return formula;
+  }
 }

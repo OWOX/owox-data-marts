@@ -1141,6 +1141,44 @@ describe('BlendableSchemaService', () => {
       expect(result.blendedFields[0].name).toBe('b__b_field');
     });
 
+    // Every data mart joins every other one: n marts give sum((n-1)!/(n-1-k)!) paths from the root.
+    const completeGraph = (size: number) => {
+      const ids = Array.from({ length: size }, (_, i) => `dm-${i}`);
+      return ids.flatMap(source =>
+        ids
+          .filter(target => target !== source)
+          .map(target =>
+            makeRelationship({
+              id: `${source}-${target}`,
+              targetAlias: target.replace('-', '_'),
+              sourceDataMart: makeDataMart({ id: source }),
+              targetDataMart: makeDataMart({
+                id: target,
+                schema: makeSchema([{ name: 'id', type: 'STRING' }]),
+              }),
+            })
+          )
+      );
+    };
+
+    it('keeps a dense graph below the join path limit (7 data marts, 1,956 paths)', async () => {
+      dataMartService.getByIdAndProjectId.mockResolvedValue(makeDataMart({ id: 'dm-0' }));
+      relationshipService.findByStorageId.mockResolvedValue(completeGraph(7));
+
+      const result = await service.computeBlendableSchema('dm-0', 'project-1', defaultAccessor);
+
+      expect(result.availableSources).toHaveLength(1956);
+    });
+
+    it('rejects a graph above the join path limit (8 data marts, 13,699 paths)', async () => {
+      dataMartService.getByIdAndProjectId.mockResolvedValue(makeDataMart({ id: 'dm-0' }));
+      relationshipService.findByStorageId.mockResolvedValue(completeGraph(8));
+
+      await expect(
+        service.computeBlendableSchema('dm-0', 'project-1', defaultAccessor)
+      ).rejects.toMatchObject({ code: 'TOO_MANY_JOIN_PATHS' });
+    });
+
     it('transitive 3-node cycle: B and B.C appear, back-edge B.C.a_back does not', async () => {
       dataMartService.getByIdAndProjectId.mockResolvedValue(makeDataMart({ id: 'dm-a' }));
 

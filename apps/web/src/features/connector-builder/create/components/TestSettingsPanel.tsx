@@ -19,6 +19,7 @@ import {
 } from '@owox/ui/components/sheet';
 import { cn } from '@owox/ui/lib/utils';
 import { ConsumerCredentialField } from '../../../credentials';
+import { CredentialsLoadError } from '../../shared/components/CredentialsLoadError';
 import type { TestCredentials } from '../../shared/model/hooks/useTestCredentials';
 import type { ManifestParameter } from '../../shared/model/manifest.types';
 import { asText, firstNonEmpty } from '../../shared/model/asText';
@@ -172,17 +173,10 @@ export function TestSettingsPanel({
                   <div className='flex flex-col gap-1.5' data-testid='testCredential'>
                     <span className='text-foreground text-sm font-medium'>Credential</span>
                     {credential.state.status === 'error' ? (
-                      <div role='alert' className='flex items-center gap-3 text-sm'>
-                        <span className='text-muted-foreground'>Could not load Credentials.</span>
-                        <Button
-                          type='button'
-                          variant='outline'
-                          size='sm'
-                          onClick={credential.onRetry}
-                        >
-                          Try again
-                        </Button>
-                      </div>
+                      <CredentialsLoadError
+                        reason={credential.state.reason}
+                        onRetry={credential.state.reason ? undefined : credential.onRetry}
+                      />
                     ) : ready ? (
                       <ConsumerCredentialField
                         consumer='connector-config'

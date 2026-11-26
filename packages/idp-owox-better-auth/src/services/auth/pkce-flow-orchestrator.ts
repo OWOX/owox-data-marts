@@ -82,8 +82,13 @@ export class PkceFlowOrchestrator {
       this.logger.warn('Missing or mismatched state for identity refresh flow');
       return null;
     }
+    const auth = await this.tokenFacade.refreshToken(refreshToken).catch(() => null);
+    if (!auth) {
+      // An overlapping refresh may have won. Do not clear its shared cookie.
+      this.logger.warn('Could not refresh the session for Platform sign-in', { path: req.path });
+      return null;
+    }
     try {
-      const auth = await this.tokenFacade.refreshToken(refreshToken);
       if (auth.refreshToken && auth.refreshTokenExpiresIn !== undefined) {
         this.tokenFacade.setTokenToCookie(res, req, auth.refreshToken, auth.refreshTokenExpiresIn);
       }

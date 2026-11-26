@@ -1,9 +1,10 @@
 import { Badge } from '@owox/ui/components/badge';
 import { Button } from '@owox/ui/components/button';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@owox/ui/components/tooltip';
-import { Blocks, Plus, Settings } from 'lucide-react';
+import { Blocks, Plus, RefreshCw, Settings } from 'lucide-react';
 import { useNavigate } from 'react-router';
 import { useProjectRoute } from '../../../shared/hooks/useProjectRoute';
+import { usePluginActions } from '../hooks/usePlugins';
 import type { PluginGalleryEntry } from '../types';
 import { describeVisibility } from '../visibility';
 import { AudienceIcon } from './AudienceIcon';
@@ -23,20 +24,25 @@ interface PluginCardProps {
  */
 export function PluginCard({ plugin, onInstall }: PluginCardProps) {
   const { scope } = useProjectRoute();
+  const { checkNow, isUpdating } = usePluginActions();
   const navigate = useNavigate();
   const isInstalled = plugin.installationState === 'installed';
   const canInstall = !plugin.suspended && plugin.currentVersionId !== null;
   const visibility = describeVisibility(plugin.visibleViaScopes, plugin.installationState);
 
-  const open = () => void navigate(scope(`/plugins/${plugin.pluginId}`));
+  const pluginPath = scope(`/plugins/${plugin.pluginId}`);
+  const openSettings = () => void navigate(pluginPath);
 
   return (
     <div
-      className='hover:border-foreground/20 bg-card flex cursor-pointer flex-col gap-3 rounded-lg border p-4 transition-colors'
+      className='group hover:border-foreground/20 bg-card flex cursor-pointer flex-col gap-3 rounded-lg border p-4 transition-colors'
       onClick={event => {
-        // The corner action owns its own click; everything else opens the plugin.
-        if (!(event.target as HTMLElement).closest('button, a')) {
-          open();
+        // Buttons, links and portalled tooltips own their clicks; the rest opens an installed plugin or the plugin page.
+        if (
+          event.currentTarget.contains(event.target as Node) &&
+          !(event.target as HTMLElement).closest('button, a')
+        ) {
+          void navigate(isInstalled ? `${pluginPath}/open` : pluginPath);
         }
       }}
     >
@@ -64,7 +70,7 @@ export function PluginCard({ plugin, onInstall }: PluginCardProps) {
                 size='icon'
                 className='-mt-1 shrink-0'
                 aria-label={`Open ${plugin.displayName} settings`}
-                onClick={open}
+                onClick={openSettings}
               >
                 <Settings className='size-4' />
               </Button>
@@ -110,6 +116,24 @@ export function PluginCard({ plugin, onInstall }: PluginCardProps) {
           {/* Suspended plugins stay listed rather than vanishing: a member who has one
               installed needs to see why it stopped working. */}
           {plugin.suspended && <Badge variant='destructive'>Unavailable</Badge>}
+          {/* Shown on hover, focus or while it runs. Hidden, it takes no taps; running, it keeps a click off the card. */}
+          {isInstalled && (
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button
+                  variant='ghost'
+                  size='icon-sm'
+                  className={`text-muted-foreground hover:text-foreground size-5.5 shrink-0 transition-opacity focus-visible:opacity-100 disabled:pointer-events-auto ${isUpdating ? 'opacity-100' : 'pointer-events-none opacity-0 group-hover:pointer-events-auto group-hover:opacity-100'}`}
+                  disabled={isUpdating}
+                  aria-label={`Check and Update ${plugin.displayName}`}
+                  onClick={() => void checkNow(plugin.pluginId, plugin.displayName)}
+                >
+                  <RefreshCw className={isUpdating ? 'size-3.5 animate-spin' : 'size-3.5'} />
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent>Check and Update</TooltipContent>
+            </Tooltip>
+          )}
         </div>
 
         {/*

@@ -30,6 +30,16 @@ by setting `CLOUD_ACCOUNT_API_ORIGIN` to the HTTPS origin of Integrated Backend.
 Deploy the Account API and allow the App origin in Integrated Backend before
 setting this optional variable. The app validates the configured origin at startup.
 
+OWOX Cloud deployments using `IDP_PROVIDER=owox-better-auth` can enable project creation,
+renaming and deletion by setting `CLOUD_PROJECT_API_ORIGIN` to the HTTPS origin of Integrated
+Backend. Deploy the project-management API and allow the App origin in Integrated Backend
+before setting this optional variable. The app validates the configured origin at startup.
+
+In OWOX Cloud, App uses Integrated Backend to switch projects in an existing session.
+Deploy the read-only project lookup in Analytics first, then deploy the project-switch endpoint
+in Integrated Backend before updating App. Integrated Backend also uses the Analytics lookup
+to refresh existing view-only sessions.
+
 The [.env.example](https://github.com/OWOX/owox-data-marts/blob/main/.env.example) file in the project root directory is a starting point with the most common variables. The sections below describe the variables it leaves out.
 
 ## Configuration Methods

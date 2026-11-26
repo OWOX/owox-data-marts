@@ -4,14 +4,13 @@ import type { RoutedFilterRule } from './filter-clause';
 import type { CalculatedFieldPlan } from '../../data-storage-types/utils/sql-clause-renderer';
 
 /**
- * Restricts a Totals query to the rows of the GROUPS its report keeps.
+ * Restricts a query to the rows of the GROUPS its metric (HAVING) filters keep at a given grain.
  *
- * Totals have no GROUP BY, so the report's metric (HAVING) filters have nothing to filter there
- * — and dropping them makes Totals summarise rows the report itself hides. The builders instead
- * recompute the surviving groups over the SAME source and semi-join them: a GROUP BY result has
- * distinct tuples, so it filters rows without duplicating any, and every metric is then computed
- * over the surviving ROWS. That is what keeps a symmetric aggregate right — an entity present in
- * two surviving groups still counts once.
+ * Two producers: Totals (no GROUP BY of their own, so the report's grain) and a `havingGroupBy`
+ * read (that grain). The builders recompute the surviving groups over the SAME source and
+ * semi-join them: a GROUP BY result has distinct tuples, so it filters rows without duplicating
+ * any, and every metric is then computed over the surviving ROWS. That is what keeps a symmetric
+ * aggregate right — an entity present in two surviving groups still counts once.
  *
  * ONE declaration shared by the read plan, the flat query options and the blended context: the
  * three carry the same tuple to two independent renderers, and a field added to only one of them
@@ -19,9 +18,9 @@ import type { CalculatedFieldPlan } from '../../data-storage-types/utils/sql-cla
  */
 export interface GroupRestriction {
   /**
-   * The report's own dimensions — the grain its HAVING filtered. A ROW-LEVEL calculated field is
-   * one of them, listed here under its output name and rendered from `calculatedDimensions`
-   * below; an AGGREGATE-level one never is (it is a metric, not a key).
+   * The grain the HAVING is checked at. A ROW-LEVEL calculated field is one of them, listed here
+   * under its output name and rendered from `calculatedDimensions` below; an AGGREGATE-level one
+   * never is (it is a metric, not a key).
    */
   dimensions: string[];
   /**
@@ -45,9 +44,9 @@ export interface GroupRestriction {
    * An AGGREGATE-level Calculated Field aggregates inside its formula, so its rule carries no
    * function and never can (`AGGREGATION_ON_CALCULATED_FIELD`); read that way, a report whose only
    * metric filter is one built NO restriction at all — `renderKeptGroupsJoin` early-returns on an
-   * empty `having` — and Totals summarised rows the report hides, with no error. The producer
-   * (`composeTotals`) fills this from the clause `routeFilterClauses` stamped on each rule, and the
-   * two renderers read the same stamp through `filterClauseOf`.
+   * empty `having` — and Totals summarised rows the report hides, with no error. Both producers
+   * fill this from the clause `routeFilterClauses` stamped on each rule, and the two renderers read
+   * the same stamp through `filterClauseOf`.
    *
    * A rule naming a Calculated Field is rendered from `calculatedHavingMetrics` below, never from
    * `calculatedDimensions` — that list keeps only the grouping keys, so neither shape of such a
@@ -72,11 +71,11 @@ export interface GroupRestriction {
    */
   calculatedHavingMetrics?: CalculatedFieldPlan[];
   /**
-   * The report's own date buckets for those dimensions. REQUIRED for correctness, not an
-   * optimisation: a Totals query carries no `dateTruncs` of its own (it has no GROUP BY), so
-   * without them the surviving groups would be recomputed at the RAW grain — `GROUP BY date`
-   * where the report grouped by month — and a month whose total clears the filter can have no
-   * single day that does. Omitted only when the report has no date bucket at all.
+   * The date buckets of those dimensions. REQUIRED for correctness, not an optimisation: a Totals
+   * query carries no `dateTruncs` of its own (it has no GROUP BY), so without them the surviving
+   * groups would be recomputed at the RAW grain — `GROUP BY date` where the report grouped by
+   * month — and a month whose total clears the filter can have no single day that does. Omitted
+   * when the grain has no date bucket.
    */
   dateTruncs?: DateTruncRule[];
 }

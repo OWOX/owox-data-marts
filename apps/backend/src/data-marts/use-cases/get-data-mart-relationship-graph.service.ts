@@ -6,6 +6,7 @@ import {
 } from '../dto/domain/relationship-graph.dto';
 import { DataMartRelationship } from '../entities/data-mart-relationship.entity';
 import { DataMartStatus } from '../enums/data-mart-status.enum';
+import { MAX_JOIN_PATHS, throwTooManyJoinPathsError } from '../errors/too-many-join-paths.error';
 import { RelationshipMapper } from '../mappers/relationship.mapper';
 import { AccessDecisionService, Action, EntityType } from '../services/access-decision';
 import { DataMartRelationshipService } from '../services/data-mart-relationship.service';
@@ -52,6 +53,19 @@ export class GetDataMartRelationshipGraphService {
       command.rootDataMartId,
       command.projectId
     );
+
+    // Before the walk, so that a caller without access gets 403 and not a walk error.
+    const canSeeRoot = await this.accessDecisionService.canAccess(
+      command.userId,
+      command.roles,
+      EntityType.DATA_MART,
+      rootDataMart.id,
+      Action.SEE,
+      command.projectId
+    );
+    if (!canSeeRoot) {
+      throw new ForbiddenException('You do not have access to this DataMart');
+    }
 
     const allStorageRelationships = await this.relationshipService.findByStorageId(
       rootDataMart.storage.id,
@@ -100,10 +114,6 @@ export class GetDataMartRelationshipGraphService {
       ),
     ]);
 
-    if (!accessByDataMartId.get(rootDataMart.id)) {
-      throw new ForbiddenException('You do not have access to this DataMart');
-    }
-
     const hiddenPaths = command.omitInaccessible
       ? collected
           .filter(
@@ -150,6 +160,7 @@ export class GetDataMartRelationshipGraphService {
         isCycleStub,
         isBlocked: frame.parentBlocked,
       });
+      if (ctx.out.length > MAX_JOIN_PATHS) throwTooManyJoinPathsError();
 
       if (isCycleStub) continue;
 

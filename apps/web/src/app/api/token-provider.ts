@@ -7,6 +7,7 @@ export interface TokenProvider {
   refreshToken(): Promise<string>;
   getProjectId?(): string | null;
   getUserId?(): string | null;
+  isViewOnly?(): boolean;
 }
 
 /**
@@ -22,7 +23,8 @@ export class DefaultTokenProvider implements TokenProvider {
     getToken: () => string | null,
     refreshFn: () => Promise<string>,
     getProject: () => string | null = () => null,
-    getUser: () => string | null = () => null
+    getUser: () => string | null = () => null,
+    readonly isViewOnly: () => boolean = () => false
   ) {
     this.getToken = getToken;
     this.refreshFn = refreshFn;

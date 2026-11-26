@@ -550,6 +550,33 @@ describeIfSnowflakeCredentials(
         expect(Number(unrestricted[0]['amount | SUM'])).toBeCloseTo(150, 5);
       }, 120000);
 
+      it('fan-out: a read groups the kept rows by its own column (real Snowflake)', async () => {
+        // active (ids 1,3,5,6) passes; by date_col: today = ids 1+6 (10), -40 days = 30, +13 months = 50.
+        const rows = await runFilter({
+          columns: ['date_col', 'amount', 'id'],
+          aggregations: [
+            { column: 'amount', function: 'SUM' },
+            { column: 'id', function: 'COUNT_DISTINCT' },
+          ],
+          groupRestriction: {
+            dimensions: ['status'],
+            having: [
+              { column: 'amount', function: 'SUM', operator: 'gt', value: 70, clause: 'having' },
+            ],
+          },
+        } as never);
+
+        const sumAndCount = rows.map(r => [
+          Number(r['amount | SUM']),
+          Number(r['id | COUNTUNIQUE']),
+        ]);
+        expect(sumAndCount.sort((a, b) => a[0] - b[0])).toEqual([
+          [10, 2],
+          [30, 1],
+          [50, 1],
+        ]);
+      }, 120000);
+
       // Case 1 — group-by + multi-fn (SUM + AVG + COUNT_DISTINCT)
       it('group-by status + SUM/AVG/COUNT_DISTINCT returns real per-group values', async () => {
         const rows = await runFilter({

@@ -19,7 +19,6 @@ import {
 } from './data-mart-table-reference.service';
 import { CalculatedFieldPlan, SqlParameter } from '../data-storage-types/utils/sql-clause-renderer';
 import {
-  calculatedDependencyPlans,
   calculatedFieldLevelOf,
   calculatedFieldsOf,
   excludeCalculatedFieldNames,
@@ -27,12 +26,11 @@ import {
 } from '../calculated-fields/calculated-field.utils';
 import { isAggregateLevel } from '../calculated-fields/formula-level';
 import { hasLiveJoinedReference } from '../calculated-fields/formula-live-reference';
-import {
-  isCalculatedGroupingKey,
-  partitionCalculatedPlans,
-} from '../calculated-fields/calculated-plan-grain';
+import { isCalculatedGroupingKey } from '../calculated-fields/calculated-plan-grain';
+import { buildCalculatedFieldPlans } from '../calculated-fields/calculated-field-plans';
 import { routeFilterClauses } from '../calculated-fields/filter-clause-routing';
 import { isHavingFilterRule, isWhereFilterRule } from '../dto/domain/filter-clause';
+import { filtersAndRestrictionOf } from './having-group-by.util';
 import type {
   DataMartSchema,
   DataMartSchemaField,
@@ -201,7 +199,7 @@ export class ReportSqlComposerService {
     // projection is not composed, so a wildcard caller's output cannot change the day an analyst
     // adds a formula.
     const selectedColumns = decision.columnFilter ?? [];
-    const calculatedFields = this.buildCalculatedFieldPlans(
+    const calculatedFields = buildCalculatedFieldPlans(
       schemaFields,
       selectedColumns,
       report.aggregationConfig ?? undefined
@@ -247,15 +245,17 @@ export class ReportSqlComposerService {
 
     // The clause each predicate belongs in is decided here, from the rule and the field's level,
     // and carried on the rule — the builders read it and never re-derive it.
-    const routed = routeFilterClauses(report.filterConfig ?? undefined, schemaFields);
+    const { filters: routed, groupRestriction: restriction } = filtersAndRestrictionOf(
+      report,
+      schemaFields
+    );
     const routedFilters = routed.length > 0 ? routed : undefined;
 
     // A predicate on a Calculated Field compares its FORMULA, so the plan has to
     // reach the builder even when the report does not SELECT the field — the projection channel
     // above is selection-only by design. The restriction's HAVING counts: on the Totals path the
     // report's metric filters are lifted out of `filterConfig` and travel there instead.
-    const restriction = 'groupRestriction' in report ? report.groupRestriction : undefined;
-    const filterMetrics = this.buildCalculatedFieldPlans(
+    const filterMetrics = buildCalculatedFieldPlans(
       schemaFields,
       [
         ...(report.filterConfig ?? []).map(rule => rule.column),
@@ -328,7 +328,7 @@ export class ReportSqlComposerService {
         limit: report.limitConfig ?? undefined,
         mainTableReference,
         columnTypes,
-        // Totals only — a report itself groups, so its HAVING applies directly there.
+        // Set by Totals and by a havingGroupBy read; a plain report applies its HAVING directly.
         groupRestriction: restriction,
         calculatedFields: calculatedFields.length > 0 ? calculatedFields : undefined,
         calculatedFilterMetrics: filterMetrics.length > 0 ? filterMetrics : undefined,
@@ -434,6 +434,7 @@ export class ReportSqlComposerService {
     );
     const whereFilters = allFilters.filter(isWhereFilterRule);
     const havingFilters = allFilters.filter(isHavingFilterRule);
+    const havingGroupBy = 'havingGroupBy' in report ? report.havingGroupBy : undefined;
 
     // The restriction is derived from the REPORT's rules, which are validated on the report's path
     // and not on this one — they are lifted out of `filterConfig` here, so the totals plan's own
@@ -459,6 +460,7 @@ export class ReportSqlComposerService {
         accessor,
         dataMartSchemaFields: report.dataMart.schema?.fields,
         precomputedBlendableSchema: blendableSchema,
+        havingGroupBy,
       });
     }
     // NOT "every selected column without an aggregation of its own is a dimension": an
@@ -479,7 +481,7 @@ export class ReportSqlComposerService {
     // same rules also decide the grain, so a row-level field the report AGGREGATES is dropped here
     // exactly as an aggregate-level one is — the report stopped grouping by it, and a restriction
     // one key finer keeps a different row set than the report shows.
-    const calculatedDimensions = this.buildCalculatedFieldPlans(
+    const calculatedDimensions = buildCalculatedFieldPlans(
       reportSchemaFields,
       reportColumns,
       report.aggregationConfig ?? undefined
@@ -494,11 +496,16 @@ export class ReportSqlComposerService {
     // a row-level field the report AGGREGATES is no longer a dimension, yet the restriction's
     // HAVING still compares its aggregate and needs the formula and the declared type to build the
     // same argument the report's projection was given.
-    const calculatedHavingMetrics = this.buildCalculatedFieldPlans(
+    const calculatedHavingMetrics = buildCalculatedFieldPlans(
       reportSchemaFields,
       havingFilters.map(rule => rule.column),
       report.aggregationConfig ?? undefined
     );
+    // A havingGroupBy read checks its metric filters at that grain, so Totals keep the same groups.
+    const grainRead =
+      havingGroupBy && havingFilters.length > 0
+        ? filtersAndRestrictionOf(report, reportSchemaFields)
+        : undefined;
 
     const totalsPlan: ReportLikeReadPlan = {
       dataMart: report.dataMart,
@@ -510,8 +517,9 @@ export class ReportSqlComposerService {
       limitConfig: null,
       // Totals are a metrics-only summary — no Unique Count.
       uniqueCountConfig: null,
-      groupRestriction:
-        havingFilters.length > 0
+      groupRestriction: grainRead
+        ? grainRead.groupRestriction
+        : havingFilters.length > 0
           ? {
               dimensions: reportDimensions,
               calculatedDimensions:
@@ -546,41 +554,6 @@ export class ReportSqlComposerService {
       : undefined;
 
     return { sql, params, aggregations, columns, blendedDataHeaders, calculatedFields };
-  }
-
-  /**
-   * The `CalculatedFieldPlan` for each calculated field `names` mentions, in schema order.
-   *
-   * Shared by three callers — the report projection, the Totals group restriction and the predicate
-   * channel — because a second construction would be a second place for the level fallback to be
-   * spelled, and those paths differ by a GROUP BY.
-   *
-   * `aggregations` are the REPORT's own rules, and this is one of the two seats allowed to read
-   * them for the grain question: a row-level field the report aggregates stops being a grouping
-   * key, and every site downstream reads that off the plan.
-   */
-  private buildCalculatedFieldPlans(
-    schemaFields: readonly DataMartSchemaField[],
-    names: readonly string[],
-    aggregations: AggregationRule[] | undefined
-  ): CalculatedFieldPlan[] {
-    const plans = calculatedFieldsOf(schemaFields)
-      .filter(f => names.includes(f.name))
-      .map(f => ({
-        outputName: f.name,
-        type: String(f.type),
-        formula: f.calculated.formula,
-        level: calculatedFieldLevelOf(f, schemaFields),
-        // The formulas this one reads, carried so the renderer can substitute them — and
-        // `undefined` rather than `[]` when there are none, so a plan is byte-identical to what it
-        // was before this feature for every formula that reads only columns.
-        dependencies: calculatedDependencyPlans(f, schemaFields),
-        // The metric's own header source — see CalculatedFieldPlan. Empty strings normalize to
-        // undefined so `alias || name` fallbacks downstream behave as they do for every other field.
-        alias: f.alias?.trim() || undefined,
-        description: f.description?.trim() || undefined,
-      }));
-    return partitionCalculatedPlans(plans, aggregations).all;
   }
 
   // One base-typed header per selected JOINED column, so the totals reader can resolve a

@@ -9,13 +9,15 @@ export type ViolationsByField = Record<string, string[]>;
 /** The subset of the schema-save response this hook actually reads. */
 export interface CalculatedFieldSaveOutcome {
   warnings?: ApiFormulaViolation[];
+  /** The schema the server saved. Its types can differ from the ones that were sent. */
+  schema?: DataMartSchema;
 }
 
 export interface UseCalculatedFieldSaveResult {
   /** Runs `mutation`, then updates `errorsByField`/`warningsByField` from its outcome. Rejects
    * with whatever `mutation` rejected with — callers that need the failure (e.g. to skip a
    * follow-up step) still see it. */
-  save: (schema: DataMartSchema) => Promise<void>;
+  save: (schema: DataMartSchema) => Promise<CalculatedFieldSaveOutcome | undefined>;
   /** Every calculated-field formula error from the last save attempt, grouped by field NAME —
    * the whole set the backend reported, not just the first. Empty once a save succeeds, or once
    * an API rejection carries no such errors at all (an unrelated failure). */
@@ -131,12 +133,13 @@ export function useCalculatedFieldSave(
   }, []);
 
   const save = useCallback(
-    async (schema: DataMartSchema): Promise<void> => {
+    async (schema: DataMartSchema): Promise<CalculatedFieldSaveOutcome | undefined> => {
       try {
         const result = await mutation(schema);
         // The save succeeded — any error from a previous attempt no longer applies.
         setErrorsByField(EMPTY);
         setWarningsByField(groupByField(result?.warnings));
+        return result;
       } catch (error) {
         const violations = extractApiError(error).errorDetails?.errors;
         const grouped = groupByField(violations);

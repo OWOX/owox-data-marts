@@ -396,6 +396,9 @@ export class OwoxBetterAuthIdp implements IdpProvider {
     this.authErrorController.registerRoutes(app);
     this.onboardingController.registerRoutes(app);
     this.pageController.registerRoutes(app);
+    app.post(`${AUTH_BASE_PATH}/project/switch`, (req, res) =>
+      this.tokenFacade.switchProjectMiddleware(req, res)
+    );
     app.post(`${AUTH_BASE_PATH}/social-intent/nonce`, (req, res) => {
       const host = req.get('host');
       if (!host || req.get('origin') !== `${req.protocol}://${host}`) {
@@ -670,15 +673,13 @@ export class OwoxBetterAuthIdp implements IdpProvider {
       return true;
     } catch (error: unknown) {
       if (error instanceof AuthenticationException) {
-        clearCookie(res, CORE_REFRESH_TOKEN_COOKIE, req);
-        this.logger.warn('Refresh token rejected during sign-in, cookie cleared', {
+        this.logger.warn('Refresh token rejected during sign-in', {
           path: req.path,
-          ...error.context,
         });
       } else if (error instanceof IdpFailedException) {
         this.logger.warn('Sign-in refresh failed due to upstream IdP error', {
           path: req.path,
-          ...error.context,
+          status: error.status,
         });
       } else {
         this.logger.error(

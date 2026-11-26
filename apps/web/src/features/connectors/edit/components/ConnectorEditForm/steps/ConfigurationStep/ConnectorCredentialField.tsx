@@ -1,5 +1,4 @@
 import { useCallback, useEffect, useRef, type ReactNode } from 'react';
-import { Button } from '@owox/ui/components/button';
 import { AppWizardStepItem, AppWizardStepLabel } from '@owox/ui/components/common/wizard';
 import {
   ConnectPickedSpreadsheetContext,
@@ -14,6 +13,7 @@ import type {
   CredentialRequirementDto,
   FittingCredentialsQuery,
 } from '../../../../../../connector-builder/shared/api/types';
+import { CredentialsLoadError } from '../../../../../../connector-builder/shared/components/CredentialsLoadError';
 import { useTestCredentials } from '../../../../../../connector-builder/shared/model/hooks/useTestCredentials';
 
 const FIELD_ID = 'connectorCredential';
@@ -49,18 +49,6 @@ interface ConnectorCredentialFieldProps {
     spreadsheetId?: string
   ) => void;
   children?: ReactNode;
-}
-
-/** Says the Credentials or what they must hold could not be loaded, with a retry. */
-export function CredentialsLoadError({ onRetry }: { onRetry: () => void }) {
-  return (
-    <div role='alert' className='flex items-center gap-3 text-sm'>
-      <span className='text-muted-foreground'>Could not load Credentials.</span>
-      <Button type='button' variant='outline' size='sm' onClick={onRetry}>
-        Try again
-      </Button>
-    </div>
-  );
 }
 
 /** The Credential of a connector configuration, in place of its auth fields. */
@@ -142,7 +130,7 @@ export function ConnectorCredentialField({
         Credential
       </AppWizardStepLabel>
       {fitting && fit.status === 'error' ? (
-        <CredentialsLoadError onRetry={retry} />
+        <CredentialsLoadError onRetry={retry} reason={fit.reason} />
       ) : (
         <ConnectPickedSpreadsheetContext.Provider value={takeConnectPick}>
           <ConsumerCredentialField

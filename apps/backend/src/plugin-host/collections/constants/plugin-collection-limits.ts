@@ -11,6 +11,7 @@ export const PLUGIN_COLLECTION_LIMITS = {
   maxPageBytes: 4 * 1024 * 1024,
   maxDocumentIdBytes: 200,
   auditRetentionDays: 90,
+  auditRetentionBatchRows: 1_000,
   maxAuditRowsPerPluginProject: 50_000,
   maxAuditRowsPerProject: 500_000,
 } as const;

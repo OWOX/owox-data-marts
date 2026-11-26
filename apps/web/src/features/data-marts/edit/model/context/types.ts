@@ -108,13 +108,14 @@ export interface DataMartContextType extends DataMartState {
    * Returns the save's non-blocking calculated-field `warnings` (empty when there are none) so a
    * caller like `useCalculatedFieldSave` can surface them — the save already succeeded by the
    * time they arrive. `config` lets a caller opt out of the generic 400 toast (`skipErrorToast`)
-   * when it renders its own, field-grouped error UI instead.
+   * when it renders its own, field-grouped error UI instead. `schema` is the saved copy the
+   * server returned: the backend can change a field's type on save.
    */
   updateDataMartSchema: (
     id: string,
     schema: DataMartSchema,
     config?: AxiosRequestConfig
-  ) => Promise<{ warnings: FormulaViolationDto[] }>;
+  ) => Promise<{ warnings: FormulaViolationDto[]; schema?: DataMartSchema }>;
   getDataMartRuns: (
     id: string,
     limit?: number,

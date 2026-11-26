@@ -130,6 +130,33 @@ describe('LegacyBigQueryQueryBuilder', () => {
     expect(preprocessor.prepare).not.toHaveBeenCalled();
   });
 
+  // A restriction alone must reach the output-controls path: the legacy path ignores it.
+  it('delegates to the output-controls path when a restriction is the only control', async () => {
+    const { builder, preprocessor } = makeBuilder();
+    const result = await builder.buildQuery(sqlDefinition, {
+      columns: ['day'],
+      filters: [],
+      mainTableReference: viewRef,
+      calculatedFilterMetrics: [
+        {
+          outputName: 'total',
+          type: 'FLOAT',
+          formula: 'SUM({{ref field="revenue"}})',
+          level: 'metric',
+        },
+      ],
+      groupRestriction: {
+        dimensions: ['status'],
+        having: [{ column: 'total', operator: 'gt', value: 100, clause: 'having' }],
+      },
+    } as never);
+    if (!isQueryBuildResult(result)) throw new Error('expected QueryBuildResult');
+    expect(result.sql).toContain(viewRef);
+    expect(result.sql).toContain('GROUP BY\n  `day`');
+    expect(result.sql).toMatch(/\nJOIN \([\s\S]+\) AS `_kept_groups` ON /);
+    expect(preprocessor.prepare).not.toHaveBeenCalled();
+  });
+
   it('projects a column subset over the preprocessed SQL when no output controls are present', async () => {
     const { builder, preprocessor } = makeBuilder();
     const result = await builder.buildQuery(sqlDefinition, { columns: ['id', 'created_at'] });

@@ -121,6 +121,14 @@ export function renderFormula(stored: string, resolve: (ref: FormulaReference) =
   return renderFormulaWithReplacements(stored, resolve, []);
 }
 
+/**
+ * The spelling a formula is stored in. `validate` writes exactly this form, and the schema save
+ * compares it to find edited fields, so both must call this one function. Throws on bad syntax.
+ */
+export function storedFormula(formula: string): string {
+  return renderFormula(formula.replace(/\r\n?/g, '\n'), serializeFormulaReference);
+}
+
 /** A `[start, end)` span of the stored formula to swap for `sql`, e.g. a joined aggregate call
  *  replaced by its sleeve pull. Spans must not overlap; refs inside a span are not rendered. */
 export interface FormulaSpanReplacement {

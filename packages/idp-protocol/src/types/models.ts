@@ -52,6 +52,7 @@ export const ProjectSchema = z
     status: ProjectStatusEnum.optional(),
     roles: z.array(RoleEnum).optional(),
     createdAt: z.string().optional(),
+    removalPending: z.boolean().optional(),
   })
   .passthrough();
 

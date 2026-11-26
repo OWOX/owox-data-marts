@@ -128,7 +128,7 @@ describe('HttpDataController OpenAPI', () => {
     );
   });
 
-  it.each(['filter', 'sort', 'aggregation', 'dateTrunc'])(
+  it.each(['filter', 'sort', 'aggregation', 'dateTrunc', 'havingGroupBy'])(
     'publishes %s as an optional bounded base64url string',
     name => {
       const parameter = queryParam(name);

@@ -51,7 +51,9 @@ export class SnowflakeQueryBuilder implements DataMartQueryBuilder {
       queryOptions?.limit != null ||
       // DISTINCT is an output control on the SELECT itself: without this, a distinct-only
       // request (no other control) takes `buildPlainQuery` below, which never sees it.
-      queryOptions?.distinct === true;
+      queryOptions?.distinct === true ||
+      // The plain branch ignores a group restriction, so its metric filters would keep every row.
+      (queryOptions?.groupRestriction?.having.length ?? 0) > 0;
 
     const selectList = this.buildSelectList(queryOptions?.columns);
 
@@ -132,7 +134,10 @@ export class SnowflakeQueryBuilder implements DataMartQueryBuilder {
 
     // Not aggregated, so every remaining calculated field is row-level: a projected expression
     // and nothing else.
-    assertNoHavingRules(queryOptions?.filters ?? [], 'SnowflakeQueryBuilder plain query');
+    assertNoHavingRules(
+      [...(queryOptions?.filters ?? []), ...(queryOptions?.groupRestriction?.having ?? [])],
+      'SnowflakeQueryBuilder plain query'
+    );
     const plainSelect = composePlainSelectBody(
       selectList,
       this.clauseRenderer.renderCalculatedSelectItems(calculatedFields)

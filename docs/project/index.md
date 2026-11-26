@@ -12,7 +12,7 @@ Every member has one of three roles:
 | --- | --- |
 | **Project Admin** | Full access across all entities |
 | **Data Owner** | Builds and maintains data resources |
-| **Business User** | Self-service reporting on shared Data Marts |
+| **Business User** | Creates and runs Reports on shared Data Marts |
 
 Access to a specific resource combines the member's role, their ownership status, and the resource's sharing settings. [Contexts](./contexts.md) add business-domain labels, such as Marketing or Finance. They limit visibility only for members whose **Role scope** is **Selected contexts only**.
 
@@ -31,6 +31,14 @@ Use **Project Settings → Overview → Description** to tell AI assistants your
 2. Assign each member a [role](./roles-and-permissions.md).
 3. If teams need scoped visibility, add [Contexts](./contexts.md) and attach them to resources. Then set members' **Role scope** to **Selected contexts only**.
 
+## Manage Cloud projects
+
+Open the project menu and select **Create project** to start a new Cloud project. You can also create a project while waiting for access to another project or from **My profile → Projects** when your project list is empty. OWOX opens the new project's Data Marts after creation.
+
+A Project Admin can rename a project from **Project Settings → Overview → Project name**. The new name appears in the project menu and in **My profile → Projects**.
+
+Use **Project deletion** in Overview to delete the project. Settle any open invoices or negative balance, then select **Delete project** again if billing prevented the first attempt. This also works for projects marked **Removing**. After deletion completes, OWOX opens **My profile → Projects** with your updated list. When you delete your last project and My profile is enabled, OWOX opens **My profile → Overview**.
+
 ## Learn more
 
 | Need | Read |
@@ -46,6 +54,10 @@ Use **Project Settings → Overview → Description** to tell AI assistants your
 ## My profile in OWOX Cloud
 
 Open the user menu and select **My profile** to see your name, sign-in email, work email, phone, company name, and company website in OWOX Cloud. The user menu is also available on the **Request access** screen, so you can check which account is signed in while you wait for project access.
+
+In **My profile → Projects**, select a project name to open it, or use the row menu to open a
+Project Settings tab. A Project Admin can use the pencil to edit the name in the table. Saving the
+name of another project makes it the active project. Projects remain listed until removal is complete.
 
 ![My profile Overview with personal details and account deletion controls](../res/screens/my-profile-overview.png)
 

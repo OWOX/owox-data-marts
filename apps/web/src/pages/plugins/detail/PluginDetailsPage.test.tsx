@@ -1,6 +1,6 @@
 import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { MemoryRouter, Route, Routes } from 'react-router';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type {
   InstalledPlugin,
   PluginGalleryEntry,
@@ -121,16 +121,19 @@ vi.mock('../../../features/plugins', () => ({
     </div>
   ),
   InstallPluginDialog: ({
+    plugin,
     open,
     onOpenChange,
     onConfirm,
   }: {
+    plugin: PluginGalleryEntry;
     open: boolean;
     onOpenChange: (open: boolean) => void;
     onConfirm: (selections: Record<string, string | null>) => void;
   }) =>
     open ? (
       <div role='dialog' aria-label='Install this plugin?'>
+        <span>{plugin.currentSemver}</span>
         <button
           onClick={() => {
             onConfirm({});
@@ -242,6 +245,10 @@ const openMenu = () =>
   fireEvent.keyDown(screen.getByRole('button', { name: 'More plugin actions' }), { key: 'Enter' });
 
 describe('PluginDetailsPage', () => {
+  afterEach(() => {
+    window.history.replaceState({}, '', '/');
+  });
+
   beforeEach(() => {
     vi.clearAllMocks();
     publications = [];
@@ -254,6 +261,86 @@ describe('PluginDetailsPage', () => {
     plugin = entry();
     installationsLoading = false;
     grants = { credentialSelections: undefined, isLoading: false, isError: false };
+  });
+
+  it('opens the plugin once it is installed from its page', async () => {
+    renderPage();
+    fireEvent.click(screen.getByRole('button', { name: 'Install' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Confirm install' }));
+
+    await waitFor(() => {
+      expect(navigate).toHaveBeenCalledWith('/ui/project-1/plugins/p1/open');
+    });
+  });
+
+  it('asks again with the newer version instead of opening the plugin', async () => {
+    install.mockResolvedValueOnce(entry({ currentVersionId: 'v2', currentSemver: '1.1.0' }));
+    renderPage();
+    fireEvent.click(screen.getByRole('button', { name: 'Install' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Confirm install' }));
+
+    await waitFor(() => {
+      expect(install).toHaveBeenCalled();
+    });
+    expect(navigate).not.toHaveBeenCalled();
+    const dialog = await screen.findByRole('dialog', { name: 'Install this plugin?' });
+    expect(within(dialog).getByText('1.1.0')).toBeInTheDocument();
+  });
+
+  it('does not open the plugin after the member left the page', async () => {
+    let finish: (stale: null) => void = () => undefined;
+    install.mockReturnValueOnce(
+      new Promise<null>(resolve => {
+        finish = resolve;
+      })
+    );
+    renderPage();
+    fireEvent.click(screen.getByRole('button', { name: 'Install' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Confirm install' }));
+    window.history.pushState({}, '', '/elsewhere');
+    finish(null);
+
+    await waitFor(() => {
+      expect(install).toHaveBeenCalled();
+    });
+    await act(async () => {});
+    expect(navigate).not.toHaveBeenCalled();
+  });
+
+  // Back, then Forward: a new page shows at the same address, without the dialog.
+  it('does not open the plugin after the member left and came back', async () => {
+    let finish: (stale: null) => void = () => undefined;
+    install.mockReturnValueOnce(
+      new Promise<null>(resolve => {
+        finish = resolve;
+      })
+    );
+    const { unmount } = renderPage();
+    fireEvent.click(screen.getByRole('button', { name: 'Install' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Confirm install' }));
+    unmount();
+    renderPage();
+    finish(null);
+
+    await waitFor(() => {
+      expect(install).toHaveBeenCalled();
+    });
+    await act(async () => {});
+    expect(navigate).not.toHaveBeenCalled();
+  });
+
+  it('keeps the dialog and does not navigate when the install fails', async () => {
+    install.mockRejectedValueOnce(new Error('refused'));
+    renderPage();
+    fireEvent.click(screen.getByRole('button', { name: 'Install' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Confirm install' }));
+
+    await waitFor(() => {
+      expect(install).toHaveBeenCalled();
+    });
+    await act(async () => {});
+    expect(navigate).not.toHaveBeenCalled();
+    expect(screen.getByRole('dialog', { name: 'Install this plugin?' })).toBeInTheDocument();
   });
 
   // Header owns Install; the version chip carries Check and Update regardless. An installed
@@ -279,7 +366,7 @@ describe('PluginDetailsPage', () => {
     expect(screen.queryByRole('button', { name: 'Check now' })).toBeNull();
 
     fireEvent.click(screen.getByRole('button', { name: 'Check and Update' }));
-    expect(checkNow).toHaveBeenCalledWith('p1');
+    expect(checkNow).toHaveBeenCalledWith('p1', 'Example Plugin');
   });
 
   // The label is the point of the rename: the visible tooltip has to say what the button
@@ -437,7 +524,7 @@ describe('PluginDetailsPage', () => {
     renderPage();
 
     fireEvent.click(screen.getByRole('button', { name: 'Check and Update' }));
-    expect(checkNow).toHaveBeenCalledWith('p1');
+    expect(checkNow).toHaveBeenCalledWith('p1', 'Example Plugin');
   });
 
   // The member never chose this version and cannot pin it, so the Version tooltip has to
@@ -889,6 +976,20 @@ describe('PluginDetailsPage', () => {
       fireEvent.click(within(banner).getByRole('button', { name: 'Install' }));
 
       expect(screen.getByRole('dialog', { name: 'Install this plugin?' })).toBeInTheDocument();
+    });
+
+    it('keeps the banner Install secondary next to the primary header Install', () => {
+      plugin = entry({ visibleViaScopes: [] });
+      renderOpen();
+
+      expect(screen.getAllByRole('button', { name: 'Install' })).toHaveLength(2);
+      const banner = within(screen.getByRole('alert')).getByRole('button', { name: 'Install' });
+      const header = screen
+        .getAllByRole('button', { name: 'Install' })
+        .find(button => button !== banner);
+      expect(banner).not.toHaveClass('bg-primary');
+      expect(banner).toHaveClass('border');
+      expect(header).toHaveClass('bg-primary');
     });
 
     it.each([

@@ -1,8 +1,16 @@
-import React, { useEffect } from 'react';
-import { Navigate, useLocation, useParams } from 'react-router';
-import { PROJECT_PLACEHOLDER, resolveProjectPlaceholder } from '../../../utils/path';
+import React, { useEffect, useRef, useState } from 'react';
+import { isAxiosError } from 'axios';
+import { Button } from '@owox/ui/components/button';
+import { useFlags } from '../../../app/store/hooks';
+import { RequestStatus } from '../../../shared/types/request-status';
+import { Link, Navigate, useLocation, useParams } from 'react-router';
+import {
+  buildProjectPath,
+  PROJECT_PLACEHOLDER,
+  resolveProjectPlaceholder,
+} from '../../../utils/path';
 import { useAuthState, useUser } from '../hooks';
-import { signIn } from '../services';
+import { signIn, switchProject } from '../services';
 import { normalizeProjectId } from '../utils/project-id';
 import { FullScreenLoader } from '@owox/ui/components/common/loading-spinner';
 import { CONNECT_SWITCH_ATTEMPT_KEY, getConnectProjectTarget } from '../utils/connect-project';
@@ -19,6 +27,7 @@ import { CONNECT_SWITCH_ATTEMPT_KEY, getConnectProjectTarget } from '../utils/co
 export function ProjectIdGuard({ children }: { children: React.ReactNode }): React.ReactElement {
   const { isLoading } = useAuthState();
   const user = useUser();
+  const { flags, callState: flagsStatus } = useFlags();
   const { projectId: urlProjectId } = useParams<{ projectId?: string }>();
   const location = useLocation();
   const currentUrl = location.pathname + location.search + location.hash;
@@ -34,8 +43,12 @@ export function ProjectIdGuard({ children }: { children: React.ReactNode }): Rea
     !!userProjectId &&
     userProjectId !== safeUrlProjectId;
 
+  const flagsPending = flagsStatus === RequestStatus.IDLE || flagsStatus === RequestStatus.LOADING;
+  const directSwitch =
+    flags?.IDP_PROVIDER === 'owox-better-auth' && !getConnectProjectTarget(currentUrl);
+
   useEffect(() => {
-    if (hasMismatch) {
+    if (hasMismatch && !flagsPending && !directSwitch) {
       const connectTarget = getConnectProjectTarget(currentUrl);
       if (connectTarget) {
         if (sessionStorage.getItem(CONNECT_SWITCH_ATTEMPT_KEY) === connectTarget.url) {
@@ -52,7 +65,7 @@ export function ProjectIdGuard({ children }: { children: React.ReactNode }): Rea
       }
       signIn({ projectId: safeUrlProjectId });
     }
-  }, [hasMismatch, safeUrlProjectId, currentUrl]);
+  }, [hasMismatch, safeUrlProjectId, currentUrl, flagsPending, directSwitch]);
 
   if (!isLoading && isPlaceholder && userProjectId) {
     return (
@@ -66,7 +79,93 @@ export function ProjectIdGuard({ children }: { children: React.ReactNode }): Rea
     );
   }
 
+  if (hasMismatch && !flagsPending && directSwitch && user.id) {
+    return (
+      <SwitchProjectSession
+        key={`${user.id}:${safeUrlProjectId}`}
+        projectId={safeUrlProjectId}
+        currentProjectId={userProjectId}
+        userId={user.id}
+      />
+    );
+  }
   if (isLoading || hasMismatch) return <FullScreenLoader />;
 
   return <>{children}</>;
+}
+
+function SwitchProjectSession({
+  projectId,
+  currentProjectId,
+  userId,
+}: {
+  projectId: string;
+  currentProjectId: string;
+  userId: string;
+}) {
+  const [failure, setFailure] = useState<'expired' | 'unavailable' | 'retry' | null>(null);
+  const [attempt, setAttempt] = useState(0);
+  const request = useRef<{ attempt: number; promise: Promise<void> } | null>(null);
+
+  useEffect(() => {
+    if (request.current?.attempt !== attempt) {
+      request.current = { attempt, promise: switchProject(projectId, userId) };
+    }
+
+    let active = true;
+    void request.current.promise.then(
+      () => {
+        if (active) window.location.reload();
+      },
+      (error: unknown) => {
+        if (!active) return;
+        const status = isAxiosError(error) ? error.response?.status : undefined;
+        setFailure(status === 401 ? 'expired' : status === 403 ? 'unavailable' : 'retry');
+      }
+    );
+    return () => {
+      active = false;
+    };
+  }, [attempt, projectId, userId]);
+
+  if (!failure) return <FullScreenLoader />;
+
+  return (
+    <div className='bg-background flex min-h-screen items-center justify-center p-4'>
+      <div className='bg-card text-card-foreground w-full max-w-lg space-y-4 rounded-lg p-6 shadow-lg'>
+        <h1 className='text-lg font-semibold'>Could not open project</h1>
+        <p role='alert' className='text-muted-foreground text-sm'>
+          {failure === 'expired'
+            ? 'Your session expired. Sign in to continue.'
+            : failure === 'unavailable'
+              ? 'This project is unavailable for your current session.'
+              : 'Try switching projects again or return to your current project.'}
+        </p>
+        <div className='flex flex-wrap gap-2'>
+          {failure === 'expired' && (
+            <Button
+              onClick={() => {
+                signIn({ projectId });
+              }}
+            >
+              Sign in
+            </Button>
+          )}
+          {failure === 'retry' && (
+            <Button
+              onClick={() => {
+                setFailure(null);
+                setAttempt(attempt + 1);
+              }}
+            >
+              Try again
+            </Button>
+          )}
+          <Button variant='outline' asChild>
+            <Link to={buildProjectPath(currentProjectId, '/data-marts')}>Back to project</Link>
+          </Button>
+        </div>
+      </div>
+    </div>
+  );
 }

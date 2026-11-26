@@ -9,6 +9,7 @@ import { IntercomChat } from './app/intercom/IntercomChat';
 import { AppStoreProvider, AppBootstrap } from './app/store';
 import { ContentPopovers } from './components/ContentPopovers';
 import { isAccountLinkPath } from './features/my-account/account-link-paths';
+import { CloudProjectCreationProvider } from './features/project-settings/management/CloudProjectCreationProvider';
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -52,7 +53,9 @@ function App() {
             <GTM />
             <IntercomChat />
             <ContentPopovers />
-            <RouterProvider router={router} />
+            <CloudProjectCreationProvider>
+              <RouterProvider router={router} />
+            </CloudProjectCreationProvider>
           </AppBootstrap>
         </AppStoreProvider>
       </AuthProvider>

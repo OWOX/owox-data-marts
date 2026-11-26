@@ -263,6 +263,7 @@ export class StreamHttpDataService {
         aggregation: query.aggregation,
         dateTrunc: query.dateTrunc,
         uniqueCount: query.uniqueCount,
+        havingGroupBy: query.havingGroupBy,
         limit,
       },
       includeTotalRowCount: query.includeTotalRowCount,
@@ -288,6 +289,7 @@ export class StreamHttpDataService {
             aggregation: query.aggregation,
             dateTrunc: query.dateTrunc,
             uniqueCount: query.uniqueCount,
+            havingGroupBy: query.havingGroupBy,
           },
           reportingColumns
         );
@@ -300,6 +302,7 @@ export class StreamHttpDataService {
           aggregationConfig: query.aggregation,
           dateTruncConfig: query.dateTrunc,
           uniqueCountConfig: query.uniqueCount,
+          havingGroupBy: query.havingGroupBy,
           limitConfig: limit ?? null,
         };
 
@@ -468,6 +471,7 @@ export class StreamHttpDataService {
         sort: readPlan.sortConfig ?? undefined,
         aggregation: readPlan.aggregationConfig ?? undefined,
         dateTrunc: readPlan.dateTruncConfig ?? undefined,
+        havingGroupBy: readPlan.havingGroupBy,
         limit: readPlan.limitConfig ?? undefined,
         // Carried over rather than re-derived: every other field here is restated from the
         // plan, which is why replacing the object wholesale is safe for them. This one comes
