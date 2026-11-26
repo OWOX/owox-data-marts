@@ -207,7 +207,7 @@ export class McpDataMartManagementFacadeImpl implements McpDataMartManagementFac
     );
     return {
       dataMart: this.mapper.toSummary(dto),
-      schema: dto.schema ?? null,
+      schema: this.mapper.toSchema(dto),
       warningCount: 0,
       warnings: [],
     };
@@ -219,7 +219,7 @@ export class McpDataMartManagementFacadeImpl implements McpDataMartManagementFac
     );
     return {
       dataMart: this.mapper.toSummary(dto),
-      schema: dto.schema ?? null,
+      schema: this.mapper.toSchema(dto),
       warningCount: dto.warnings.length,
       warnings: safeMcpSchemaWarnings(dto.warnings),
     };

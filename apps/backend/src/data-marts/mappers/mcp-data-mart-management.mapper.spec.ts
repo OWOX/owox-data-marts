@@ -171,4 +171,34 @@ describe('McpDataMartManagementMapper', () => {
     expect(connectors.resolveConnectorSpecification).toHaveBeenCalledTimes(2);
     expect(connectors.resolveSourceKeys).toHaveBeenCalledTimes(2);
   });
+  it('returns the schema with the effective values of calculated fields', async () => {
+    const fields = [
+      { name: 'amount', type: 'INTEGER' },
+      {
+        name: 'total',
+        type: 'INTEGER',
+        calculated: { formula: 'SUM({{ref field="amount"}})', level: 'column' },
+      },
+      {
+        name: 'doubled',
+        type: 'INTEGER',
+        calculated: { formula: '{{ref field="amount"}} * 2', level: 'column' },
+      },
+    ];
+    const dto = {
+      ...mart(),
+      schema: { type: 'bigquery-data-mart-schema', fields },
+    } as unknown as DataMartDto;
+
+    const schema = mapper.toSchema(dto);
+
+    expect(schema?.fields.map(field => field.calculated)).toEqual([
+      undefined,
+      { formula: 'SUM({{ref field="amount"}})', level: 'metric', rollupAggregations: ['SUM'] },
+      { formula: '{{ref field="amount"}} * 2', level: 'column' },
+    ]);
+    expect((await mapper.toSetup(dto)).schema).toEqual(schema);
+    expect(fields[1].calculated?.level).toBe('column');
+    expect(mapper.toSchema(mart())).toBeNull();
+  });
 });

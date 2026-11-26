@@ -144,7 +144,8 @@ export function calculatedFieldLevelOf(
 
 /**
  * The functions that combine the values a calculated metric computed for separate groups of its
- * Data Mart's rows. `undefined` for a native field and for a row-level formula.
+ * Data Mart's rows. `undefined` for a native field and for a row-level formula. Each call
+ * classifies the field again; `withEffectiveCalculatedFields` classifies a whole schema once.
  */
 export function calculatedRollupAggregationsOf(
   field: Pick<DataMartSchemaField, 'calculated'>,
