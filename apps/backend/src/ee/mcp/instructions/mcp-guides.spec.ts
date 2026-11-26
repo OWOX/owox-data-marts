@@ -158,7 +158,13 @@ describe('MCP guides', () => {
   // Its jobs run in another project than its data, so a name without the project is not found.
   it('tells agents to name each table of an OWOX Storage in full', () => {
     expect(MCP_GUIDES.storages_destinations).toContain(
-      '`<project_id>.<dataset_id>.<table>`, with the project_id of its configuration'
+      '`<project_id>.<dataset_id>.<table>`, with the projectId of its configuration'
+    );
+  });
+
+  it('tells agents not to name the warehouse behind an OWOX Storage', () => {
+    expect(MCP_GUIDES.storages_destinations).toContain(
+      'Call it an OWOX Storage, never a BigQuery Storage.'
     );
   });
 

@@ -320,8 +320,12 @@ export class BigQueryStorageResourceBrowser implements IStorageResourceBrowserPr
     clients: BigQueryClients,
     { projectId, datasetId }: { projectId: string; datasetId: string }
   ): Promise<GbqTableListing[]> {
-    const dataset = (await this.listDatasets(clients, projectId)).find(d => d.id === datasetId);
-    return this.listTables(clients, projectId, dataset ?? { id: datasetId });
+    // The project holds the datasets of every OWOX Storage: read only this one.
+    const [metadata] = await this.cloneForProject(clients, projectId)
+      .dataset(datasetId, { projectId })
+      .getMetadata();
+    const location = (metadata as { location?: string } | undefined)?.location;
+    return this.listTables(clients, projectId, { id: datasetId, location });
   }
 
   private async listTablesInProject(

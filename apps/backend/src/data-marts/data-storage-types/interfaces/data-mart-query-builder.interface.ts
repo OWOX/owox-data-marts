@@ -110,7 +110,7 @@ export interface DataMartQueryOptions {
   /**
    * BigQuery: the project of the storage. A connector names its table `dataset.table`, and a job
    * reads such a name in its own project; an OWOX Storage runs its jobs in another project than its
-   * datasets. The facade sets it from the storage, never a producer.
+   * datasets. The facade sets it from the storage config; a direct builder call sets it itself.
    */
   storageProjectId?: string;
 }

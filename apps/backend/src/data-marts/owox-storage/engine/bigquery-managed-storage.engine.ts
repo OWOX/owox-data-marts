@@ -100,6 +100,10 @@ export class BigQueryManagedStorageEngine implements ManagedStorageEngine {
         // Every run starts its jobs in the stored process project.
         throw new Error(`OWOX Storage ${datasetId} restore returned another process project`);
       }
+      if (restored.gcpProjectId !== target.gcpProjectId) {
+        // Every table name of the storage names the stored datasets project.
+        throw new Error(`OWOX Storage ${datasetId} restore returned another datasets project`);
+      }
     } catch (error) {
       this.logger.error(`OWOX Storage ${datasetId} restore failed (${castError(error).message})`);
       throw error;

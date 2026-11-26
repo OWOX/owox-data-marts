@@ -170,7 +170,10 @@ export class BigQueryApiAdapter {
       const [job] = await this.bigQuery.createQueryJob(queryConfig);
       return job;
     } catch (error) {
-      const { errors, message } = error as { errors?: { reason?: string }[]; message?: string };
+      const { errors, message } = error as {
+        errors?: { reason?: string; message?: string }[];
+        message?: string;
+      };
       if (this.owoxStorage && isDailyQuotaRefusal(errors?.[0]?.reason, message)) {
         throw new OwoxStorageQueryLimitException();
       }
@@ -178,6 +181,9 @@ export class BigQueryApiAdapter {
       if (this.owoxStorage && error instanceof Error) {
         error.message = withoutServiceAccount(error.message);
         if (error.stack) error.stack = withoutServiceAccount(error.stack);
+        for (const item of errors ?? []) {
+          if (typeof item.message === 'string') item.message = withoutServiceAccount(item.message);
+        }
       }
       throw error;
     }

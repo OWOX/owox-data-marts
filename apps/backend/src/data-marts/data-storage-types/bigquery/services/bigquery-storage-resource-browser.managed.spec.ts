@@ -4,6 +4,7 @@ import type { DataStorage } from '../../../entities/data-storage.entity';
 const mockDatasets = jest.fn();
 const mockGetTables = jest.fn();
 const mockDataset = jest.fn();
+const mockGetMetadata = jest.fn();
 jest.mock('@google-cloud/bigquery', () => ({
   BigQuery: jest.fn().mockImplementation(() => ({
     projectId: 'proj-abc',
@@ -25,6 +26,7 @@ describe('BigQueryStorageResourceBrowser (managed)', () => {
   } as never);
 
   beforeEach(() => {
+    jest.clearAllMocks();
     mockDatasets.mockResolvedValue([
       [
         { id: 'owox_abc', metadata: { location: 'US' } },
@@ -32,7 +34,8 @@ describe('BigQueryStorageResourceBrowser (managed)', () => {
       ],
     ]);
     mockGetTables.mockResolvedValue([[{ id: 't', metadata: { type: 'TABLE' } }]]);
-    mockDataset.mockReturnValue({ getTables: mockGetTables });
+    mockGetMetadata.mockResolvedValue([{ location: 'US' }]);
+    mockDataset.mockReturnValue({ getTables: mockGetTables, getMetadata: mockGetMetadata });
   });
 
   it('lists only the storage project as the namespace, named OWOX Storage', async () => {
@@ -44,8 +47,17 @@ describe('BigQueryStorageResourceBrowser (managed)', () => {
   it('lists only the customer dataset of a managed storage', async () => {
     const leaves = await browser.listLeafResources(storage, 'proj-abc');
 
-    expect(mockDataset).toHaveBeenCalledTimes(1);
-    expect(mockDataset).toHaveBeenCalledWith('owox_abc', { projectId: 'proj-abc' });
+    expect(mockDataset.mock.calls).toEqual(
+      mockDataset.mock.calls.map(() => ['owox_abc', { projectId: 'proj-abc' }])
+    );
     expect(JSON.stringify(leaves)).not.toContain('internal');
+  });
+
+  // The datasets project holds the datasets of every OWOX Storage.
+  it('reads the dataset of the storage, not the dataset list of the project', async () => {
+    const leaves = await browser.listLeafResources(storage, 'proj-abc');
+
+    expect(mockDatasets).not.toHaveBeenCalled();
+    expect(leaves).toEqual([expect.objectContaining({ location: 'US' })]);
   });
 });

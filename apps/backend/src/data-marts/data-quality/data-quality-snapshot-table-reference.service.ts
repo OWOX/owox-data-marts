@@ -12,7 +12,8 @@ export interface DataQualitySnapshotTableReferenceInput {
   projectId: string;
   definition: DataMartDefinition | null;
   storage: DataQualityStorageSnapshot;
-  liveStorage: DataQualityStorageSnapshot | null | undefined;
+  // The snapshot keeps no config; a query is built with the config of the live storage.
+  liveStorage: (DataQualityStorageSnapshot & { config?: unknown }) | null | undefined;
 }
 
 interface DataQualitySnapshotTableReference {
@@ -37,7 +38,7 @@ export class DataQualitySnapshotTableReferenceService {
   async resolve(
     input: DataQualitySnapshotTableReferenceInput
   ): Promise<DataQualitySnapshotTableReference> {
-    this.validateStorage(input.storage, input.liveStorage);
+    const liveStorage = this.validateStorage(input.storage, input.liveStorage);
     const definition = input.definition;
     if (!definition) {
       throw new Error('Data Mart definition snapshot is unavailable');
@@ -49,7 +50,7 @@ export class DataQualitySnapshotTableReferenceService {
       buildQuery: async columns =>
         mainTableReference
           ? `SELECT ${columns.length > 0 ? columns.join(', ') : '*'} FROM ${mainTableReference}`
-          : this.queryBuilder.buildQuery(input.storage, definition, { columns }),
+          : this.queryBuilder.buildQuery(liveStorage, definition, { columns }),
     };
   }
 
@@ -65,10 +66,11 @@ export class DataQualitySnapshotTableReferenceService {
 
   private validateStorage(
     snapshot: DataQualityStorageSnapshot,
-    live: DataQualityStorageSnapshot | null | undefined
-  ): void {
+    live: DataQualitySnapshotTableReferenceInput['liveStorage']
+  ): NonNullable<DataQualitySnapshotTableReferenceInput['liveStorage']> {
     if (!live || live.id !== snapshot.id || live.type !== snapshot.type) {
       throw new DataQualitySnapshotStorageMismatchError();
     }
+    return live;
   }
 }

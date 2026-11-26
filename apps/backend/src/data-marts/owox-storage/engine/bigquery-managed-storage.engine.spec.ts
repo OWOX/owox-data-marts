@@ -262,6 +262,16 @@ describe('BigQueryManagedStorageEngine', () => {
     expect(identity.impersonate).not.toHaveBeenCalled();
   });
 
+  // Every table name and every Data Mart of the storage names the stored datasets project.
+  it('restore refuses another datasets project than the stored one', async () => {
+    const { engine, client, identity } = setup();
+    client.provision.mockResolvedValueOnce({ ...CREATED, gcpProjectId: 'other-storage' });
+    jest.spyOn(Logger.prototype, 'error').mockImplementation(() => undefined);
+
+    await expect(engine.restore(stored, 'p1', true)).rejects.toThrow('another datasets project');
+    expect(identity.impersonate).not.toHaveBeenCalled();
+  });
+
   it('deprovision drops the cached token and asks Integrated Backend to delete the storage', async () => {
     const { engine, client, identity } = setup();
     await engine.deprovision(stored);

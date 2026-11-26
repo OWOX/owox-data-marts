@@ -40,7 +40,7 @@ export function CreateDataStorageSpec() {
 
 export function CreateOwoxStorageSpec() {
   return applyDecorators(
-    ApiOperation({ summary: 'Create an OWOX Storage (OWOX-hosted BigQuery)' }),
+    ApiOperation({ summary: 'Create an OWOX Storage' }),
     ApiBody({ type: CreateOwoxStorageApiDto }),
     ApiResponse({ status: 201, type: DataStorageResponseApiDto }),
     ApiResponse({

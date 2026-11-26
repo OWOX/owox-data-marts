@@ -70,6 +70,24 @@ describe('BigQueryQueryBuilder', () => {
       expect(sql).toBe('SELECT *\nFROM `owox-p-storage-001`.`owox_eu_0123456789ab`.`holidays`');
     });
 
+    // A domain-scoped project id has a dot, so it must stay one quoted part.
+    it('keeps a domain-scoped storage project in one part', async () => {
+      const sql = await builder.buildQuery(connectorDefinition('ds.tbl'), {
+        storageProjectId: 'example.com:proj',
+      });
+      expect(sql).toBe('SELECT *\nFROM `example.com:proj`.`ds`.`tbl`');
+    });
+
+    it('adds the storage project to a two-part connector table with output controls', async () => {
+      const built = await builder.buildQuery(connectorDefinition('ds.tbl'), {
+        storageProjectId: 'owox-p-storage-001',
+        limit: 5,
+      });
+      expect(typeof built === 'string' ? built : built.sql).toContain(
+        'FROM `owox-p-storage-001`.`ds`.`tbl` AS src'
+      );
+    });
+
     it('keeps a three-part connector table and a two-part one without a storage project', async () => {
       const qualified = await builder.buildQuery(connectorDefinition('proj.ds.tbl'), {
         storageProjectId: 'other',

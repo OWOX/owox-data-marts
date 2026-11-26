@@ -164,6 +164,7 @@ describe('BigQueryApiAdapter (OWOX Storage)', () => {
           new Error(`Access Denied: ${email} does not have storage.objects.list access`),
           {
             code: 403,
+            errors: [{ reason: 'accessDenied', message: `Access Denied: ${email}` }],
           }
         )
       );
@@ -176,6 +177,9 @@ describe('BigQueryApiAdapter (OWOX Storage)', () => {
         'Access Denied: <service account> does not have storage.objects.list access'
       );
       expect(error.stack).not.toContain(email);
+      expect(error.errors).toEqual([
+        { reason: 'accessDenied', message: 'Access Denied: <service account>' },
+      ]);
       expect(error.code).toBe(403);
     });
 

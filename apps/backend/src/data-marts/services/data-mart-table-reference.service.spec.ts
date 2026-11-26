@@ -63,7 +63,7 @@ describe('DataMartTableReferenceService — the caller-scoped table reference me
       .mockResolvedValueOnce(connectorOn('SNOWFLAKE', { account: 'acc' }));
 
     await expect(service.resolveTableName('dm-1', 'proj-1')).resolves.toBe(
-      'owox-p-storage-001.owox_eu_0123456789ab.holidays'
+      '`owox-p-storage-001`.owox_eu_0123456789ab.holidays'
     );
     await expect(service.resolveTableName('dm-1', 'proj-1')).resolves.toBe(
       'owox_eu_0123456789ab.holidays'

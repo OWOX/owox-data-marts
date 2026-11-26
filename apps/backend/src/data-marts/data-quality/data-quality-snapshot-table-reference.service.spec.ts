@@ -75,6 +75,30 @@ describe('DataQualitySnapshotTableReferenceService', () => {
     expect(tableReferenceService.resolveTableName).not.toHaveBeenCalled();
   });
 
+  it('builds a non-SQL query with the config of the live storage, which the snapshot does not keep', async () => {
+    queryBuilder.buildQuery.mockResolvedValue('SELECT `id` FROM `owox-p-storage-001`.`ds`.`t`');
+    const liveStorage = {
+      id: 'storage-1',
+      type: DataStorageType.GOOGLE_BIGQUERY,
+      config: { projectId: 'owox-p-storage-001' },
+    };
+
+    const reference = await service.resolve({
+      dataMartId: 'dm-source',
+      projectId: 'project-1',
+      definition: {
+        connector: { storage: { fullyQualifiedName: 'ds.t' } },
+      } as never,
+      storage: { id: 'storage-1', type: DataStorageType.GOOGLE_BIGQUERY },
+      liveStorage,
+    });
+
+    await reference.buildQuery(['`id`']);
+    expect(queryBuilder.buildQuery).toHaveBeenCalledWith(liveStorage, expect.anything(), {
+      columns: ['`id`'],
+    });
+  });
+
   it('rejects a moved storage before resolving a view or building a query', async () => {
     await expect(
       service.resolve({
