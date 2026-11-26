@@ -7386,6 +7386,11 @@ describe('OutputControlsValidatorService', () => {
         calculated: { formula: 'UPPER({{ref field="status"}})', level: 'column' },
       },
       {
+        name: 'status_broken',
+        type: 'STRING',
+        calculated: { formula: 'UPPER({{ref field="removed"}})', level: 'column' },
+      },
+      {
         name: 'total',
         type: 'NUMERIC',
         calculated: { formula: 'SUM({{ref field="revenue"}})', level: 'metric' },
@@ -7613,6 +7618,20 @@ describe('OutputControlsValidatorService', () => {
 
       expect(errors).toEqual([
         { code: 'HAVING_FILTER_NOT_AGGREGATED', column: 'revenue', function: 'SUM' },
+      ]);
+    });
+
+    it('refuses a key whose formula reads a removed column', async () => {
+      const errors = await validate({
+        ...metricRead,
+        havingGroupBy: { column: ['status_broken'] },
+      });
+
+      expect(errors).toEqual([
+        expect.objectContaining({
+          code: 'CALCULATED_FIELD_BROKEN_REFERENCES',
+          column: 'status_broken',
+        }),
       ]);
     });
   });

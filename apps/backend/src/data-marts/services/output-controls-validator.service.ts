@@ -1146,6 +1146,7 @@ export class OutputControlsValidatorService {
             ...(args.columnConfig ?? []),
             ...parsedFilters.map(rule => rule.column),
             ...parsedSort.map(rule => rule.column),
+            ...(args.havingGroupBy?.column ?? []),
           ]);
           // A joined reference that no longer resolves is broken for a sharper reason than an own
           // one: nothing routes it to a sleeve, so `renderAggregatedSelect` qualifies the joined

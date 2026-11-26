@@ -242,7 +242,9 @@ export function StreamHttpDataSpec() {
         '`columns=*`/`columns=**`, a Unique Count source without a primary key or not available ' +
         'for reporting, a Unique Count key in `column`/filter/aggregation/dateTrunc/havingGroupBy, ' +
         'havingGroupBy without a metric filter (`HAVING_GROUP_BY_REQUIRES_METRIC_FILTER`) or ' +
-        'with a key that cannot be grouped (`HAVING_GROUP_BY_KEY_NOT_GROUPABLE`), ' +
+        'with a key that cannot be grouped (`HAVING_GROUP_BY_KEY_NOT_GROUPABLE`), an ' +
+        'aggregate-level Calculated Field key (`CALCULATED_FIELD_AS_DIMENSION`) or an invalid ' +
+        'date bucket (`DATE_TRUNC_*`), ' +
         'unsupported storage type, ' +
         'or a project blocked because it is ' +
         'inactive or has exceeded its credit limit. Invalid query parameters create no run. ' +
