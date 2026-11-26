@@ -14,8 +14,8 @@ import {
   SelectValue,
 } from '@owox/ui/components/select';
 import { EllipsisVertical, History, Plus, Puzzle } from 'lucide-react';
-import { useMemo, useState } from 'react';
-import { Link } from 'react-router';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import { Link, useNavigate } from 'react-router';
 import {
   comparePluginsByName,
   describeVisibility,
@@ -56,10 +56,18 @@ export default function PluginsGalleryPage() {
   const { install, isInstalling } = usePluginActions();
   const { view, update } = useGalleryView();
   const { scope } = useProjectRoute();
+  const navigate = useNavigate();
 
   const [query, setQuery] = useState('');
   const [candidate, setCandidate] = useState<PluginGalleryEntry | null>(null);
   const [publishing, setPublishing] = useState(false);
+  const mounted = useRef(false);
+  useEffect(() => {
+    mounted.current = true;
+    return () => {
+      mounted.current = false;
+    };
+  }, []);
 
   /**
    * The Gallery plus every live installation that nothing lists any more.
@@ -131,6 +139,7 @@ export default function PluginsGalleryPage() {
     plugin: PluginGalleryEntry,
     credentialSelections: Readonly<Record<string, string | null>>
   ) => {
+    const from = window.location.pathname;
     const stale = await install(plugin.pluginId, plugin.currentVersionId, credentialSelections);
     if (stale) {
       setCandidate(stale);
@@ -138,6 +147,9 @@ export default function PluginsGalleryPage() {
     }
 
     setCandidate(null);
+    // The member may have left while the install ran. Back unmounts this page, and a return mounts a new one.
+    if (!mounted.current || window.location.pathname !== from) return;
+    void navigate(scope(`/plugins/${plugin.pluginId}/open`));
   };
 
   return (
@@ -290,7 +302,10 @@ export default function PluginsGalleryPage() {
               setCandidate(null);
             }
           }}
-          onConfirm={credentialSelections => void installPlugin(candidate, credentialSelections)}
+          onConfirm={credentialSelections => {
+            // install has already shown the failure.
+            void installPlugin(candidate, credentialSelections).catch(() => undefined);
+          }}
           isInstalling={isInstalling}
         />
       )}

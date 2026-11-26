@@ -1,7 +1,7 @@
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { onlineManager, QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { act, renderHook, waitFor } from '@testing-library/react';
 import type { ReactNode } from 'react';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 vi.mock('../../../shared/hooks', () => ({ useProjectId: () => 'project-1' }));
 vi.mock('react-hot-toast', () => {
@@ -23,7 +23,7 @@ vi.mock('../services/plugins.service', () => ({
 
 import toast from 'react-hot-toast';
 import { pluginsService } from '../services/plugins.service';
-import { usePluginActions, usePluginGallery } from './usePlugins';
+import { usePluginActions, usePluginGallery, usePluginInstallations } from './usePlugins';
 
 const service = pluginsService as unknown as Record<string, ReturnType<typeof vi.fn>>;
 
@@ -57,6 +57,10 @@ describe('usePluginGallery', () => {
 });
 
 describe('usePluginActions', () => {
+  afterEach(() => {
+    onlineManager.setOnline(true);
+  });
+
   beforeEach(() => {
     vi.clearAllMocks();
     service.install.mockResolvedValue({ installationId: 'i1' });
@@ -130,6 +134,63 @@ describe('usePluginActions', () => {
     ).rejects.toBeDefined();
     expect(toast.error).toHaveBeenCalledWith('Not installed');
     expect(toast.success).not.toHaveBeenCalled();
+  });
+
+  // The dialog cannot close while the install runs, so the load of the newer version counts too.
+  it('stays busy until the newer version is loaded after a stale confirmation', async () => {
+    service.install.mockRejectedValue(staleError('2.0.0'));
+    let load: (plugin: unknown) => void = () => undefined;
+    service.getPlugin.mockReturnValueOnce(
+      new Promise(resolve => {
+        load = resolve;
+      })
+    );
+    const { result } = renderHook(() => usePluginActions(), { wrapper });
+
+    let done: Promise<unknown> = Promise.resolve();
+    act(() => {
+      done = result.current.install('p1', 'v1');
+    });
+    await waitFor(() => {
+      expect(service.getPlugin).toHaveBeenCalledWith('p1');
+    });
+    expect(result.current.isInstalling).toBe(true);
+
+    await act(async () => {
+      load({ pluginId: 'p1', currentVersionId: 'v2', currentSemver: '2.0.0' });
+      await done;
+    });
+    await waitFor(() => {
+      expect(result.current.isInstalling).toBe(false);
+    });
+  });
+
+  it('shows an error when the newer version does not load', async () => {
+    service.install.mockRejectedValue(staleError('2.0.0'));
+    service.getPlugin.mockRejectedValueOnce(new Error('Network Error'));
+    const { result } = renderHook(() => usePluginActions(), { wrapper });
+
+    await expect(
+      act(async () => {
+        await result.current.install('p1', 'v1');
+      })
+    ).rejects.toBeDefined();
+    expect(toast.error).toHaveBeenCalled();
+  });
+
+  // A paused install would keep the dialog locked until the network comes back.
+  it('fails at once when the browser is offline', async () => {
+    service.install.mockRejectedValue(new Error('Network Error'));
+    onlineManager.setOnline(false);
+    const { result } = renderHook(() => usePluginActions(), { wrapper });
+
+    await expect(
+      act(async () => {
+        await result.current.install('p1', 'v1');
+      })
+    ).rejects.toBeDefined();
+    expect(service.install).toHaveBeenCalled();
+    expect(toast.error).toHaveBeenCalled();
   });
 
   it('still surfaces a genuine install failure', async () => {
@@ -265,6 +326,31 @@ describe('usePluginActions', () => {
     });
 
     expect(reset).toHaveBeenCalledWith({ queryKey: ['plugin-history', 'project-1'] });
+  });
+
+  // The pages open the plugin right after install resolves, so the list must be fresh by then.
+  it('install resolves only after the active installation list is fresh', async () => {
+    const row = { installationId: 'i1', pluginId: 'p1', uninstalledAt: null };
+    service.getInstallations.mockResolvedValueOnce([]).mockResolvedValue([row]);
+    service.install.mockResolvedValue({ installationId: 'i1' });
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    const { result } = renderHook(
+      () => ({ list: usePluginInstallations(true), actions: usePluginActions() }),
+      {
+        wrapper: ({ children }: { children: ReactNode }) => (
+          <QueryClientProvider client={client}>{children}</QueryClientProvider>
+        ),
+      }
+    );
+    await waitFor(() => {
+      expect(service.getInstallations).toHaveBeenCalledTimes(1);
+      expect(result.current.list.isLoading).toBe(false);
+    });
+
+    await act(async () => {
+      await result.current.actions.install('p1', 'v1');
+      expect(client.getQueryData(['plugin-installations', 'project-1', true])).toEqual([row]);
+    });
   });
 
   // A publisher whose fresh check rejected a release must not read "you're up to date":
