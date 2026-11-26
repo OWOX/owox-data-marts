@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from 'react';
 import toast from 'react-hot-toast';
 import { dataStorageApiService } from '../api';
 import type { OwoxStorageUsageResponseDto } from '../api/types';
+import { invalidateDataStorageHealthStatus } from '../services/data-storage-health-status.service';
 
 export function useOwoxStorageUsage(storageId: string) {
   const [usage, setUsage] = useState<OwoxStorageUsageResponseDto | null>(null);
@@ -53,6 +54,8 @@ export function useOwoxStorageUsage(storageId: string) {
     try {
       await dataStorageApiService.restoreOwoxStorage(storageId);
       toast.success('Storage restored.');
+      // The Data Mart storage card and the table picker still hold the health of the deleted storage.
+      invalidateDataStorageHealthStatus(storageId);
       await load(true);
     } catch {
       // The default error toast has already reported it.

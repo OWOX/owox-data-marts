@@ -76,6 +76,8 @@ describe('OwoxStorageProvisioningClient', () => {
 
     expect(error).toBeInstanceOf(Error);
     expect((error as Error).message).toBe('Integrated Backend answered 503 to OWOX Storage DELETE');
+    // describeGoogleError logs the code, so ops can tell a 409 from a 502.
+    expect((error as { code?: number }).code).toBe(503);
   });
 
   it('rejects a response without a service account', async () => {

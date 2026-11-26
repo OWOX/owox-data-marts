@@ -20,6 +20,7 @@ import {
   OwoxStorageQueryLimitException,
   OwoxStorageStatementException,
 } from '../../../owox-storage/owox-storage.exceptions';
+import { withoutServiceAccount } from '../../../owox-storage/without-service-account';
 
 // Google words a refusal by the per-user or the project query-usage quota this way; rate and
 // concurrency limits share the reason but not the words.
@@ -42,8 +43,8 @@ function toDateOrNull(value: unknown): Date | null {
   return Number.isNaN(parsed.getTime()) ? null : parsed;
 }
 
-/** The access check's query; the OWOX Storage activity read ignores it. */
-export const ACCESS_CHECK_QUERY = 'SELECT 1';
+/** The access check's query. */
+const ACCESS_CHECK_QUERY = 'SELECT 1';
 
 /**
  * Adapter for BigQuery API operations.
@@ -217,9 +218,9 @@ export class BigQueryApiAdapter {
           if (this.owoxStorage && isDailyQuotaRefusal(errorResult.reason, errorResult.message)) {
             throw new OwoxStorageQueryLimitException();
           }
-          throw new Error(
-            errorResult.message ?? 'BigQuery query job failed without an error message'
-          );
+          const message =
+            errorResult.message ?? 'BigQuery query job failed without an error message';
+          throw new Error(this.owoxStorage ? withoutServiceAccount(message) : message);
         }
         return;
       }

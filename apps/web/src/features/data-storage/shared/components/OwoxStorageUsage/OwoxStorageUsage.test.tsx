@@ -10,6 +10,11 @@ const restoreOwoxStorage = vi.hoisted(() => vi.fn());
 vi.mock('../../api', () => ({
   dataStorageApiService: { getOwoxStorageUsage, deleteOwoxStorageTable, restoreOwoxStorage },
 }));
+const invalidateDataStorageHealthStatus = vi.hoisted(() => vi.fn());
+vi.mock('../../services/data-storage-health-status.service', async importOriginal => ({
+  ...(await importOriginal<object>()),
+  invalidateDataStorageHealthStatus,
+}));
 const toastSuccess = vi.hoisted(() => vi.fn());
 vi.mock('react-hot-toast', () => ({
   default: { success: toastSuccess },
@@ -142,6 +147,8 @@ describe('OwoxStorageUsage', () => {
     expect(restoreOwoxStorage).toHaveBeenCalledWith('s1');
     expect(getOwoxStorageUsage).toHaveBeenNthCalledWith(2, 's1', true);
     expect(toastSuccess).toHaveBeenCalledWith('Storage restored.');
+    // The Data Mart storage card and the table picker read the cached health of the storage.
+    expect(invalidateDataStorageHealthStatus).toHaveBeenCalledWith('s1');
   });
 
   it('disables the restore button while restoring', async () => {

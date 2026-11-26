@@ -140,7 +140,6 @@ describe('DataQualityQueryExecutorService', () => {
           {} as never,
           new ConfigService({ DUCKDB_DATA_DIR: dir }),
           {} as never,
-          {} as never,
           {} as never
         ),
         new SqlRunExecutorFacade({ resolve: async () => runExecutor } as never),

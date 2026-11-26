@@ -233,10 +233,13 @@ describe('DataStorageMapper', () => {
       ['a member', undefined, false],
       ['a plugin', 'plugin', true],
     ])('marks whether %s calls', (_who, authFlow, fromPlugin) => {
-      const command = new DataStorageMapper(clsWith(), noManaged).toDeleteCommand('storage-1', {
-        ...context,
-        authFlow,
-      } as AuthorizationContext);
+      const command = new DataStorageMapper(clsWith(), configWith(), noManaged).toDeleteCommand(
+        'storage-1',
+        {
+          ...context,
+          authFlow,
+        } as AuthorizationContext
+      );
 
       expect(command.fromPlugin).toBe(fromPlugin);
     });
@@ -266,11 +269,14 @@ describe('DataStorageMapper', () => {
       ['a member', undefined, false],
       ['a plugin', 'plugin', true],
     ])('marks whether %s calls', (_who, authFlow, fromPlugin) => {
-      const command = new DataStorageMapper(clsWith(), noManaged).toDeleteOwoxStorageTableCommand(
-        'storage-1',
-        'events',
-        { ...context, authFlow } as AuthorizationContext
-      );
+      const command = new DataStorageMapper(
+        clsWith(),
+        configWith(),
+        noManaged
+      ).toDeleteOwoxStorageTableCommand('storage-1', 'events', {
+        ...context,
+        authFlow,
+      } as AuthorizationContext);
 
       expect(command.fromPlugin).toBe(fromPlugin);
     });
@@ -283,10 +289,11 @@ describe('DataStorageMapper', () => {
       ['a member', undefined, false],
       ['a plugin', 'plugin', true],
     ])('marks whether %s calls', (_who, authFlow, fromPlugin) => {
-      const command = new DataStorageMapper(clsWith(), noManaged).toRestoreOwoxStorageCommand(
-        'storage-1',
-        { ...context, authFlow } as AuthorizationContext
-      );
+      const command = new DataStorageMapper(
+        clsWith(),
+        configWith(),
+        noManaged
+      ).toRestoreOwoxStorageCommand('storage-1', { ...context, authFlow } as AuthorizationContext);
 
       expect(command).toEqual({
         storageId: 'storage-1',

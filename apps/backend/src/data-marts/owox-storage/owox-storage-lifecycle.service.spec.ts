@@ -21,14 +21,13 @@ const record = (id: string, patch: Partial<ManagedStorage> = {}) =>
 
 const leftover = (id: string) => record(id, { deprovisionedAt: ago(1), deprovisionPending: true });
 
-function setup(pending: ManagedStorage[], active: ManagedStorage[] = []) {
+// `current` holds the records as the retry reads them again, after the list was read.
+function setup(pending: ManagedStorage[], current: ManagedStorage[] = []) {
   const engine = { deprovision: jest.fn().mockResolvedValue(undefined) };
-  const stored = new Map([...active, ...pending].map(r => [r.storageId, r]));
+  const stored = new Map([...pending, ...current].map(r => [r.storageId, r]));
   const managed = {
-    findActive: jest.fn().mockResolvedValue(active),
     findPendingDeprovision: jest.fn().mockResolvedValue(pending),
     findByStorageId: jest.fn(async (id: string) => stored.get(id) ?? null),
-    markDeleting: jest.fn().mockResolvedValue(true),
     setDeprovisionPending: jest.fn().mockResolvedValue(undefined),
   };
   const config = { isEnabled: () => true };
@@ -61,11 +60,11 @@ describe('OwoxStorageLifecycleService.runDaily', () => {
     expect(logs).toContain('OWOX Storage ds_a leftovers deleted');
   });
 
-  it('deletes no active storage, however long it has been idle', async () => {
-    const { service, engine, managed } = setup([], [record('a'), record('b')]);
+  it('skips a storage whose restore cleared its pending flag after the list was read', async () => {
+    const listed = leftover('a');
+    const { service, engine } = setup([listed], [{ ...listed, deprovisionPending: false }]);
     await service.runDaily();
     expect(engine.deprovision).not.toHaveBeenCalled();
-    expect(managed.markDeleting).not.toHaveBeenCalled();
   });
 
   it('keeps a storage pending when its retry fails, and retries the next one', async () => {

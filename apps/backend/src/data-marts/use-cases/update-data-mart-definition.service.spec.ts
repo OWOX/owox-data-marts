@@ -13,7 +13,6 @@ import { DataMartValidationCode } from '../data-storage-types/interfaces/data-ma
 import { BusinessViolationException } from '../../common/exceptions/business-violation.exception';
 import { passThroughSqlReferenceValidator } from '../sql-references/__fixtures__/pass-through-sql-reference-resolver';
 import { SECRET_MASK } from '../services/connector/connector-secret.service';
-import { DataMartValidationCode } from '../data-storage-types/interfaces/data-mart-validator.interface';
 
 const OUT_OF_DATE = 'This page is out of date. Reload it.';
 

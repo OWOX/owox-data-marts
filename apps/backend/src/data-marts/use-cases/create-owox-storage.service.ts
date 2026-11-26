@@ -99,7 +99,7 @@ export class CreateOwoxStorageService {
       userId: command.userId,
       ownerIds: command.ownerIds,
     });
-    // The record's 'US'/'EU' is the location, never autodetected: the scan-limit usage read relies on it.
+    // The config holds the storage's own location, 'US' or 'EU', never autodetected.
     const config = { projectId: provisioned.gcpProjectId, location: provisioned.location };
     await this.dataStorageRepository.update(created.id, { title: command.title, config });
     await this.managedStorageService.create({

@@ -145,6 +145,17 @@ describe('BigQueryApiAdapter (OWOX Storage)', () => {
       expect(error.message).toBe(GOOGLE_QUOTA);
     });
 
+    it('keeps the account email out of a failed job on an OWOX Storage', async () => {
+      const email = 'id-0123456789ab@owox-p-access-001.iam.gserviceaccount.com';
+      failJob('accessDenied', `Access Denied: User ${email} does not have permission`);
+
+      const error = await new BigQueryApiAdapter(managed, config)
+        .executeQuery('SELECT 1')
+        .catch(e => e);
+
+      expect(error.message).toBe('Access Denied: User <service account> does not have permission');
+    });
+
     it('keeps other quota errors as they are', async () => {
       failJob('quotaExceeded', 'Exceeded rate limits: too many concurrent queries');
 

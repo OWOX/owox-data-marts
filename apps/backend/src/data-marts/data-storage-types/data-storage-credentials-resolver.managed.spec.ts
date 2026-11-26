@@ -42,7 +42,6 @@ describe('DataStorageCredentialsResolver (managed storage)', () => {
       datasetId: 'ds_a',
       internalDatasetId: 'ds_a_internal',
     });
-    expect(result).not.toHaveProperty('scanBudget');
     expect(result).toHaveProperty('authClient', await identity.impersonate.mock.results[0].value);
     expect(identity.impersonate).toHaveBeenCalledWith('a@x.iam', '1700000000000');
     expect(binding.resolveForStorage).not.toHaveBeenCalled();

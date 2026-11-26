@@ -65,7 +65,6 @@ describe('DataStorageCredentialsResolver', () => {
       legacy,
       {} as never,
       { findByStorageId: jest.fn().mockResolvedValue(null) } as never,
-      {} as never,
       {} as never
     );
   });
@@ -101,8 +100,7 @@ describe('DataStorageCredentialsResolver', () => {
         legacy,
         {} as never,
         { findByStorageId: jest.fn().mockResolvedValue({ deprovisionedAt: new Date() }) } as never,
-        { impersonate } as never,
-        {} as never
+        { impersonate } as never
       );
 
       await expect(deletedResolver.resolve(makeStorage())).rejects.toThrow(

@@ -21,7 +21,6 @@ describe('DataStorageCredentialsResolver DuckDB', () => {
       legacy as unknown as LegacyStorageCredentialReader,
       new ConfigService({ DUCKDB_DATA_DIR: 'data/duck' }),
       {} as never,
-      {} as never,
       {} as never
     );
   });

@@ -75,7 +75,11 @@ export class OwoxStorageProvisioningClient {
     );
     if (!response.ok) {
       // No response body: it can carry project and account ids.
-      throw new Error(`Integrated Backend answered ${response.status} to OWOX Storage ${method}`);
+      // The code lets describeGoogleError log the status, so ops can tell a 409 from a 502.
+      throw Object.assign(
+        new Error(`Integrated Backend answered ${response.status} to OWOX Storage ${method}`),
+        { code: response.status }
+      );
     }
     return response;
   }
