@@ -28,3 +28,10 @@ export const TokenResponseSchema = z.object({
 });
 
 export type TokenResponse = z.infer<typeof TokenResponseSchema>;
+
+/**
+ * IB IDP controller authentication errors. The internal C2C interceptor returns an empty 401.
+ */
+export const IdpAuthenticationErrorResponseSchema = z.object({
+  message: z.enum(['Authentication Error', 'Authentication Error, Invalid token']),
+});

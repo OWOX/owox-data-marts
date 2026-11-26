@@ -1,4 +1,3 @@
-import { z } from 'zod';
 import { Project, ProjectSchema, Projects, ProjectsSchema } from '@owox/idp-protocol';
 import { ImpersonatedIdTokenFetcher } from '@owox/internal-helpers';
 import axios, { AxiosInstance } from 'axios';
@@ -17,6 +16,7 @@ import {
   AuthFlowResponse,
   AuthFlowResponseSchema,
   GoogleIdentityExchangeRequest,
+  IdpAuthenticationErrorResponseSchema,
   IntrospectionRequest,
   IntrospectionResponse,
   IntrospectionResponseSchema,
@@ -30,7 +30,6 @@ import {
   McpOAuthTokenExchangeRequestSchema,
   McpOAuthTokenExchangeResponse,
   McpOAuthTokenExchangeResponseSchema,
-  McpOAuthGrantErrorResponseSchema,
   McpOAuthTokenVerificationRequest,
   McpOAuthTokenVerificationRequestSchema,
   McpOAuthTokenVerificationResponseSchema,
@@ -66,8 +65,6 @@ import {
   TokenResponse,
   TokenResponseSchema,
 } from './dto/index.js';
-
-const InvalidProjectSessionSchema = z.object({ message: z.literal('Invalid token') });
 
 /**
  * Represents a client for interacting with the Identity OWOX API.
@@ -403,7 +400,7 @@ export class IdentityOwoxClient {
         const response = error.response;
         if (
           response?.status === 401 &&
-          InvalidProjectSessionSchema.safeParse(response.data).success
+          IdpAuthenticationErrorResponseSchema.safeParse(response.data).success
         ) {
           throw new AuthenticationException('Invalid or expired App session');
         }
@@ -838,7 +835,7 @@ export class IdentityOwoxClient {
     if (
       axios.isAxiosError(error) &&
       error.response?.status === 401 &&
-      !McpOAuthGrantErrorResponseSchema.safeParse(error.response.data).success
+      !IdpAuthenticationErrorResponseSchema.safeParse(error.response.data).success
     ) {
       throw new IdpFailedException('Failed to exchange MCP OAuth token: 401', {
         cause: error,
