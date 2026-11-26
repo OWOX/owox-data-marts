@@ -291,7 +291,8 @@ export class MysqlDatabaseStore implements DatabaseStore {
       return StoreResult.expired();
     }
 
-    await this.deleteAuthState(state);
+    const [deleted] = await pool.execute('DELETE FROM auth_states WHERE state = ?', [state]);
+    if (Array.isArray(deleted) || deleted.affectedRows !== 1) return StoreResult.notFound();
     return StoreResult.withCode(
       row.code_verifier,
       parseSerializedAuthFlowParams(row.platform_params)

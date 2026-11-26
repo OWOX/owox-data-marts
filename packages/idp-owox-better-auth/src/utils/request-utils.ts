@@ -9,6 +9,7 @@ import {
   BETTER_AUTH_STATE_COOKIE,
   CORE_REFRESH_TOKEN_COOKIE,
 } from '../core/constants.js';
+import { APP_SIGN_IN_STATE_TTL_MS, isAppSignInState } from '../core/pkce.js';
 import { clearCookie, setCookie } from './cookie-policy.js';
 export { setCookie } from './cookie-policy.js';
 
@@ -32,6 +33,7 @@ const AUTH_PARAMS = new Set([
   'callbackURL',
   'intent',
   'pendingAction',
+  'prompt',
   'socialIntentVerified',
 ]);
 
@@ -174,7 +176,9 @@ export class StateManager {
     // capping the cookie at the same window means a stale cookie left behind
     // by an abandoned or failed attempt self-corrects instead of silently
     // being trusted as "state exists" long after IB would reject it.
-    setCookie(res, this.req, STATE_COOKIE, state, { maxAgeMs: ms('2m') });
+    setCookie(res, this.req, STATE_COOKIE, state, {
+      maxAgeMs: isAppSignInState(state) ? APP_SIGN_IN_STATE_TTL_MS : ms('2m'),
+    });
   }
 }
 
@@ -246,9 +250,10 @@ export function clearAuthFlowStateCookie(res: Response, req?: Request): void {
 export function resetAuthFlowForRetry(req: Request, res: Response): void {
   clearAuthFlowStateCookie(res, req);
   const params = extractAuthFlowParams(req);
-  const appRedirectTo = params.appRedirectTo?.startsWith('/auth/idp-start?projectId=')
-    ? undefined
-    : params.appRedirectTo;
+  const isGeneratedProjectRedirect =
+    params.projectId &&
+    params.appRedirectTo === `/ui/${encodeURIComponent(params.projectId)}/data-marts`;
+  const appRedirectTo = isGeneratedProjectRedirect ? undefined : params.appRedirectTo;
   const serialized = serializeAuthFlowParams({
     ...params,
     projectId: undefined,
@@ -332,7 +337,10 @@ export function hasStateMismatch(req: Request): boolean {
 /**
  * Extracts redirect parameters from cookie or query.
  */
-export function extractAuthFlowParams(req: Request): AuthFlowParams {
+export function extractAuthFlowParams(
+  req: Request,
+  { includeCookie = true }: { includeCookie?: boolean } = {}
+): AuthFlowParams {
   const extraParams: Record<string, string> = {};
   for (const [key, value] of Object.entries(req.query)) {
     if (!AUTH_PARAMS.has(key) && typeof value === 'string') {
@@ -341,9 +349,8 @@ export function extractAuthFlowParams(req: Request): AuthFlowParams {
   }
   const resolvedExtraParams = Object.keys(extraParams).length > 0 ? extraParams : undefined;
 
-  let cookieParams: AuthFlowParams = {};
-  const cookiePayload = getCookie(req, AUTH_FLOW_PARAMS_COOKIE);
-  cookieParams = parseSerializedAuthFlowParams(cookiePayload) ?? {};
+  const cookiePayload = includeCookie ? getCookie(req, AUTH_FLOW_PARAMS_COOKIE) : undefined;
+  const cookieParams = parseSerializedAuthFlowParams(cookiePayload) ?? {};
 
   const redirectTo =
     (typeof req.query?.['redirect-to'] === 'string' && req.query['redirect-to']) ||

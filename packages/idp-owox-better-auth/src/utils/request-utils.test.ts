@@ -290,7 +290,7 @@ describe('request-utils', () => {
   });
 
   it('keeps a project redirect owner when the query continues the same redirect', () => {
-    const appRedirectTo = '/auth/idp-start?projectId=project_1';
+    const appRedirectTo = '/ui/project_1/data-marts';
     const payload = encodeURIComponent(
       JSON.stringify({ appRedirectTo, projectRedirectUserId: 'user-1' })
     );
@@ -521,11 +521,11 @@ describe('request-utils', () => {
       });
     });
 
-    it('drops a generated project redirect that could loop after a failed callback', () => {
+    it('drops an automatically selected project after a failed callback', () => {
       const payload = encodeURIComponent(
         JSON.stringify({
           redirectTo: '/dashboard',
-          appRedirectTo: '/auth/idp-start?projectId=project-1',
+          appRedirectTo: '/ui/project-1/data-marts',
           projectId: 'project-1',
           projectRedirectUserId: 'user-1',
         })

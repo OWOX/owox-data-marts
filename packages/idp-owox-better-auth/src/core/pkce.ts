@@ -1,6 +1,20 @@
 import crypto from 'node:crypto';
 import pkceChallenge from 'pkce-challenge';
 
+export const APP_SIGN_IN_STATE_TTL_MS = 10 * 60 * 1000;
+
+export function isAppSignInState(state: string): boolean {
+  return /^app-[A-Za-z0-9_-]{43}$/.test(state);
+}
+
+export function generateAppSignInState(): string {
+  return `app-${generateState()}`;
+}
+
+export function deriveCodeChallenge(codeVerifier: string): string {
+  return crypto.createHash('sha256').update(codeVerifier, 'ascii').digest('base64url');
+}
+
 export interface PkceDto {
   codeVerifier: string;
   codeChallenge: string;

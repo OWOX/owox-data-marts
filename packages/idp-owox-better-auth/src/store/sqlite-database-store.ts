@@ -306,7 +306,8 @@ export class SqliteDatabaseStore implements DatabaseStore {
       return StoreResult.expired();
     }
 
-    await this.deleteAuthState(state);
+    const deleted = this.getDb().prepare('DELETE FROM auth_states WHERE state = ?').run(state);
+    if (deleted.changes !== 1) return StoreResult.notFound();
     return StoreResult.withCode(
       row.code_verifier,
       parseSerializedAuthFlowParams(row.platform_params)

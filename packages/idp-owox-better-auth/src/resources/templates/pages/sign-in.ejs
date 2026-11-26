@@ -133,13 +133,7 @@
 
   /**
    * Ensures a PKCE state exists before running a sign-in action, falling
-   * back to a full-page bounce (`pendingAction` round trip through Platform)
-   * if one isn't already there. In practice `hasAuthState` is true by the
-   * time this page ever renders - the server always mints one before
-   * showing the form, specifically so the email/password fields have a
-   * ready state to submit against without a client-side priming step of
-   * their own - so this fallback exists mainly as a defensive path, not the
-   * common case.
+   * back to a full-page reload if one isn't already there.
    */
   function ensureStateThenRun(pendingAction, run) {
     if (hasAuthState) {
@@ -155,7 +149,7 @@
 
   /**
    * Obtain a short-lived token at click time, then POST the chosen provider
-   * to start a fresh Platform state round trip.
+   * to start a fresh sign-in attempt.
    */
   async function alwaysGetFreshStateThenRun(provider) {
     setSocialButtonsDisabled(true);

@@ -1,7 +1,10 @@
 import { describe, expect, it, jest } from '@jest/globals';
 import type { Request, Response } from 'express';
+import { ProtocolRoute } from '@owox/idp-protocol';
 import { AUTH_BASE_PATH } from './core/constants.js';
 import { OwoxBetterAuthIdp } from './owox-better-auth-idp.js';
+
+const APP_STATE = 'app-' + 'a'.repeat(43);
 
 type RouteHandler = (req: Request, res: Response) => Promise<void>;
 
@@ -64,6 +67,7 @@ function createCallbackProvider(overrides: Record<string, unknown> = {}): {
 
 function createProvider(overrides: Record<string, unknown> = {}): OwoxBetterAuthIdp {
   return Object.assign(Object.create(OwoxBetterAuthIdp.prototype), {
+    appSignInService: { start: jest.fn().mockResolvedValue(APP_STATE) },
     pageController: {
       signInPage: jest.fn().mockResolvedValue(undefined),
       signUpPage: jest.fn().mockResolvedValue(undefined),
@@ -87,7 +91,7 @@ function createProvider(overrides: Record<string, unknown> = {}): OwoxBetterAuth
   }) as OwoxBetterAuthIdp;
 }
 
-describe('OwoxBetterAuthIdp - deferred PKCE state until sign-in intent', () => {
+describe('OwoxBetterAuthIdp Cloud sign-in', () => {
   it('registers project switching as part of the Cloud provider', async () => {
     const switchProjectMiddleware = jest
       .fn<(req: Request, res: Response) => Promise<void>>()
@@ -102,7 +106,7 @@ describe('OwoxBetterAuthIdp - deferred PKCE state until sign-in intent', () => {
   });
 
   describe('signInMiddleware / handleNoState', () => {
-    it('bounces to Platform on a plain, unauthenticated page load, so the email/password form has a state ready to submit against', async () => {
+    it('renders local sign-in with a fresh PKCE state', async () => {
       const provider = createProvider();
       const request = {
         headers: { cookie: '' },
@@ -112,10 +116,8 @@ describe('OwoxBetterAuthIdp - deferred PKCE state until sign-in intent', () => {
 
       await provider.signInMiddleware(request, response, jest.fn());
 
-      expect(provider['pageController'].signInPage).not.toHaveBeenCalled();
-      expect(response.redirect).toHaveBeenCalledWith(
-        expect.stringContaining('https://platform.test/auth/sign-in')
-      );
+      expect(provider['pageController'].signInPage).toHaveBeenCalledWith(request, response, true);
+      expect(response.redirect).not.toHaveBeenCalled();
     });
 
     it('does not trust a provider named only in the query string', async () => {
@@ -128,10 +130,8 @@ describe('OwoxBetterAuthIdp - deferred PKCE state until sign-in intent', () => {
 
       await provider.signInMiddleware(request, response, jest.fn());
 
-      expect(provider['pageController'].signInPage).not.toHaveBeenCalled();
-      expect(response.redirect).toHaveBeenCalledWith(
-        expect.stringContaining('https://platform.test/auth/sign-in')
-      );
+      expect(provider['pageController'].signInPage).toHaveBeenCalledWith(request, response, true);
+      expect(response.redirect).not.toHaveBeenCalled();
       expect(response.clearCookie).not.toHaveBeenCalledWith('idp-owox-state', expect.anything());
       expect(response.cookie).not.toHaveBeenCalledWith(
         'idp-owox-params',
@@ -140,7 +140,7 @@ describe('OwoxBetterAuthIdp - deferred PKCE state until sign-in intent', () => {
       );
     });
 
-    it('still bounces for an unrecognized pendingAction value, but does not persist it for later resume', async () => {
+    it('does not persist an unrecognized pending action', async () => {
       const provider = createProvider();
       const request = {
         headers: { cookie: '' },
@@ -150,21 +150,17 @@ describe('OwoxBetterAuthIdp - deferred PKCE state until sign-in intent', () => {
 
       await provider.signInMiddleware(request, response, jest.fn());
 
-      expect(provider['pageController'].signInPage).not.toHaveBeenCalled();
-      expect(response.redirect).toHaveBeenCalledWith(
-        expect.stringContaining('https://platform.test/auth/sign-in')
-      );
+      expect(provider['pageController'].signInPage).toHaveBeenCalledWith(request, response, true);
+      expect(response.redirect).not.toHaveBeenCalled();
       const paramsCookieCall = (response.cookie as jest.Mock).mock.calls.find(
         call => call[0] === 'idp-owox-params'
       );
       expect(paramsCookieCall).toBeUndefined();
     });
 
-    it('still bounces to Platform for an existing fast-path (project + refresh token) without requiring pendingAction', async () => {
-      const idpStartMiddleware = jest.fn().mockResolvedValue(undefined);
-      const provider = createProvider({
-        authFlowMiddleware: { idpStartMiddleware },
-      });
+    it('reuses the current IB session for a project link', async () => {
+      const handleExistingRefreshToken = jest.fn().mockResolvedValue(true);
+      const provider = createProvider({ handleExistingRefreshToken });
       const request = {
         headers: { cookie: 'refreshToken=refresh-token-1' },
         query: { projectId: 'project-1' },
@@ -173,8 +169,54 @@ describe('OwoxBetterAuthIdp - deferred PKCE state until sign-in intent', () => {
 
       await provider.signInMiddleware(request, response, jest.fn());
 
-      expect(idpStartMiddleware).toHaveBeenCalledWith(request, response);
+      expect(handleExistingRefreshToken).toHaveBeenCalledWith(request, response, 'refresh-token-1');
       expect(provider['pageController'].signInPage).not.toHaveBeenCalled();
+    });
+
+    it('starts a fresh App sign-in after a Platform handoff with another App session', async () => {
+      const handleExistingRefreshToken = jest.fn();
+      const provider = createProvider({ handleExistingRefreshToken });
+      const target = '/ui/project-1/data-marts/mart-1?tab=overview#details';
+      const oldParams = encodeURIComponent(
+        JSON.stringify({ projectId: 'old-project', redirectTo: '/ui/old-project/data-marts' })
+      );
+      const request = {
+        headers: {
+          cookie: `refreshToken=existing; idp-owox-state=legacy-state; idp-owox-params=${oldParams}`,
+        },
+        query: { prompt: 'login', projectId: 'project-1', 'app-redirect-to': target },
+      } as unknown as Request;
+      const response = createResponse();
+
+      await provider.signInMiddleware(request, response, jest.fn());
+
+      expect(handleExistingRefreshToken).not.toHaveBeenCalled();
+      expect(provider['appSignInService'].start).toHaveBeenCalledWith(
+        expect.objectContaining({
+          projectId: 'project-1',
+          appRedirectTo: target,
+          redirectTo: undefined,
+          projectRedirectUserId: undefined,
+        })
+      );
+      expect(provider['pageController'].signInPage).toHaveBeenCalledWith(request, response, true);
+      expect(response.redirect).not.toHaveBeenCalled();
+    });
+
+    it('keeps the Platform-owned PKCE flow for a Platform state', async () => {
+      const signInMiddleware = jest.fn();
+      const provider = createProvider({ authFlowMiddleware: { signInMiddleware } });
+      const request = {
+        headers: { cookie: '' },
+        query: { state: 'platform-state', source: 'platform' },
+      } as unknown as Request;
+      const response = createResponse();
+      const next = jest.fn();
+
+      await provider.signInMiddleware(request, response, next);
+
+      expect(signInMiddleware).toHaveBeenCalledWith(request, response, next);
+      expect(provider['appSignInService'].start).not.toHaveBeenCalled();
     });
 
     it('does not reuse a refresh token while a verified social choice is awaiting state', async () => {
@@ -191,12 +233,11 @@ describe('OwoxBetterAuthIdp - deferred PKCE state until sign-in intent', () => {
       await provider.signInMiddleware(request, response, jest.fn());
 
       expect(handleExistingRefreshToken).not.toHaveBeenCalled();
-      expect(response.redirect).toHaveBeenCalledWith(
-        expect.stringContaining('https://platform.test/auth/sign-in')
-      );
+      expect(provider['pageController'].signInPage).toHaveBeenCalledWith(request, response, true);
+      expect(response.redirect).not.toHaveBeenCalled();
     });
 
-    it('keeps an expired-state error across the Platform bounce, even with a refresh token', async () => {
+    it('renders errors locally and preserves the OAuth continuation', async () => {
       const handleExistingRefreshToken = jest.fn();
       const provider = createProvider({ handleExistingRefreshToken });
       const redirectTo = '/oauth/authorize?client_id=mcp-client';
@@ -212,14 +253,11 @@ describe('OwoxBetterAuthIdp - deferred PKCE state until sign-in intent', () => {
       await provider.signInMiddleware(request, response, jest.fn());
 
       expect(handleExistingRefreshToken).not.toHaveBeenCalled();
-      expect(response.cookie).toHaveBeenCalledWith(
-        'idp-owox-auth-error',
-        'Your sign-in session expired. Please try again.',
-        expect.objectContaining({ maxAge: 120000 })
+      expect(provider['pageController'].signInPage).toHaveBeenCalledWith(request, response, true);
+      expect(provider['appSignInService'].start).toHaveBeenCalledWith(
+        expect.objectContaining({ redirectTo })
       );
-      expect(response.redirect).toHaveBeenCalledWith(
-        expect.stringContaining('https://platform.test/auth/sign-in')
-      );
+      expect(response.redirect).not.toHaveBeenCalled();
       expect(response.cookie).toHaveBeenCalledWith(
         'idp-owox-params',
         expect.stringContaining(encodeURIComponent('/oauth/authorize')),
@@ -268,7 +306,7 @@ describe('OwoxBetterAuthIdp - deferred PKCE state until sign-in intent', () => {
       expect(response.cookie).not.toHaveBeenCalled();
     });
 
-    it('accepts a page nonce, clears the old state, and bypasses refresh-token reuse', async () => {
+    it('starts a new App attempt after a verified social click', async () => {
       const handleExistingRefreshToken = jest.fn();
       const provider = createProvider({ handleExistingRefreshToken });
       const nonce = 'page-nonce';
@@ -277,7 +315,7 @@ describe('OwoxBetterAuthIdp - deferred PKCE state until sign-in intent', () => {
       );
       const request = {
         headers: {
-          cookie: `idp-owox-social-intent=${nonceCookie}; idp-owox-state=old-state; refreshToken=existing`,
+          cookie: `idp-owox-social-intent=${nonceCookie}; idp-owox-state=${APP_STATE}; refreshToken=existing`,
         },
         query: {},
         body: { provider: 'google', nonce },
@@ -287,12 +325,13 @@ describe('OwoxBetterAuthIdp - deferred PKCE state until sign-in intent', () => {
       } as unknown as Request;
       const response = createResponse();
 
-      await provider['handleSocialIntent'](request, response, 'https://platform.test/auth/sign-in');
+      await provider['handleSocialIntent'](request, response, ProtocolRoute.SIGN_IN);
 
       expect(handleExistingRefreshToken).not.toHaveBeenCalled();
-      expect(response.clearCookie).toHaveBeenCalledWith(
+      expect(response.cookie).toHaveBeenCalledWith(
         'idp-owox-state',
-        expect.objectContaining({ path: '/' })
+        APP_STATE,
+        expect.objectContaining({ httpOnly: true })
       );
       expect(response.cookie).toHaveBeenCalledWith(
         'idp-owox-verified-social-intent',
@@ -304,9 +343,7 @@ describe('OwoxBetterAuthIdp - deferred PKCE state until sign-in intent', () => {
         expect.stringContaining('pendingAction'),
         expect.anything()
       );
-      expect(response.redirect).toHaveBeenCalledWith(
-        expect.stringContaining('https://platform.test/auth/sign-in')
-      );
+      expect(response.redirect).toHaveBeenCalledWith(`/auth/sign-in?state=${APP_STATE}`);
     });
 
     it('rejects a provider request without the nonce from a rendered page', async () => {
@@ -318,7 +355,7 @@ describe('OwoxBetterAuthIdp - deferred PKCE state until sign-in intent', () => {
       } as unknown as Request;
       const response = createResponse();
 
-      await provider['handleSocialIntent'](request, response, 'https://platform.test/auth/sign-in');
+      await provider['handleSocialIntent'](request, response, ProtocolRoute.SIGN_IN);
 
       expect(response.status).toHaveBeenCalledWith(403);
       expect(response.redirect).not.toHaveBeenCalled();
@@ -339,7 +376,7 @@ describe('OwoxBetterAuthIdp - deferred PKCE state until sign-in intent', () => {
       } as unknown as Request;
       const response = createResponse();
 
-      await provider['handleSocialIntent'](request, response, 'https://platform.test/auth/sign-in');
+      await provider['handleSocialIntent'](request, response, ProtocolRoute.SIGN_IN);
 
       expect(response.status).toHaveBeenCalledWith(403);
       expect(response.redirect).not.toHaveBeenCalled();
@@ -365,7 +402,7 @@ describe('OwoxBetterAuthIdp - deferred PKCE state until sign-in intent', () => {
       } as unknown as Request;
       const response = createResponse();
 
-      await provider['handleSocialIntent'](request, response, 'https://platform.test/auth/sign-in');
+      await provider['handleSocialIntent'](request, response, ProtocolRoute.SIGN_IN);
 
       expect(response.status).toHaveBeenCalledWith(403);
       expect(response.redirect).not.toHaveBeenCalled();
@@ -383,7 +420,7 @@ describe('OwoxBetterAuthIdp - deferred PKCE state until sign-in intent', () => {
 
       await provider.signUpMiddleware(request, response, jest.fn());
 
-      expect(provider['pageController'].signUpPage).toHaveBeenCalledWith(request, response);
+      expect(provider['pageController'].signUpPage).toHaveBeenCalledWith(request, response, true);
       expect(response.redirect).not.toHaveBeenCalled();
     });
 
@@ -397,11 +434,11 @@ describe('OwoxBetterAuthIdp - deferred PKCE state until sign-in intent', () => {
 
       await provider.signUpMiddleware(request, response, jest.fn());
 
-      expect(provider['pageController'].signUpPage).toHaveBeenCalledWith(request, response);
+      expect(provider['pageController'].signUpPage).toHaveBeenCalledWith(request, response, true);
       expect(response.redirect).not.toHaveBeenCalled();
     });
 
-    it('still bounces to Platform when a refresh token establishes an existing session, even without pendingAction', async () => {
+    it('renders local registration even for a visitor with a refresh cookie', async () => {
       const provider = createProvider();
       const request = {
         headers: { cookie: 'refreshToken=refresh-token-1' },
@@ -411,10 +448,8 @@ describe('OwoxBetterAuthIdp - deferred PKCE state until sign-in intent', () => {
 
       await provider.signUpMiddleware(request, response, jest.fn());
 
-      expect(provider['pageController'].signUpPage).not.toHaveBeenCalled();
-      expect(response.redirect).toHaveBeenCalledWith(
-        expect.stringContaining('https://platform.test/auth/sign-up')
-      );
+      expect(provider['pageController'].signUpPage).toHaveBeenCalledWith(request, response, true);
+      expect(response.redirect).not.toHaveBeenCalled();
     });
 
     it('renders locally when a projectId only exists in the persisted params cookie, not this request', async () => {
@@ -428,11 +463,11 @@ describe('OwoxBetterAuthIdp - deferred PKCE state until sign-in intent', () => {
 
       await provider.signUpMiddleware(request, response, jest.fn());
 
-      expect(provider['pageController'].signUpPage).toHaveBeenCalledWith(request, response);
+      expect(provider['pageController'].signUpPage).toHaveBeenCalledWith(request, response, true);
       expect(response.redirect).not.toHaveBeenCalled();
     });
 
-    it('still bounces when this request itself carries projectId in the query', async () => {
+    it('keeps the invited project on local registration', async () => {
       const provider = createProvider();
       const request = {
         headers: { cookie: '' },
@@ -442,10 +477,8 @@ describe('OwoxBetterAuthIdp - deferred PKCE state until sign-in intent', () => {
 
       await provider.signUpMiddleware(request, response, jest.fn());
 
-      expect(provider['pageController'].signUpPage).not.toHaveBeenCalled();
-      expect(response.redirect).toHaveBeenCalledWith(
-        expect.stringContaining('https://platform.test/auth/sign-up')
-      );
+      expect(provider['pageController'].signUpPage).toHaveBeenCalledWith(request, response, true);
+      expect(response.redirect).not.toHaveBeenCalled();
     });
   });
 
@@ -469,7 +502,91 @@ describe('OwoxBetterAuthIdp - deferred PKCE state until sign-in intent', () => {
     });
   });
 
+  describe('App sign-in completion', () => {
+    it('installs the IB refresh session and returns to the original deep link', async () => {
+      const redirectTo = '/ui/project/data-marts/data-mart?tab=overview#details';
+      const complete = jest.fn().mockResolvedValue({
+        accessToken: 'access-token',
+        refreshToken: 'rotated-refresh-token',
+        refreshTokenExpiresIn: 3600,
+        authFlowParams: { redirectTo },
+      });
+      const setTokenToCookie = jest.fn();
+      const persistAuthInfo = jest.fn();
+      const { provider } = createCallbackProvider({
+        appSignInService: { complete },
+        tokenFacade: {
+          parseToken: jest.fn().mockResolvedValue({
+            userId: 'user',
+            projectId: 'project',
+            roles: [],
+            viewOnly: true,
+          }),
+          setTokenToCookie,
+        },
+        userAuthInfoPersistenceService: { persistAuthInfo },
+        serverEvents: { login: jest.fn() },
+      });
+      const req = {
+        headers: { cookie: `idp-owox-state=${APP_STATE}` },
+        query: {},
+      } as Request;
+      const res = createResponse();
+
+      const destination = await provider['completeAppSignIn'](
+        req,
+        res,
+        'verified-session',
+        'google',
+        APP_STATE
+      );
+
+      expect(destination.toString()).toBe(`https://app.test${redirectTo}`);
+      expect(setTokenToCookie).toHaveBeenCalledWith(res, req, 'rotated-refresh-token', 3600);
+      expect(persistAuthInfo).not.toHaveBeenCalled();
+      expect(provider['onboardingService'].evaluateAndSetOnboardingStatus).not.toHaveBeenCalled();
+      expect(res.clearCookie).toHaveBeenCalledWith('idp-owox-state', expect.anything());
+    });
+
+    it('rejects a callback when the browser is on a different sign-in attempt', async () => {
+      const complete = jest.fn();
+      const { provider } = createCallbackProvider({ appSignInService: { complete } });
+      const req = {
+        headers: { cookie: `idp-owox-state=app-${'b'.repeat(43)}` },
+        query: {},
+      } as Request;
+
+      const destination = await provider['completeAppSignIn'](
+        req,
+        createResponse(),
+        'verified-session',
+        'google',
+        APP_STATE
+      );
+
+      expect(destination.pathname).toBe('/auth/sign-in');
+      expect(destination.searchParams.has('error')).toBe(true);
+      expect(complete).not.toHaveBeenCalled();
+    });
+  });
+
   describe('/auth/callback error paths', () => {
+    it('does not exchange a legacy callback code against an App sign-in state', async () => {
+      const changeAuthCode = jest.fn();
+      const { callback } = createCallbackProvider({ tokenFacade: { changeAuthCode } });
+      const req = {
+        path: `${AUTH_BASE_PATH}/callback`,
+        headers: {},
+        query: { code: 'legacy-code', state: APP_STATE },
+      } as Request;
+      const res = createResponse();
+
+      await callback(req, res);
+
+      expect(changeAuthCode).not.toHaveBeenCalled();
+      expect(res.redirect).toHaveBeenCalledWith(expect.stringMatching(/^\/auth\/sign-in\?error=/));
+    });
+
     it('keeps an OAuth continuation and shows an error when the callback is missing a code', async () => {
       const { callback } = createCallbackProvider();
       const redirectTo = '/oauth/authorize?client_id=mcp-client';
@@ -499,7 +616,7 @@ describe('OwoxBetterAuthIdp - deferred PKCE state until sign-in intent', () => {
       const paramsCookie = encodeURIComponent(
         JSON.stringify({
           projectId: 'project-1',
-          appRedirectTo: '/auth/idp-start?projectId=project-1',
+          appRedirectTo: '/ui/project-1/data-marts',
         })
       );
       const request = {

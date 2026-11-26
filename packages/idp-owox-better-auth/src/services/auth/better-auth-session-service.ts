@@ -69,6 +69,36 @@ export class BetterAuthSessionService {
     state: string,
     callbackProviderId?: string
   ): Promise<{ code: string; payload: UserInfoPayload }> {
+    const { payload } = await this.resolveIdentityFromSessionToken(
+      sessionToken,
+      state,
+      callbackProviderId
+    );
+    const result = await this.platformAuthFlowClient.completeAuthFlow(payload);
+    return { code: result.code, payload };
+  }
+
+  async resolveVerifiedIdentity(
+    sessionToken: string,
+    state: string,
+    provider: string
+  ): Promise<UserInfoPayload> {
+    const { payload, emailVerified } = await this.resolveIdentityFromSessionToken(
+      sessionToken,
+      state,
+      provider
+    );
+    if (!emailVerified || payload.userInfo.signinProvider !== provider) {
+      throw new SessionException('Your email address must be verified to sign in.');
+    }
+    return payload;
+  }
+
+  private async resolveIdentityFromSessionToken(
+    sessionToken: string,
+    state: string,
+    callbackProviderId?: string
+  ): Promise<{ payload: UserInfoPayload; emailVerified: boolean }> {
     const encodedToken = encodeURIComponent(sessionToken);
     let session: Awaited<ReturnType<typeof this.auth.api.getSession>> | null = null;
 
@@ -108,16 +138,7 @@ export class BetterAuthSessionService {
       account,
     });
 
-    this.logger.info('OWOX client sending auth flow payload with session token', {
-      state: payload.state,
-      userId: user.id,
-      provider: account.providerId,
-    });
-    const result = await this.platformAuthFlowClient.completeAuthFlow(payload);
-    this.logger.info('OWOX client completed auth flow with session token', {
-      hasCode: Boolean(result.code),
-    });
-    return { code: result.code, payload };
+    return { payload, emailVerified: session.user.emailVerified };
   }
 
   private resolveSessionCookieNames(): string[] {

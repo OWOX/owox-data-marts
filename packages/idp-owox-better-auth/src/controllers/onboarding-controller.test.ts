@@ -117,12 +117,8 @@ describe('OnboardingController invite-teammates step', () => {
     });
   });
 
-  it.each([
-    // MCP client authorization (connecting an AI assistant).
-    '/oauth/authorize?client_id=c1&state=s1',
-    // Continuation of a switch to another project.
-    '/auth/idp-start?projectId=project-2',
-  ])('keeps the redirect %s that continues a flow outside the app', async redirect => {
+  it('keeps the redirect that continues MCP client authorization', async () => {
+    const redirect = '/oauth/authorize?client_id=c1&state=s1';
     await expect(submit(redirect)).resolves.toEqual({ redirect });
   });
 

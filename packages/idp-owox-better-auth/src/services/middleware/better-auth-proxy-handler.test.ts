@@ -95,6 +95,29 @@ describe('BetterAuthProxyHandler', () => {
     expect(res.json).not.toHaveBeenCalled();
   });
 
+  it.each(['google', 'microsoft'])(
+    'uses the App state returned after %s sign-in',
+    async provider => {
+      const state = 'app-' + 'a'.repeat(43);
+      const completeAppSignIn = jest
+        .fn<() => Promise<URL>>()
+        .mockResolvedValue(new URL('https://app.test/ui/project/data-marts'));
+      const handler = new BetterAuthProxyHandler(auth, mockPkceFlowOrchestrator, completeAppSignIn);
+      const req = buildReq(undefined, `${BETTER_AUTH_BASE_PATH}/callback/${provider}`, {
+        state: 'provider-oauth-state',
+      });
+      req.headers.cookie = `idp-owox-state=${state}`;
+      const res = buildRes();
+      const response = buildResponseWithSession();
+      response.headers.set('location', `https://app.test/auth/sign-in?state=${state}`);
+
+      expect(await handler['tryCompleteAuthFlow'](req, response, res)).toBe(true);
+      expect(completeAppSignIn).toHaveBeenCalledWith(req, res, 'session-token', provider, state);
+      expect(mockPkceFlowOrchestrator.completeWithSocialSessionToken).not.toHaveBeenCalled();
+      expect(res.redirect).toHaveBeenCalledWith('https://app.test/ui/project/data-marts');
+    }
+  );
+
   it('returns false when no session token present', async () => {
     const handler = new BetterAuthProxyHandler(auth, mockPkceFlowOrchestrator);
     const req = buildReq('application/json');

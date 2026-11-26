@@ -12,6 +12,7 @@ import {
   IdpNotFoundException,
 } from '../core/exceptions.js';
 import {
+  AppSignInRequest,
   AuthFlowRequest,
   AuthFlowResponse,
   AuthFlowResponseSchema,
@@ -377,6 +378,30 @@ export class IdentityOwoxClient {
       return AuthFlowResponseSchema.parse(data);
     } catch (err) {
       this.handleAxiosError(err, { request }, 'Failed to complete auth flow');
+    }
+  }
+
+  async authorizeAppSignIn(request: AppSignInRequest): Promise<AuthFlowResponse> {
+    const headers = await this.getC2cAuthHeader('authorize App sign-in', {});
+    try {
+      const { data } = await this.http.post<unknown>(
+        `${this.clientBackchannelPrefix}/idp/app-session/authorize`,
+        request,
+        { headers }
+      );
+      return AuthFlowResponseSchema.parse(data);
+    } catch (error) {
+      if (axios.isAxiosError(error) && error.response?.status === 403) {
+        throw new ForbiddenException('The selected project is unavailable');
+      }
+      if (
+        axios.isAxiosError(error) &&
+        error.response?.status === 401 &&
+        IdpAuthenticationErrorResponseSchema.safeParse(error.response.data).success
+      ) {
+        throw new AuthenticationException('The OWOX account or project is unavailable');
+      }
+      throw new IdpFailedException('Could not authorize App sign-in');
     }
   }
 

@@ -65,18 +65,22 @@ export class OwoxTokenFacade {
       throw new IdpFailedException(`Code verifier is not available: ${res.reason ?? 'unknown'}`);
     }
 
-    const request: TokenRequest = {
-      grantType: 'authorization_code',
-      authCode: code,
-      codeVerifier: res.code,
-      clientId: this.config.idpConfig.clientId,
-    };
-
-    const tokenResponse = await this.identityClient.getToken(request);
+    const tokenResponse = await this.exchangeAuthCode(code, res.code);
     return {
       ...tokenResponse,
       authFlowParams: res.authFlowParams,
     };
+  }
+
+  async exchangeAuthCode(code: string, codeVerifier: string): Promise<TokenResponse> {
+    const request: TokenRequest = {
+      grantType: 'authorization_code',
+      authCode: code,
+      codeVerifier,
+      clientId: this.config.idpConfig.clientId,
+    };
+
+    return this.identityClient.getToken(request);
   }
 
   async introspectToken(token: string): Promise<Payload | null> {

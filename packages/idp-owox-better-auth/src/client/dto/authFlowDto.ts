@@ -14,6 +14,14 @@ export interface AuthFlowRequest {
   };
 }
 
+/** Sign-in attempt authorized by the Cloud App backend. */
+export interface AppSignInRequest extends AuthFlowRequest {
+  codeChallenge: string;
+  projectId?: string;
+  projectRedirectUserId?: string;
+  integration?: string;
+}
+
 /** One-time authorization code response. */
 export interface AuthFlowResponse {
   code: string;
