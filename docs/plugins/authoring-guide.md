@@ -667,7 +667,8 @@ the declared scopes, the request fails with `CREDENTIAL_SCOPE_INVALID` (400); fi
 ## Read Data Mart data
 
 `ctx.owox.dataMarts.traverseData()` streams a Data Mart's rows. Its columns, filters, sorting,
-aggregation, date buckets, and Unique Count (`uniqueCount`) are documented in the
+aggregation, date buckets, the grouping for metric filters (`havingGroupBy`), and Unique Count
+(`uniqueCount`) are documented in the
 [API client reference](../api/api-client.md#stream-data-mart-rows). Five things are not visible
 from the rows:
 

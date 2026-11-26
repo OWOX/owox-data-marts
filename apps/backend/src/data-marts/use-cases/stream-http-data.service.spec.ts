@@ -1609,6 +1609,34 @@ describe('StreamHttpDataService', () => {
     );
   });
 
+  it('hands havingGroupBy to the column check and the read plan, and records it in the run', async () => {
+    const havingGroupBy = { column: ['date'] };
+    requestValidator.validate.mockReturnValueOnce({
+      columnSelector: { mode: 'explicit', explicit: ['revenue'] },
+      filter: [{ column: 'revenue', operator: 'gt', value: 100, function: 'SUM' }],
+      aggregation: [{ column: 'revenue', function: 'SUM' }],
+      havingGroupBy,
+    } as never);
+
+    await service.stream(fakeCommand(), mockResponse());
+
+    expect(columnValidator.validate).toHaveBeenCalledWith(
+      expect.objectContaining({ havingGroupBy }),
+      expect.anything()
+    );
+    const [readPlan] = blended.resolveBlendingDecision.mock.calls[0];
+    expect(readPlan).toEqual(expect.objectContaining({ havingGroupBy }));
+    const runs = dataMartRunService.recordHttpDataRun.mock.calls.map(([run]) => run);
+    expect(runs[0]).toMatchObject({
+      status: DataMartRunStatus.RUNNING,
+      metadata: { havingGroupBy },
+    });
+    expect(runs.at(-1)).toMatchObject({
+      status: DataMartRunStatus.SUCCESS,
+      metadata: { havingGroupBy },
+    });
+  });
+
   it('streams the aggregated (renamed) headers, not the raw requested columns', async () => {
     // The reader renames an aggregated column's header to its "<column> | <FN>" output label
     // (see resolveReportDataHeaders; no automatic Row Count). The stream must project rows by

@@ -187,6 +187,85 @@ describe('ReportSqlComposerService', () => {
     );
   });
 
+  describe('a read with havingGroupBy', () => {
+    const accessor = { userId: 'user-1', roles: ['admin'] };
+    const where = { column: 'country', operator: 'eq', value: 'UA' };
+    const having = { column: 'revenue', function: 'SUM', operator: 'gt', value: 100 };
+    const grainPlan = (overrides: object = {}) =>
+      ({
+        dataMart: {
+          id: 'dm-1',
+          projectId: 'project-1',
+          definition: { sqlQuery: 'SELECT 1' },
+          storage: { id: 'storage-1', type: 'GOOGLE_BIGQUERY' },
+          schema: {
+            fields: [
+              { name: 'day', type: 'DATE', status: 'CONNECTED' },
+              { name: 'status', type: 'STRING', status: 'CONNECTED' },
+              { name: 'country', type: 'STRING', status: 'CONNECTED' },
+              { name: 'revenue', type: 'FLOAT', status: 'CONNECTED' },
+            ],
+          },
+        },
+        columnConfig: ['day', 'revenue'],
+        aggregationConfig: [{ column: 'revenue', function: 'SUM' }],
+        filterConfig: [where, having],
+        havingGroupBy: { column: ['status'] },
+        ...overrides,
+      }) as never;
+
+    it('renders the metric filters as a restriction at the grain, not as HAVING', async () => {
+      const { service, queryBuilderFacade } = createService({
+        needsBlending: false,
+        columnFilter: ['day', 'revenue'],
+      });
+
+      await service.compose(grainPlan(), accessor);
+
+      const options = queryBuilderFacade.buildQuery.mock.calls[0][2];
+      expect(options.filters).toEqual([{ ...where, clause: 'where' }]);
+      expect(options.groupRestriction).toEqual(
+        expect.objectContaining({
+          dimensions: ['status'],
+          having: [{ ...having, clause: 'having' }],
+        })
+      );
+    });
+
+    it('counts the rows of the restricted read', async () => {
+      const { service, queryBuilderFacade } = createService({
+        needsBlending: false,
+        columnFilter: ['day', 'revenue'],
+      });
+
+      await service.composeRowCount(grainPlan(), accessor);
+
+      const options = queryBuilderFacade.buildQuery.mock.calls[0][2];
+      expect(options.filters).toEqual([{ ...where, clause: 'where' }]);
+      expect(options.groupRestriction?.dimensions).toEqual(['status']);
+    });
+
+    it('restricts Totals at the havingGroupBy grain, not at the read buckets', async () => {
+      const { service, queryBuilderFacade, outputControlsValidator } = createService({
+        needsBlending: false,
+        columnFilter: ['revenue'],
+      });
+
+      await service.composeTotals(
+        grainPlan({ dateTruncConfig: [{ column: 'day', unit: 'DAY' }] }),
+        accessor
+      );
+
+      const options = queryBuilderFacade.buildQuery.mock.calls[0][2];
+      expect(options.filters).toEqual([{ ...where, clause: 'where' }]);
+      expect(options.groupRestriction?.dimensions).toEqual(['status']);
+      expect(options.groupRestriction?.dateTruncs).toBeUndefined();
+      expect(outputControlsValidator.validateForReport).toHaveBeenCalledWith(
+        expect.objectContaining({ havingGroupBy: { column: ['status'] } })
+      );
+    });
+  });
+
   it('passes the table reference memo from composeTotals to compose', async () => {
     const { service } = createService({ needsBlending: false, columnFilter: ['revenue'] });
     const compose = jest.spyOn(service, 'compose');

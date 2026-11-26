@@ -152,4 +152,26 @@ describe('SnowflakeQueryBuilder', () => {
     // Filtered, not selected: the field must not reach the projection.
     expect(sql).not.toContain('AS "ctr"');
   });
+
+  // A restriction alone must reach the grouped branch: the plain branch ignores it.
+  it('groups and joins the kept groups when a restriction is the only control', () => {
+    const sql = build().buildQuery(tableDef, {
+      columns: ['day'],
+      filters: [],
+      calculatedFilterMetrics: [
+        {
+          outputName: 'total',
+          type: 'FLOAT',
+          formula: 'SUM({{ref field="revenue"}})',
+          level: 'metric' as const,
+        },
+      ],
+      groupRestriction: {
+        dimensions: ['status'],
+        having: [{ column: 'total', operator: 'gt', value: 100, clause: 'having' }],
+      },
+    } as never);
+    expect(sql).toContain('GROUP BY\n  "day"');
+    expect(sql).toMatch(/\nJOIN \([\s\S]+\) AS "_kept_groups" ON /);
+  });
 });

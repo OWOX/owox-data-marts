@@ -72,9 +72,8 @@ export interface DataMartQueryOptions {
   mainTableReference?: string;
 
   /**
-   * Totals only: restrict the query to the rows of the groups the report's metric (HAVING)
-   * filters keep. A Totals query has no GROUP BY, so those filters cannot apply directly —
-   * see `SqlClauseRenderer.renderKeptGroupsJoin`.
+   * Restrict the query to the rows of the groups the metric (HAVING) filters keep. Set by Totals
+   * and by a `havingGroupBy` read — see `SqlClauseRenderer.renderKeptGroupsJoin`.
    */
   groupRestriction?: GroupRestriction;
 
@@ -93,7 +92,7 @@ export interface DataMartQueryOptions {
   calculatedFields?: CalculatedFieldPlan[];
 
   /**
-   * Calculated fields a FILTER (or a Totals restriction's HAVING) names, whether or not the report
+   * Calculated fields a FILTER (or a group restriction's HAVING) names, whether or not the report
    * SELECTS them. A predicate on one compares the field's FORMULA — its name is a
    * SELECT alias with no warehouse column behind it — so the plan has to reach the renderer even
    * when the field is not projected. Kept separate from `calculatedFields` precisely because that
