@@ -155,6 +155,13 @@ describe('MCP guides', () => {
     expect(guide).toContain('SELECT queries only');
   });
 
+  // Its jobs run in another project than its data, so a name without the project is not found.
+  it('tells agents to name each table of an OWOX Storage in full', () => {
+    expect(MCP_GUIDES.storages_destinations).toContain(
+      '`<project_id>.<dataset_id>.<table>`, with the project_id of its configuration'
+    );
+  });
+
   it('offers OWOX Storage when the user has no usable Storage', () => {
     for (const topic of ['data_mart_setup', 'storages_destinations'] as const) {
       expect(MCP_GUIDES[topic]).toContain('owox_storage_offer');
