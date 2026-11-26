@@ -320,10 +320,56 @@ describe('BigQueryCreateViewExecutor', () => {
       const result = await service.createView(managed, config, 'v', sql);
 
       expect(executeViewDdl).toHaveBeenCalledWith(
-        'CREATE OR REPLACE VIEW `proj-abc.owox_abc_internal.v` AS SELECT 1'
+        `CREATE OR REPLACE VIEW \`proj-abc.owox_abc_internal.v\` OPTIONS(labels=[('owox_sql_hash', '${sqlHash}')]) AS SELECT 1`
       );
       expect(mockAdapter.executeQuery).not.toHaveBeenCalled();
       expect(result).toEqual({ fullyQualifiedName: 'proj-abc.owox_abc_internal.v' });
+    });
+
+    // Every read of a SQL Data Mart with output controls comes here, and BigQuery allows
+    // 5 updates of one table in 10 seconds (a83952a).
+    it('skips the dry run and the DDL when the view holds the same SQL', async () => {
+      getMetadata.mockResolvedValue([{ labels: { owox_sql_hash: sqlHash } }]);
+
+      const result = await service.createView(managed, config, 'v', sql);
+
+      expect(mockAdapter.createTableReference).toHaveBeenCalledWith(
+        'proj-abc',
+        'owox_abc_internal',
+        'v'
+      );
+      expect(mockAdapter.executeDryRunQuery).not.toHaveBeenCalled();
+      expect(executeViewDdl).not.toHaveBeenCalled();
+      expect(result).toEqual({ fullyQualifiedName: 'proj-abc.owox_abc_internal.v' });
+    });
+
+    it('runs one DDL for concurrent reads of the same SQL', async () => {
+      await Promise.all(
+        Array.from({ length: 6 }, () => service.createView(managed, config, 'v', sql))
+      );
+
+      expect(executeViewDdl).toHaveBeenCalledTimes(1);
+    });
+
+    it('succeeds after a rate limit when another instance wrote the same SQL', async () => {
+      jest.useFakeTimers();
+      try {
+        executeViewDdl.mockRejectedValueOnce(
+          new Error('Exceeded rate limits: too many table update operations for this table.')
+        );
+        getMetadata
+          .mockRejectedValueOnce(Object.assign(new Error('Not found'), { code: 404 }))
+          .mockResolvedValueOnce([{ labels: { owox_sql_hash: sqlHash } }]);
+
+        const result = service.createView(managed, config, 'v', sql);
+        await jest.advanceTimersByTimeAsync(2000);
+
+        await expect(result).resolves.toEqual({
+          fullyQualifiedName: 'proj-abc.owox_abc_internal.v',
+        });
+      } finally {
+        jest.useRealTimers();
+      }
     });
 
     it('refuses a view over a script', async () => {

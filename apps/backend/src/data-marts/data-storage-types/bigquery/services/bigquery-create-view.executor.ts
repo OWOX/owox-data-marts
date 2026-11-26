@@ -61,22 +61,31 @@ export class BigQueryCreateViewExecutor implements CreateViewExecutor {
 
     const adapter = this.adapterFactory.create(credentials, normalizedConfig);
 
+    let resolvedLocation = '';
+    let view: ViewReference;
+    let runDdl: (ddl: string) => Promise<unknown>;
     if (isBigQueryManagedCredentials(credentials)) {
       if (viewName.includes('.')) {
         throw new Error('OWOX Storage views take an unqualified view name');
       }
-      // A SQL Data Mart saved without validation may hold a script; refuse before the DDL wraps it.
-      const { statementType } = await adapter.executeDryRunQuery(sql);
-      if (statementType !== 'SELECT') throw new OwoxStorageStatementException(statementType);
-
-      const name = `${normalizedConfig.projectId}.${credentials.internalDatasetId}.${viewName}`;
-      await adapter.executeViewDdl(`CREATE OR REPLACE VIEW \`${name}\` AS ${sql}`);
-      return { fullyQualifiedName: name };
+      view = {
+        projectId: normalizedConfig.projectId,
+        datasetId: credentials.internalDatasetId,
+        tableId: viewName,
+        internal: false,
+      };
+      runDdl = async ddl => {
+        // A SQL Data Mart saved without validation may hold a script; refuse before the DDL wraps it.
+        const { statementType } = await adapter.executeDryRunQuery(sql);
+        if (statementType !== 'SELECT') throw new OwoxStorageStatementException(statementType);
+        // executeQuery runs SELECT only on an OWOX Storage, so its view DDL has its own path.
+        return adapter.executeViewDdl(ddl);
+      };
+    } else {
+      resolvedLocation = await this.resolveLocation(adapter, normalizedConfig, sql);
+      view = this.resolveViewReference(normalizedConfig.projectId, viewName, resolvedLocation);
+      runDdl = ddl => adapter.executeQuery(ddl);
     }
-
-    const resolvedLocation = await this.resolveLocation(adapter, normalizedConfig, sql);
-
-    const view = this.resolveViewReference(normalizedConfig.projectId, viewName, resolvedLocation);
     const fullyQualifiedName = `${view.projectId}.${view.datasetId}.${view.tableId}`;
 
     // Every read of a SQL Data Mart comes here, and BigQuery allows 5 updates of one table in
@@ -87,6 +96,7 @@ export class BigQueryCreateViewExecutor implements CreateViewExecutor {
     if (!refresh) {
       refresh = this.refreshView(
         adapter,
+        runDdl,
         view,
         fullyQualifiedName,
         resolvedLocation,
@@ -102,6 +112,7 @@ export class BigQueryCreateViewExecutor implements CreateViewExecutor {
 
   private async refreshView(
     adapter: BigQueryApiAdapter,
+    runDdl: (ddl: string) => Promise<unknown>,
     view: ViewReference,
     fullyQualifiedName: string,
     location: string,
@@ -113,12 +124,10 @@ export class BigQueryCreateViewExecutor implements CreateViewExecutor {
     }
 
     if (view.internal) {
-      await adapter.executeQuery(
-        this.buildCreateSchemaQuery(view.projectId, view.datasetId, location)
-      );
+      await runDdl(this.buildCreateSchemaQuery(view.projectId, view.datasetId, location));
     }
     try {
-      await adapter.executeQuery(
+      await runDdl(
         `CREATE OR REPLACE VIEW \`${fullyQualifiedName}\` OPTIONS(labels=[('${SQL_HASH_LABEL}', '${sqlHash}')]) AS ${sql}`
       );
     } catch (error) {
