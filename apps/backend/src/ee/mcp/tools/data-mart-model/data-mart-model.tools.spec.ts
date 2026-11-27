@@ -12,6 +12,7 @@ import { ListDataMartRelationshipsTool } from './list-data-mart-relationships.to
 import { CreateDataMartRelationshipTool } from './create-data-mart-relationship.tool';
 import { UpdateDataMartRelationshipTool } from './update-data-mart-relationship.tool';
 import { DeleteDataMartRelationshipTool } from './delete-data-mart-relationship.tool';
+import { UpdateDataMartBlendedFieldsConfigTool } from './update-data-mart-blended-fields-config.tool';
 import { PreviewDataMartTool } from './preview-data-mart.tool';
 
 describe('Data Mart model tools through MCP SDK', () => {
@@ -36,6 +37,7 @@ describe('Data Mart model tools through MCP SDK', () => {
         new UpdateDataMartRelationshipTool(facade),
         new DeleteDataMartRelationshipTool(facade),
         new PreviewDataMartTool(facade),
+        new UpdateDataMartBlendedFieldsConfigTool(facade),
       ]),
       new McpCallInstrumentation(
         { publishExternalSafely: () => {} } as never,
@@ -56,6 +58,7 @@ describe('Data Mart model tools through MCP SDK', () => {
 
   beforeEach(() => {
     facade = {
+      updateBlendedFieldsConfig: jest.fn(),
       listRelationships: jest.fn().mockResolvedValue({ rootDataMartId: 'source', nodes: [] }),
       createRelationship: jest.fn().mockResolvedValue(relationship),
       updateRelationship: jest.fn().mockResolvedValue(relationship),
@@ -73,7 +76,7 @@ describe('Data Mart model tools through MCP SDK', () => {
     await Promise.all(closers.splice(0).map(close => close()));
   });
 
-  it('publishes all five tools with strict input contracts', async () => {
+  it('publishes all model tools with strict input contracts', async () => {
     const client = await open();
     const tools = (await client.listTools()).tools;
     expect(tools.map(tool => tool.name)).toEqual([
@@ -82,6 +85,7 @@ describe('Data Mart model tools through MCP SDK', () => {
       'update_data_mart_relationship',
       'delete_data_mart_relationship',
       'preview_data_mart',
+      'update_data_mart_blended_fields_config',
     ]);
     expect(tools.every(tool => tool.inputSchema.additionalProperties === false)).toBe(true);
   });
@@ -200,6 +204,17 @@ describe('Data Mart model tools through MCP SDK', () => {
       { data_mart_id: 'source', relationship_id: 'relationship', target_data_mart_id: 'other' },
     ],
     ['update_data_mart_relationship', { data_mart_id: 'source', relationship_id: 'relationship' }],
+    ['update_data_mart_blended_fields_config', { data_mart_id: 'source' }],
+    ...[
+      { path: 'Bad Path', alias: 'Organization' },
+      { path: 'authority', alias: '' },
+      { path: 'authority', alias: 'Organization', description: '   ' },
+      { path: 'authority', alias: 'Organization', fields: { id: { aggregation: 'MAX' } } },
+      { path: 'authority', alias: 'Organization', fields: { id: { aggregateFunction: 'P95' } } },
+    ].map(entry => [
+      'update_data_mart_blended_fields_config',
+      { data_mart_id: 'source', blended_fields_config: { sources: [entry] } },
+    ]),
     ['preview_data_mart', { data_mart_id: 'source', limit: 101 }],
     ['preview_data_mart', { data_mart_id: 'source', limit: 0 }],
     ['preview_data_mart', { data_mart_id: 'source', sql: 'SELECT secret' }],
@@ -233,6 +248,14 @@ describe('Data Mart model tools through MCP SDK', () => {
         })
       ).isError
     ).toBe(true);
+    const configUpdate = {
+      name: 'update_data_mart_blended_fields_config',
+      arguments: { data_mart_id: 'source', blended_fields_config: null },
+    };
+    for (const client of [viewerClient, readClient]) {
+      expect((await client.callTool(configUpdate)).isError).toBe(true);
+    }
+    expect(facade.updateBlendedFieldsConfig).not.toHaveBeenCalled();
     expect(facade.deleteRelationship).not.toHaveBeenCalled();
     expect(facade.preview).not.toHaveBeenCalled();
   });

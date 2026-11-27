@@ -2,7 +2,13 @@ import type { AddressInfo } from 'node:net';
 import type { INestApplication } from '@nestjs/common';
 import { Client, StreamableHTTPClientTransport } from '@modelcontextprotocol/client';
 import type { IdpProvider, McpScope, Role } from '@owox/idp-protocol';
-import { closeTestApp, createTestApp, DataMartBuilder, StorageBuilder } from '@owox/test-utils';
+import {
+  closeTestApp,
+  createTestApp,
+  DataMartBuilder,
+  setDataMartSchema,
+  StorageBuilder,
+} from '@owox/test-utils';
 import { DataSource } from 'typeorm';
 import { IdpProviderService } from '../src/idp/services/idp-provider.service';
 import { DataMart } from '../src/data-marts/entities/data-mart.entity';
@@ -256,6 +262,115 @@ describe('Data Mart model and connector schedules through MCP', () => {
     }
   );
 
+  it('lists the Output Alias in the schemas for reading and writing joined field settings', async () => {
+    const client = await connect();
+    const { tools } = await client.listTools();
+    const read = tools.find(tool => tool.name === 'get_data_mart_setup');
+    const write = tools.find(tool => tool.name === 'update_data_mart_blended_fields_config');
+    for (const schema of [read?.outputSchema, write?.inputSchema, write?.outputSchema]) {
+      expect(schema?.properties?.blended_fields_config).toHaveProperty(
+        'anyOf.0.properties.sources.items.properties.alias.title',
+        'Output Alias'
+      );
+    }
+  });
+
+  it('saves settings for two nested paths to the same Data Mart on the root', async () => {
+    const root = await mart('Obligation');
+    const organization = await mart('Organization');
+    const country = await mart('Country');
+    const client = await connect();
+    await setDataMartSchema(agent, app, country, {
+      type: 'bigquery-data-mart-schema',
+      fields: [{ name: 'id', type: 'STRING', mode: 'NULLABLE', status: 'CONNECTED' }],
+    });
+    for (const [source, target, alias] of [
+      [root, organization, 'authority'],
+      [root, organization, 'obligor'],
+      [organization, country, 'country'],
+    ]) {
+      await call(client, 'create_data_mart_relationship', {
+        data_mart_id: source,
+        target_data_mart_id: target,
+        target_alias: alias,
+        join_conditions: [{ source_field_name: alias + '_id', target_field_name: 'id' }],
+      });
+    }
+    const input = { data_mart_id: root };
+    const graph = await call<{ nodes: { aliasPath: string }[] }>(
+      client,
+      'list_data_mart_relationships',
+      input
+    );
+    const authority = {
+      path: 'authority.country',
+      alias: 'Signing Country',
+      description: 'Country of registration',
+      fields: {
+        id: {
+          alias: 'Registration',
+          aggregateFunction: 'COUNT_DISTINCT',
+          postJoinAggregations: ['MAX'],
+        },
+      },
+    };
+    const obligor = {
+      path: 'obligor.country',
+      alias: 'Liable Country',
+      isExcluded: true,
+      fields: { id: { alias: 'Tax ID', isHidden: true, postJoinAggregations: [] } },
+    };
+    expect(graph.nodes.map(node => node.aliasPath)).toEqual(
+      expect.arrayContaining([authority.path, obligor.path])
+    );
+
+    await agent
+      .put(`/api/data-marts/${root}/blended-fields-config`)
+      .set(browser)
+      .send({ blendedFieldsConfig: { sources: [authority] } })
+      .expect(200);
+    const setup = await call(client, 'get_data_mart_setup', input);
+    expect(setup.blended_fields_config).toEqual({ sources: [authority] });
+
+    const write = (config: unknown) =>
+      call(client, 'update_data_mart_blended_fields_config', {
+        ...input,
+        blended_fields_config: config,
+      });
+    const config = { sources: [authority, obligor] };
+    expect(await write(config)).toEqual({ ...input, blended_fields_config: config });
+    const { body } = await agent
+      .get(`/api/data-marts/${root}/blendable-schema?includeDraftTargets=true`)
+      .set(browser)
+      .expect(200);
+    expect(body.blendedFields).toEqual(
+      expect.arrayContaining(
+        config.sources.map(source =>
+          expect.objectContaining({
+            aliasPath: source.path,
+            outputPrefix: source.alias,
+            ...source.fields.id,
+          })
+        )
+      )
+    );
+    expect(body.availableSources).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          aliasPath: authority.path,
+          joinDescription: authority.description,
+        }),
+        expect.objectContaining({ aliasPath: obligor.path, isIncluded: false }),
+      ])
+    );
+    expect(
+      (await call(client, 'get_data_mart_setup', { data_mart_id: organization }))
+        .blended_fields_config
+    ).toBeNull();
+    await write(null);
+    expect((await call(client, 'get_data_mart_setup', input)).blended_fields_config).toBeNull();
+  });
+
   it('omits inaccessible graph branches and their otherwise readable descendants', async () => {
     const source = await mart('Visible root');
     const hidden = await mart('Private target');
@@ -320,6 +435,10 @@ describe('Data Mart model and connector schedules through MCP', () => {
     userId = '2';
     roles = ['editor'];
     const restrictedEditor = await connect();
+    await denied(restrictedEditor, 'update_data_mart_blended_fields_config', {
+      data_mart_id: source,
+      blended_fields_config: { sources: [] },
+    });
     await denied(restrictedEditor, 'update_data_mart_relationship', {
       data_mart_id: source,
       relationship_id: id,

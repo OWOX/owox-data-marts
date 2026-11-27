@@ -52,18 +52,36 @@ function fixture() {
       sql: 'never',
     }),
   };
+  const saveSettings = { run: jest.fn() };
   const facade = new McpDataMartModelFacadeImpl(
     graph as never,
     create as never,
     update as never,
     remove as never,
     preview as never,
-    new McpDataMartModelMapper()
+    new McpDataMartModelMapper(),
+    saveSettings as never
   );
-  return { facade, graph, create, update, remove, preview };
+  return { facade, graph, create, update, remove, preview, saveSettings };
 }
 
 describe('McpDataMartModelFacadeImpl', () => {
+  it('replaces the entire configuration through the editor use case and returns only the saved settings', async () => {
+    const { facade, saveSettings } = fixture();
+    const config = { sources: [{ path: 'obligor', alias: 'Liable Organization' }] };
+    saveSettings.run.mockResolvedValue({ blendedFieldsConfig: config, private: 'never' });
+    expect(await facade.updateBlendedFieldsConfig(actor, 'root', config)).toEqual(config);
+    expect(saveSettings.run).toHaveBeenCalledWith(
+      expect.objectContaining({
+        id: 'root',
+        projectId: actor.projectId,
+        userId: actor.userId,
+        roles: actor.roles,
+        blendedFieldsConfig: config,
+      })
+    );
+  });
+
   it('requests the shared graph access filter and allowlists relationship metadata', async () => {
     const f = fixture();
     const result = await f.facade.listRelationships(actor, 'source');

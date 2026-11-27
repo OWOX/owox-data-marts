@@ -97,7 +97,7 @@ export class DataMart implements CreatorAwareEntity {
     transformer: createZodTransformer<BlendedFieldsConfig>(BlendedFieldsConfigSchema, false),
     nullable: true,
   })
-  blendedFieldsConfig?: BlendedFieldsConfig;
+  blendedFieldsConfig?: BlendedFieldsConfig | null;
 
   @Column({
     type: 'json',
