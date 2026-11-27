@@ -30,6 +30,7 @@ import { UpdateDataMartRunScheduleTool } from './data-mart-execution/update-data
 import { CreateDataMartRelationshipTool } from './data-mart-model/create-data-mart-relationship.tool';
 import { DeleteDataMartRelationshipTool } from './data-mart-model/delete-data-mart-relationship.tool';
 import { ListDataMartRelationshipsTool } from './data-mart-model/list-data-mart-relationships.tool';
+import { UpdateDataMartBlendedFieldsConfigTool } from './data-mart-model/update-data-mart-blended-fields-config.tool';
 import { PreviewDataMartTool } from './data-mart-model/preview-data-mart.tool';
 import { UpdateDataMartRelationshipTool } from './data-mart-model/update-data-mart-relationship.tool';
 import { ListContextsTool } from './list-contexts.tool';
@@ -135,6 +136,7 @@ export const MCP_TOOL_PROVIDER_CLASSES: Array<Type<McpToolDefinition>> = [
   CreateDataMartRelationshipTool,
   DeleteDataMartRelationshipTool,
   ListDataMartRelationshipsTool,
+  UpdateDataMartBlendedFieldsConfigTool,
   PreviewDataMartTool,
   UpdateDataMartRelationshipTool,
 

@@ -31,7 +31,7 @@ export class DataMartDto {
     public readonly technicalOwnerUsers: UserProjectionDto[] = [],
     public readonly availableForReporting: boolean = true,
     public readonly availableForMaintenance: boolean = true,
-    public readonly blendedFieldsConfig?: BlendedFieldsConfig,
+    public readonly blendedFieldsConfig?: BlendedFieldsConfig | null,
     public readonly contexts: ContextSummary[] = [],
     public readonly dataLastUpdated: SourceDataLastUpdated | null = null,
     public readonly icon: DataMartIconValue | null = null

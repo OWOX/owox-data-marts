@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { blendedFieldsConfigSchema } from '../data-mart-model/blended-fields-config.schemas';
 import { DataMartDefinitionType } from '../../../../data-marts/enums/data-mart-definition-type.enum';
 import { DataMartStatus } from '../../../../data-marts/enums/data-mart-status.enum';
 import {
@@ -111,6 +112,7 @@ export const dataMartSetupOutputSchema = dataMartSummaryOutputSchema.extend({
   definition: z.record(z.string(), z.unknown()).nullable(),
   definition_read_error: z.string().nullable(),
   schema: z.record(z.string(), z.unknown()).nullable(),
+  blended_fields_config: blendedFieldsConfigSchema,
   business_owner_ids: z.array(z.string()),
   technical_owner_ids: z.array(z.string()),
   contexts: z.array(z.object({ context_id: z.string(), name: z.string() })),

@@ -47,6 +47,7 @@ export class McpDataMartManagementMapper {
           ? 'The saved definition could not be read safely. Repair the connector in OWOX before replacing its definition.'
           : null,
       schema: dto.schema ?? null,
+      blendedFieldsConfig: dto.blendedFieldsConfig ?? null,
       businessOwnerIds: dto.businessOwnerUsers.map(user => user.userId),
       technicalOwnerIds: dto.technicalOwnerUsers.map(user => user.userId),
       contexts: dto.contexts.map(context => ({ id: context.id, name: context.name })),

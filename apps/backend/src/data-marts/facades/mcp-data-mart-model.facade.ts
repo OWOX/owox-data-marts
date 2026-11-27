@@ -1,4 +1,5 @@
 import type { AuthorizationContext } from '../../idp';
+import type { BlendedFieldsConfig } from '../dto/schemas/blended-fields-config.schema';
 import type { DataMartStatus } from '../enums/data-mart-status.enum';
 import type { DataMartPreviewResult } from '../use-cases/preview-data-mart.service';
 
@@ -61,6 +62,11 @@ export interface McpUpdateRelationshipInput {
 }
 
 export interface McpDataMartModelFacade {
+  updateBlendedFieldsConfig(
+    actor: AuthorizationContext,
+    dataMartId: string,
+    config: BlendedFieldsConfig | null
+  ): Promise<BlendedFieldsConfig | null>;
   listRelationships(
     actor: AuthorizationContext,
     dataMartId: string

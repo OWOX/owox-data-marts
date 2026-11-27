@@ -252,6 +252,7 @@ describe('MCP tool providers', () => {
           'delete_data_mart_relationship',
           'list_data_mart_relationships',
           'preview_data_mart',
+          'update_data_mart_blended_fields_config',
           'update_data_mart_relationship',
           'create_context',
           'list_storages',
