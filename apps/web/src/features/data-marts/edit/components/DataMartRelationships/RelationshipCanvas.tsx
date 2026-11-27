@@ -1197,10 +1197,21 @@ function RelationshipCanvasInner({
     zoomToMatches,
   ]);
 
+  // Keyed on which cards match, not on the highlight map: the map is rebuilt
+  // whenever the graph is (card facts arriving, a polled quality summary), and
+  // that must not pull a view the user panned back to the matches.
+  const matchingIdsKey = useMemo(
+    () =>
+      [...highlightState.entries()]
+        .filter(([, state]) => state.highlighted)
+        .map(([id]) => id)
+        .join('|'),
+    [highlightState]
+  );
   useEffect(() => {
     if (!hasFitRef.current) return;
     zoomToMatches();
-  }, [highlightState, zoomToMatches]);
+  }, [matchingIdsKey, zoomToMatches]);
 
   const handleZoom = useCallback(
     (delta: number) => {

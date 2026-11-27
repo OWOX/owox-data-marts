@@ -8,11 +8,16 @@ import {
   type RelationshipCardRoot,
 } from './useRelationshipCardDetails';
 
-const serviceMocks = vi.hoisted(() => ({
+const mocks = vi.hoisted(() => ({
   getDataMarts: vi.fn(),
   getEdges: vi.fn(),
   getSummaries: vi.fn(),
+  startRun: vi.fn(),
   getDataMartById: vi.fn(),
+  getDataStorages: vi.fn(),
+  wasErrorToastShown: vi.fn(),
+  toastError: vi.fn(),
+  toastSuccess: vi.fn(),
 }));
 
 vi.mock('react-router', async importOriginal => ({
@@ -20,22 +25,36 @@ vi.mock('react-router', async importOriginal => ({
   useParams: () => ({ projectId: 'project-1' }),
 }));
 
+vi.mock('react-hot-toast', () => ({
+  default: { error: mocks.toastError, success: mocks.toastSuccess },
+}));
+
+vi.mock('../../../../../app/api', async importOriginal => ({
+  ...(await importOriginal<typeof import('../../../../../app/api')>()),
+  wasErrorToastShown: mocks.wasErrorToastShown,
+}));
+
 vi.mock('../../../model-canvas/api/model-canvas.service', () => ({
-  modelCanvasService: serviceMocks,
+  modelCanvasService: { getDataMarts: mocks.getDataMarts, getEdges: mocks.getEdges },
 }));
 
 vi.mock('../../../shared/services/data-mart.service', () => ({
-  dataMartService: { getDataMartById: serviceMocks.getDataMartById },
+  dataMartService: { getDataMartById: mocks.getDataMartById },
 }));
 
 vi.mock('../../../data-quality/api/data-quality.service', () => ({
-  dataQualityService: { getSummaries: serviceMocks.getSummaries },
+  dataQualityService: { getSummaries: mocks.getSummaries, startRun: mocks.startRun },
+}));
+
+vi.mock('../../../../data-storage/shared/api', () => ({
+  dataStorageApiService: { getDataStorages: mocks.getDataStorages },
 }));
 
 const ROOT: RelationshipCardRoot = {
   id: 'orders',
   storageId: 'storage-1',
   icon: 'cart' as RelationshipCardRoot['icon'],
+  dataLastUpdated: null,
   availableForReporting: true,
   availableForMaintenance: false,
 };
@@ -46,15 +65,17 @@ const RELATIONSHIPS = [
 ];
 
 const MODEL_NODES = [
-  modelNode('orders', { icon: null, triggersCount: 1, reportsCount: 2 }),
-  modelNode('customers', { icon: 'user', triggersCount: 0, reportsCount: 3 }),
-  modelNode('secret', { icon: null, triggersCount: 5, reportsCount: 5 }),
+  modelNode('orders', { triggersCount: 1, reportsCount: 2 }),
+  modelNode('customers', { triggersCount: 0, reportsCount: 3 }),
+  modelNode('secret', { triggersCount: 5, reportsCount: 5 }),
 ];
 
 const MODEL_EDGES = [
   { id: 'e1', sourceDataMartId: 'orders', targetDataMartId: 'customers', joinConditions: [] },
   { id: 'e2', sourceDataMartId: 'customers', targetDataMartId: 'secret', joinConditions: [] },
 ];
+
+const CUSTOMERS_FRESHNESS = { dataLastUpdatedAt: '2026-11-27T10:00:00.000Z', coverage: 'complete' };
 
 function createWrapper() {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
@@ -79,48 +100,36 @@ function renderDetails(enabled = true) {
 describe('useRelationshipCardDetails', () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    serviceMocks.getEdges.mockResolvedValue(MODEL_EDGES);
-    serviceMocks.getSummaries.mockResolvedValue({});
-    serviceMocks.getDataMartById.mockResolvedValue({
+    mocks.getDataStorages.mockResolvedValue([{ id: 'storage-1' }]);
+    mocks.getDataMarts.mockResolvedValue(MODEL_NODES);
+    mocks.getEdges.mockResolvedValue(MODEL_EDGES);
+    mocks.getSummaries.mockResolvedValue({});
+    mocks.getDataMartById.mockResolvedValue({
       definitionType: 'VIEW',
+      icon: 'user',
+      dataLastUpdated: CUSTOMERS_FRESHNESS,
       availableForReporting: false,
       availableForMaintenance: true,
     });
   });
 
-  it('shows no facts until the storage model is in, then the model and detail facts', async () => {
-    let resolveModel: (nodes: typeof MODEL_NODES) => void = () => undefined;
-    serviceMocks.getDataMarts.mockReturnValue(
-      new Promise(resolve => {
-        resolveModel = resolve;
-      })
-    );
-
+  it('gives each card its own facts and, for a Storage the user can see, the model counts', async () => {
     const { result } = renderDetails();
 
-    // The details of the related Data Mart arrive first…
     await waitFor(() => {
-      expect(result.current.definitionTypes.get('customers')).toBe('VIEW');
+      expect(result.current.cardDetails.get('customers')?.reportsCount).toBe(3);
     });
-    // …but without the model a footer would read "Unknown", so no card has facts yet.
-    expect(result.current.cardDetails.size).toBe(0);
-
-    act(() => {
-      resolveModel(MODEL_NODES);
-    });
-
-    await waitFor(() => {
-      expect(result.current.cardDetails.get('customers')).toBeDefined();
-    });
+    expect(result.current.definitionTypes.get('customers')).toBe('VIEW');
     expect(result.current.cardDetails.get('customers')).toMatchObject({
       icon: 'user',
+      dataLastUpdated: CUSTOMERS_FRESHNESS,
       triggersCount: 0,
       reportsCount: 3,
       relationshipCount: 2,
       availableForReporting: false,
       availableForMaintenance: true,
     });
-    // The root keeps the edit page's icon and sharing, and takes the counts from the model.
+    // The root's own facts come from the edit page.
     expect(result.current.cardDetails.get('orders')).toMatchObject({
       icon: 'cart',
       triggersCount: 1,
@@ -131,50 +140,116 @@ describe('useRelationshipCardDetails', () => {
     });
   });
 
-  it('leaves out a Data Mart the user cannot open, even when the model lists it', async () => {
-    serviceMocks.getDataMarts.mockResolvedValue(MODEL_NODES);
+  it('without access to the Storage, keeps the cards their own facts and asks for no model', async () => {
+    mocks.getDataStorages.mockResolvedValue([{ id: 'another-storage' }]);
 
     const { result } = renderDetails();
 
     await waitFor(() => {
       expect(result.current.cardDetails.get('customers')).toBeDefined();
     });
-    expect(result.current.cardDetails.has('secret')).toBe(false);
-    expect(serviceMocks.getDataMartById).not.toHaveBeenCalledWith('secret', expect.anything());
-    expect(serviceMocks.getSummaries).toHaveBeenCalledWith(
-      ['customers', 'orders'],
-      expect.anything()
+    expect(result.current.cardDetails.get('customers')).toMatchObject({
+      icon: 'user',
+      dataLastUpdated: CUSTOMERS_FRESHNESS,
+      availableForMaintenance: true,
+      triggersCount: undefined,
+      reportsCount: undefined,
+      relationshipCount: undefined,
+    });
+    expect(result.current.cardDetails.get('orders')).toMatchObject({
+      icon: 'cart',
+      availableForReporting: true,
+    });
+    expect(mocks.getDataMarts).not.toHaveBeenCalled();
+    expect(mocks.getEdges).not.toHaveBeenCalled();
+  });
+
+  it('shows no facts until the quality summaries are in, so the footer appears once', async () => {
+    let resolveSummaries: (value: object) => void = () => undefined;
+    mocks.getSummaries.mockReturnValue(
+      new Promise(resolve => {
+        resolveSummaries = resolve;
+      })
     );
+
+    const { result } = renderDetails();
+
+    await waitFor(() => {
+      expect(result.current.definitionTypes.get('customers')).toBe('VIEW');
+    });
+    expect(result.current.cardDetails.size).toBe(0);
+
+    act(() => {
+      resolveSummaries({});
+    });
+
+    await waitFor(() => {
+      expect(result.current.cardDetails.get('orders')).toBeDefined();
+    });
+  });
+
+  it('leaves out a Data Mart the user cannot open, even when the model lists it', async () => {
+    const { result } = renderDetails();
+
+    await waitFor(() => {
+      expect(result.current.cardDetails.get('customers')?.reportsCount).toBe(3);
+    });
+    expect(result.current.cardDetails.has('secret')).toBe(false);
+    expect(mocks.getDataMartById).not.toHaveBeenCalledWith('secret', expect.anything());
+    expect(mocks.getSummaries).toHaveBeenCalledWith(['customers', 'orders'], expect.anything());
   });
 
   it('asks for nothing while disabled', async () => {
-    serviceMocks.getDataMarts.mockResolvedValue(MODEL_NODES);
-
     const { result } = renderDetails(false);
 
     await new Promise(resolve => setTimeout(resolve, 20));
-    expect(serviceMocks.getDataMarts).not.toHaveBeenCalled();
-    expect(serviceMocks.getDataMartById).not.toHaveBeenCalled();
-    expect(serviceMocks.getSummaries).not.toHaveBeenCalled();
+    expect(mocks.getDataStorages).not.toHaveBeenCalled();
+    expect(mocks.getDataMarts).not.toHaveBeenCalled();
+    expect(mocks.getDataMartById).not.toHaveBeenCalled();
+    expect(mocks.getSummaries).not.toHaveBeenCalled();
     expect(result.current.cardDetails.size).toBe(0);
   });
 
   it('rereads the storage model when a relationship changes', async () => {
-    serviceMocks.getDataMarts.mockResolvedValue(MODEL_NODES);
-
     const { result } = renderDetails();
     await waitFor(() => {
-      expect(result.current.cardDetails.get('orders')).toBeDefined();
+      expect(result.current.cardDetails.get('orders')?.reportsCount).toBe(2);
     });
-    expect(serviceMocks.getDataMarts).toHaveBeenCalledTimes(1);
+    expect(mocks.getDataMarts).toHaveBeenCalledTimes(1);
 
     act(() => {
       result.current.invalidateModel();
     });
 
     await waitFor(() => {
-      expect(serviceMocks.getDataMarts).toHaveBeenCalledTimes(2);
+      expect(mocks.getDataMarts).toHaveBeenCalledTimes(2);
     });
+  });
+
+  it('starts a Data Quality run and rereads the summaries', async () => {
+    mocks.startRun.mockResolvedValue({});
+    const { result } = renderDetails();
+    await waitFor(() => {
+      expect(result.current.cardDetails.get('orders')).toBeDefined();
+    });
+    const summaryReads = mocks.getSummaries.mock.calls.length;
+
+    await act(() => result.current.runQuality('customers'));
+
+    expect(mocks.startRun).toHaveBeenCalledWith('customers');
+    expect(mocks.toastSuccess).toHaveBeenCalledWith('Data Quality run queued');
+    expect(mocks.getSummaries.mock.calls.length).toBeGreaterThan(summaryReads);
+  });
+
+  it('adds no second toast to a refused run the API client already reported', async () => {
+    mocks.startRun.mockRejectedValue(new Error('Forbidden'));
+    mocks.wasErrorToastShown.mockReturnValue(true);
+    const { result } = renderDetails();
+
+    await act(() => result.current.runQuality('customers'));
+
+    expect(mocks.toastError).not.toHaveBeenCalled();
+    expect(mocks.toastSuccess).not.toHaveBeenCalled();
   });
 });
 
@@ -192,17 +267,15 @@ function relationship(id: string, targetId: string, userHasAccess: boolean): Dat
   };
 }
 
-function modelNode(
-  id: string,
-  facts: { icon: string | null; triggersCount: number; reportsCount: number }
-) {
+function modelNode(id: string, counts: { triggersCount: number; reportsCount: number }) {
   return {
     id,
     title: id,
     status: 'PUBLISHED',
     description: null,
+    icon: null,
     fieldCount: 3,
     dataLastUpdated: null,
-    ...facts,
+    ...counts,
   };
 }

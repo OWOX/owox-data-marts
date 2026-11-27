@@ -316,6 +316,41 @@ describe('RelationshipCanvas viewport', () => {
     expect(reactFlowHarness.setViewport).toHaveBeenCalledTimes(1);
   });
 
+  it('does not pull a panned view back to the matches when card facts arrive', async () => {
+    const relationships = Array.from({ length: 12 }, (_, index) =>
+      buildRelationship(`rel-${String(index)}`, `target-${String(index)}`)
+    );
+    const props = { ...buildCanvasProps(relationships), searchQuery: 'target-3' };
+    const { rerender } = render(<RelationshipCanvas {...props} />);
+
+    await waitFor(() => {
+      expect(reactFlowHarness.fitView).toHaveBeenCalledWith(
+        expect.objectContaining({ nodes: [{ id: 'path:target-3' }] })
+      );
+    });
+    // The user pans away from the matches.
+    fireEvent.pointerDown(screen.getByTestId('react-flow'));
+    const zoomsBefore = reactFlowHarness.fitView.mock.calls.length;
+
+    // Facts arrive (or a polled quality summary changes): the graph is rebuilt,
+    // the matches are the same.
+    rerender(
+      <RelationshipCanvas
+        {...props}
+        cardDetails={new Map([['target-3', { availableForReporting: true }]])}
+      />
+    );
+    rerender(
+      <RelationshipCanvas
+        {...props}
+        cardDetails={new Map([['target-3', { availableForReporting: false }]])}
+      />
+    );
+
+    await new Promise(resolve => setTimeout(resolve, 20));
+    expect(reactFlowHarness.fitView.mock.calls.length).toBe(zoomsBefore);
+  });
+
   it('passes the low zoom floor to a full fit while the interactive floor is raised', async () => {
     render(<RelationshipCanvas {...buildCanvasProps([buildRelationship('rel-1', 'target-1')])} />);
 

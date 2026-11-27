@@ -69,8 +69,6 @@ import {
   useRelationshipCardDetails,
   type RelationshipCardRoot,
 } from './useRelationshipCardDetails';
-import { extractApiError } from '../../../../../app/api';
-import { dataQualityService } from '../../../data-quality/api/data-quality.service';
 import { useTransientRelationships } from './useTransientRelationships';
 
 // Load React Flow and the graph renderer only when the user switches to graph
@@ -86,6 +84,9 @@ const CanvasSuspenseFallback = (
 );
 
 const VIEW_MODE_KEY = 'relationship-view-mode';
+/** The block's `CollapsibleCard` name; the card stores its collapsed state under `collapsed-card-<name>`. */
+const RELATIONSHIPS_CARD_NAME = 'relationships';
+const RELATIONSHIPS_CARD_COLLAPSED_KEY = `collapsed-card-${RELATIONSHIPS_CARD_NAME}`;
 const CONTENT_MIN_H = 480;
 
 // Canvas view settings are per-browser preferences (not per data mart),
@@ -237,15 +238,21 @@ export function DataMartRelationshipsContent({
   const { rows: transientRows, isLoading: isLoadingTransient } =
     useTransientRelationships(relationshipGraph);
 
+  // The block stays mounted while collapsed; its diagram is not on screen then.
+  const [isBlockCollapsed, setIsBlockCollapsed] = useState(
+    () => storageService.get(RELATIONSHIPS_CARD_COLLAPSED_KEY, 'boolean') ?? false
+  );
+
   // The cards' facts (input source, counts, quality, freshness, sharing) cost
   // extra requests — only worth it while the diagram is on screen with cards
-  // to draw (the list view shows none of them, and without relationships the
-  // diagram is not drawn at all).
+  // to draw (the list view and a collapsed block show none of them, and
+  // without relationships the diagram is not drawn at all).
   const cardRoot = useMemo<RelationshipCardRoot>(
     () => ({
       id: dataMartId,
       storageId,
       icon: dataMart?.icon ?? null,
+      dataLastUpdated: dataMart?.dataLastUpdated ?? null,
       availableForReporting: dataMart?.availableForReporting,
       availableForMaintenance: dataMart?.availableForMaintenance,
     }),
@@ -253,30 +260,17 @@ export function DataMartRelationshipsContent({
       dataMartId,
       storageId,
       dataMart?.icon,
+      dataMart?.dataLastUpdated,
       dataMart?.availableForReporting,
       dataMart?.availableForMaintenance,
     ]
   );
-  const { definitionTypes, cardDetails, refetchQuality, invalidateModel } =
-    useRelationshipCardDetails({
-      root: cardRoot,
-      relationshipGraph,
-      relationships,
-      enabled: viewMode === 'graph' && relationships.length > 0,
-    });
-  const handleRunQuality = useCallback(
-    async (targetId: string) => {
-      try {
-        await dataQualityService.startRun(targetId);
-        toast.success('Data Quality run queued');
-        await refetchQuality();
-      } catch (caught) {
-        const apiError = extractApiError(caught) as ReturnType<typeof extractApiError> | undefined;
-        toast.error(apiError?.message ?? 'Failed to start Data Quality run');
-      }
-    },
-    [refetchQuality]
-  );
+  const { definitionTypes, cardDetails, runQuality, invalidateModel } = useRelationshipCardDetails({
+    root: cardRoot,
+    relationshipGraph,
+    relationships,
+    enabled: viewMode === 'graph' && !isBlockCollapsed && relationships.length > 0,
+  });
 
   // Toolbar filters apply to both the list and the diagram (and keep the
   // inline and fullscreen canvas instances in sync); keys are scoped per data
@@ -588,7 +582,7 @@ export function DataMartRelationshipsContent({
             onObjectLabelsChange={handleObjectLabelsChange}
             fieldsByAliasPath={canvasFieldsByAliasPath}
             cardDetails={cardDetails}
-            onRunQuality={handleRunQuality}
+            onRunQuality={runQuality}
             onRequestFullscreen={() => {
               setIsFullscreen(true);
             }}
@@ -729,7 +723,11 @@ export function DataMartRelationshipsContent({
 
   return (
     <div className='flex flex-col gap-4'>
-      <CollapsibleCard collapsible name='relationships'>
+      <CollapsibleCard
+        collapsible
+        name={RELATIONSHIPS_CARD_NAME}
+        onCollapsedChange={setIsBlockCollapsed}
+      >
         <CollapsibleCardHeader>
           <CollapsibleCardHeaderTitle
             icon={Link2}
@@ -784,7 +782,7 @@ export function DataMartRelationshipsContent({
                 onObjectLabelsChange={handleObjectLabelsChange}
                 fieldsByAliasPath={canvasFieldsByAliasPath}
                 cardDetails={cardDetails}
-                onRunQuality={handleRunQuality}
+                onRunQuality={runQuality}
                 className='rounded-none border-0'
                 style={{ width: '100%', height: '100%' }}
               />
