@@ -3,7 +3,11 @@ import { focusManager, QueryClient, QueryClientProvider } from '@tanstack/react-
 import { act, renderHook, waitFor } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { dataMartRelationshipService } from '../../../shared/services/data-mart-relationship.service';
-import type { BlendedFieldsConfig } from '../../../shared/types/relationship.types';
+import type {
+  AvailableSource,
+  BlendedFieldsConfig,
+} from '../../../shared/types/relationship.types';
+import { buildSourceList } from './source-entries';
 import { useBlendedFieldsConfigEditor } from './useBlendedFieldsConfigEditor';
 
 vi.mock('react-hot-toast', () => ({ toast: { error: vi.fn() } }));
@@ -52,6 +56,55 @@ describe('useBlendedFieldsConfigEditor', () => {
     vi.clearAllMocks();
   });
 
+  const customers: AvailableSource = {
+    aliasPath: 'customers',
+    title: 'Customers',
+    defaultAlias: 'Customers',
+    depth: 1,
+    fieldCount: 1,
+    isIncluded: true,
+    isAccessibleForReporting: true,
+    relationshipId: 'customers-rel',
+    dataMartId: 'customers-dm',
+  };
+
+  it.each([undefined, 'Customers'])(
+    'preserves the saved Output Alias (%p) on field edits',
+    async alias => {
+      const entry = alias === undefined ? { path: 'customers' } : { path: 'customers', alias };
+      const savedConfig = { sources: alias === undefined ? [] : [entry] };
+      const [source] = buildSourceList([customers], [], savedConfig);
+      const { result } = renderHook(
+        () => useBlendedFieldsConfigEditor({ dataMartId: 'orders', savedConfig, onSaved: vi.fn() }),
+        { wrapper: withQueryClient() }
+      );
+      act(() => {
+        result.current.onFieldOverrideChange(source, 'id', { alias: 'Client ID' });
+      });
+      await waitFor(() => {
+        expect(sentConfigs()).toStrictEqual([
+          { sources: [{ ...entry, fields: { id: { alias: 'Client ID' } } }] },
+        ]);
+      });
+    }
+  );
+
+  it('clears an explicit Output Alias while keeping the field overrides', async () => {
+    const fields = { id: { alias: 'Client ID' } };
+    const savedConfig = { sources: [{ path: 'customers', alias: 'Customers', fields }] };
+    const { result } = renderHook(
+      () => useBlendedFieldsConfigEditor({ dataMartId: 'orders', savedConfig, onSaved: vi.fn() }),
+      { wrapper: withQueryClient() }
+    );
+    const [source] = buildSourceList([customers], [], savedConfig);
+    act(() => {
+      result.current.onAliasChange(source, '');
+    });
+    await waitFor(() => {
+      expect(sentConfigs()).toStrictEqual([{ sources: [{ path: 'customers', fields }] }]);
+    });
+  });
+
   it('keeps an edit when a config fetched before its save arrives while the save is on the wire', async () => {
     let resolveSave: (response: SaveResponse) => void = () => undefined;
     vi.mocked(dataMartRelationshipService.updateBlendedFieldsConfig).mockImplementationOnce(
@@ -69,10 +122,10 @@ describe('useBlendedFieldsConfigEditor', () => {
     );
 
     act(() => {
-      result.current.onHideForReportingChange('customers', 'customers', true);
+      result.current.onHideForReportingChange('customers', true);
     });
     const edited = {
-      sources: [products, { path: 'customers', alias: 'customers', isExcluded: true }],
+      sources: [products, { path: 'customers', isExcluded: true }],
     };
     expect(result.current.localConfig).toEqual(edited);
 
@@ -116,7 +169,7 @@ describe('useBlendedFieldsConfigEditor', () => {
 
     const firstEditor = render();
     act(() => {
-      firstEditor.result.current.onHideForReportingChange('customers', 'customers', true);
+      firstEditor.result.current.onHideForReportingChange('customers', true);
     });
     await waitFor(() => {
       expect(sentConfigs()).toHaveLength(1);
@@ -127,7 +180,7 @@ describe('useBlendedFieldsConfigEditor', () => {
     expect(secondEditor.result.current.localConfig).toEqual(sentConfigs()[0]);
 
     act(() => {
-      secondEditor.result.current.onHideForReportingChange('products', 'prod', true);
+      secondEditor.result.current.onHideForReportingChange('products', true);
     });
     expect(sentConfigs()).toHaveLength(1);
 
@@ -139,7 +192,7 @@ describe('useBlendedFieldsConfigEditor', () => {
     });
     expect(sentConfigs()[1]).toEqual({
       sources: [
-        { path: 'customers', alias: 'customers', isExcluded: true },
+        { path: 'customers', isExcluded: true },
         { path: 'products', alias: 'prod', isExcluded: true },
       ],
     });
@@ -165,13 +218,13 @@ describe('useBlendedFieldsConfigEditor', () => {
     );
 
     act(() => {
-      result.current.onHideForReportingChange('customers', 'customers', true);
+      result.current.onHideForReportingChange('customers', true);
     });
     await waitFor(() => {
       expect(sentConfigs()).toHaveLength(1);
     });
     act(() => {
-      result.current.onHideForReportingChange('products', 'products', true);
+      result.current.onHideForReportingChange('products', true);
     });
     const firstSaved = sentConfigs()[0];
     act(() => {
@@ -208,13 +261,13 @@ describe('useBlendedFieldsConfigEditor', () => {
     focusManager.setFocused(false);
     try {
       act(() => {
-        result.current.onHideForReportingChange('customers', 'customers', true);
+        result.current.onHideForReportingChange('customers', true);
       });
       await waitFor(() => {
         expect(sentConfigs()).toHaveLength(1);
       });
       act(() => {
-        result.current.onHideForReportingChange('products', 'products', true);
+        result.current.onHideForReportingChange('products', true);
       });
 
       // The user switched to another tab; the queued save must not wait for them to come back.
@@ -246,13 +299,13 @@ describe('useBlendedFieldsConfigEditor', () => {
     );
 
     act(() => {
-      result.current.onHideForReportingChange('customers', 'customers', true);
+      result.current.onHideForReportingChange('customers', true);
     });
     await waitFor(() => {
       expect(sentConfigs()).toHaveLength(1);
     });
     act(() => {
-      result.current.onHideForReportingChange('products', 'products', true);
+      result.current.onHideForReportingChange('products', true);
     });
     const newest = result.current.localConfig;
 
@@ -283,7 +336,7 @@ describe('useBlendedFieldsConfigEditor', () => {
       { wrapper: withQueryClient() }
     );
     act(() => {
-      result.current.onHideForReportingChange('customers', 'customers', true);
+      result.current.onHideForReportingChange('customers', true);
     });
     await waitFor(() => {
       expect(sentConfigs()).toHaveLength(1);

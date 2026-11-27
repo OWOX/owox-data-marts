@@ -262,7 +262,7 @@ describe('Data Mart model and connector schedules through MCP', () => {
     }
   );
 
-  it('lists the join path and Output Alias in the MCP tool schemas', async () => {
+  it('lists the join path and marks join and field aliases as optional in the MCP tool schemas', async () => {
     const client = await connect();
     const { tools } = await client.listTools();
     const details = tools.find(tool => tool.name === 'get_data_mart_details_by_id');
@@ -272,15 +272,24 @@ describe('Data Mart model and connector schedules through MCP', () => {
     );
     const read = tools.find(tool => tool.name === 'get_data_mart_setup');
     const write = tools.find(tool => tool.name === 'update_data_mart_blended_fields_config');
+    const fieldSchemaPath =
+      'anyOf.0.properties.sources.items.properties.fields.additionalProperties';
     for (const schema of [read?.outputSchema, write?.inputSchema, write?.outputSchema]) {
-      expect(schema?.properties?.blended_fields_config).toHaveProperty(
+      const config = schema?.properties?.blended_fields_config;
+      expect(config).toHaveProperty(
         'anyOf.0.properties.sources.items.properties.alias.title',
         'Output Alias'
+      );
+      expect(config).toHaveProperty('anyOf.0.properties.sources.items.required', ['path']);
+      expect(config).toHaveProperty(`${fieldSchemaPath}.properties.alias`);
+      expect(config).not.toHaveProperty(
+        `${fieldSchemaPath}.required`,
+        expect.arrayContaining(['alias'])
       );
     }
   });
 
-  it('returns distinct field paths for two joins to the same Data Mart', async () => {
+  it.each(['HTTP', 'MCP'])('resets each alias through %s', async transport => {
     const root = await mart('Orders');
     const address = await mart('Address');
     const region = await mart('Region');
@@ -288,7 +297,9 @@ describe('Data Mart model and connector schedules through MCP', () => {
     for (const id of [root, address, region]) {
       await setDataMartSchema(agent, app, id, {
         type: 'bigquery-data-mart-schema',
-        fields: [{ name: 'id', type: 'STRING', mode: 'NULLABLE', status: 'CONNECTED' }],
+        fields: [
+          { name: 'id', type: 'STRING', mode: 'NULLABLE', status: 'CONNECTED', alias: 'Code' },
+        ],
       });
     }
     await database.getRepository(DataMart).update([root, address, region], {
@@ -308,21 +319,66 @@ describe('Data Mart model and connector schedules through MCP', () => {
       });
     }
 
+    const input = { data_mart_id: root };
+    async function save(sources: unknown[]) {
+      const config = { sources };
+      if (transport === 'HTTP') {
+        const { body } = await agent
+          .put(`/api/data-marts/${root}/blended-fields-config`)
+          .set(browser)
+          .send({ blendedFieldsConfig: config })
+          .expect(200);
+        return body.blendedFieldsConfig;
+      }
+      const result = await call(client, 'update_data_mart_blended_fields_config', {
+        ...input,
+        blended_fields_config: config,
+      });
+      return result.blended_fields_config;
+    }
+    const billing = { path: 'billing_address.region', fields: { id: { alias: 'Billing ID' } } };
+    const shipping = {
+      path: 'shipping.region',
+      alias: 'Region',
+      fields: { id: { isHidden: false } },
+    };
+    await save([billing]);
+    const overrides = [
+      { ...billing, alias: 'Billing area' },
+      { ...shipping, fields: { id: { alias: 'Shipping ID', isHidden: false } } },
+    ];
+    const expected = { sources: [billing, shipping] };
+    await save(overrides);
+    expect(await save(expected.sources)).toEqual(expected);
+    await save(overrides);
+    expect(
+      await save([
+        { ...billing, alias: null },
+        { ...shipping, fields: { id: { alias: null, isHidden: false } } },
+      ])
+    ).toEqual(expected);
+    expect((await call(client, 'get_data_mart_setup', input)).blended_fields_config).toEqual(
+      expected
+    );
+    await call(client, 'update_data_mart_title', { data_mart_id: region, title: 'Territory' });
+
     const details = await call(client, 'get_data_mart_details_by_id', {
-      data_mart_id: root,
+      ...input,
       detail_level: 'with_joined_fields',
     });
     expect(details.joined_fields).toEqual(
       expect.arrayContaining([
         expect.objectContaining({
           name: 'billing_address_region__id',
-          sourceDataMart: 'Region',
+          sourceDataMart: 'Territory',
           aliasPath: 'billing_address.region',
+          displayName: 'Territory Billing ID',
         }),
         expect.objectContaining({
           name: 'shipping_region__id',
-          sourceDataMart: 'Region',
+          sourceDataMart: 'Territory',
           aliasPath: 'shipping.region',
+          displayName: 'Region Code',
         }),
       ])
     );

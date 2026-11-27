@@ -6,6 +6,7 @@ import { DataMartDto } from '../dto/domain/data-mart.dto';
 import { DataMartService } from '../services/data-mart.service';
 import { ReportDataCacheService } from '../services/report-data-cache.service';
 import { UpdateBlendedFieldsConfigCommand } from '../dto/domain/update-blended-fields-config.command';
+import { BlendedFieldsConfigSchema } from '../dto/schemas/blended-fields-config.schema';
 import { AccessDecisionService, EntityType, Action } from '../services/access-decision';
 
 @Injectable()
@@ -37,7 +38,8 @@ export class UpdateBlendedFieldsConfigService {
       throw new ForbiddenException('You do not have permission to edit this DataMart');
     }
 
-    const nextConfig = command.blendedFieldsConfig;
+    const nextConfig =
+      command.blendedFieldsConfig && BlendedFieldsConfigSchema.parse(command.blendedFieldsConfig);
     const changed = !deepEqual(dataMart.blendedFieldsConfig ?? null, nextConfig ?? null);
 
     if (changed) {

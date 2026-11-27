@@ -172,7 +172,7 @@ export function useBlendedFieldsConfigEditor({
     (source: SourceEntry, alias: string) => {
       updateSourceConfig(source.aliasPath, current => ({
         path: source.aliasPath,
-        alias,
+        ...(alias && { alias }),
         ...(current?.isExcluded ? { isExcluded: true } : {}),
         ...(current?.description ? { description: current.description } : {}),
         ...(current?.fields ? { fields: current.fields } : {}),
@@ -182,10 +182,10 @@ export function useBlendedFieldsConfigEditor({
   );
 
   const onHideForReportingChange = useCallback(
-    (aliasPath: string, alias: string, isHidden: boolean) => {
+    (aliasPath: string, isHidden: boolean) => {
       updateSourceConfig(aliasPath, current => ({
         path: aliasPath,
-        alias,
+        ...(current?.alias && { alias: current.alias }),
         ...(isHidden && { isExcluded: true }),
         ...(current?.description ? { description: current.description } : {}),
         ...(current?.fields && { fields: current.fields }),
@@ -200,7 +200,7 @@ export function useBlendedFieldsConfigEditor({
     (source: SourceEntry, description: string) => {
       updateSourceConfig(source.aliasPath, current => ({
         path: source.aliasPath,
-        alias: current?.alias ?? source.alias,
+        ...(current?.alias && { alias: current.alias }),
         ...(current?.isExcluded ? { isExcluded: true } : {}),
         ...(description.trim() !== '' ? { description } : {}),
         ...(current?.fields ? { fields: current.fields } : {}),
@@ -230,7 +230,7 @@ export function useBlendedFieldsConfigEditor({
 
         return {
           path: source.aliasPath,
-          alias: current?.alias ?? source.alias,
+          ...(current?.alias && { alias: current.alias }),
           ...(current?.isExcluded ? { isExcluded: true } : {}),
           ...(current?.description ? { description: current.description } : {}),
           ...(Object.keys(newFields).length > 0 ? { fields: newFields } : {}),

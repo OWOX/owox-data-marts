@@ -68,10 +68,7 @@ describe('BlendedFieldOverrideSchema', () => {
 
 describe('BlendedSourceSchema', () => {
   it('should accept minimal valid source', () => {
-    const result = BlendedSourceSchema.parse({ path: 'orders', alias: 'ord' });
-    expect(result.path).toBe('orders');
-    expect(result.alias).toBe('ord');
-    expect(result.fields).toBeUndefined();
+    expect(BlendedSourceSchema.parse({ path: 'orders' })).toEqual({ path: 'orders' });
   });
 
   it('should accept source with fields', () => {
@@ -116,6 +113,24 @@ describe('BlendedSourceSchema', () => {
 });
 
 describe('BlendedFieldsConfigSchema', () => {
+  it('omits cleared aliases and keeps other saved overrides', () => {
+    const saved = BlendedFieldsConfigSchema.parse({
+      sources: [
+        {
+          path: 'orders',
+          alias: null,
+          description: undefined,
+          fields: {
+            id: { alias: null, isHidden: false },
+          },
+        },
+      ],
+    });
+    expect(saved).toStrictEqual({
+      sources: [{ path: 'orders', fields: { id: { isHidden: false } } }],
+    });
+  });
+
   it('should accept minimal config with empty sources', () => {
     const result = BlendedFieldsConfigSchema.parse({
       sources: [],

@@ -8,7 +8,7 @@ import type {
 export interface SourceEntry {
   aliasPath: string;
   title: string;
-  alias: string;
+  alias?: string;
   depth: number;
   fieldCount: number;
   overrideCount: number;
@@ -49,7 +49,7 @@ export function buildSourceList(
     return {
       aliasPath: src.aliasPath,
       title: src.title,
-      alias: configSource?.alias ?? src.defaultAlias,
+      alias: configSource?.alias,
       depth: src.depth - 1,
       fieldCount: src.fieldCount,
       overrideCount,

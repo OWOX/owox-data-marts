@@ -46,7 +46,7 @@ interface RelationshipAccordionItemProps {
    */
   onRelationshipDescriptionSaved: (updated: DataMartRelationship) => void;
   onAliasChange: (source: SourceEntry, alias: string) => void;
-  onHideForReportingChange: (aliasPath: string, alias: string, isHidden: boolean) => void;
+  onHideForReportingChange: (aliasPath: string, isHidden: boolean) => void;
   onFieldOverrideChange: (
     source: SourceEntry,
     fieldName: string,
@@ -80,9 +80,6 @@ export function RelationshipAccordionItem({
   const [isConfirmDeleteOpen, setIsConfirmDeleteOpen] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
 
-  // Output alias doubles as the accordion's display label. Falls back to the
-  // DM title when `source` is null (join conditions not configured yet) —
-  // matches the value persisted by the creator.
   const outputAlias = useOutputAliasDraft(source, rel.targetDataMart.title, onAliasChange);
   const displayAlias = outputAlias.savedValue;
 
@@ -216,11 +213,7 @@ export function RelationshipAccordionItem({
                       // availableSources (source is null). The preference is still
                       // persisted by aliasPath and becomes effective once joins
                       // are configured.
-                      onHideForReportingChange(
-                        source?.aliasPath ?? row.aliasPath,
-                        source?.alias ?? rel.targetAlias,
-                        !checked
-                      );
+                      onHideForReportingChange(source?.aliasPath ?? row.aliasPath, !checked);
                     }}
                   />
                 </div>

@@ -72,6 +72,15 @@ describe('UpdateBlendedFieldsConfigApiDto validation', () => {
     expect(errors.length).toBeGreaterThan(0);
   });
 
+  it('accepts null to reset the join and field aliases', async () => {
+    const errors = await validateDto({
+      blendedFieldsConfig: {
+        sources: [{ path: 'orders', alias: null, fields: { id: { alias: null } } }],
+      },
+    });
+    expect(errors).toHaveLength(0);
+  });
+
   it('rejects empty alias', async () => {
     const errors = await validateDto({
       blendedFieldsConfig: {
