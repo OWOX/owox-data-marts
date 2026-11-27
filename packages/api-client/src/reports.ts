@@ -28,11 +28,18 @@ export type OWOXReportOutputSchemaField = {
   /** The aggregate function the report applies to this column, when it applies one. */
   aggregateFunction?: string;
   /**
-   * Calculated fields only. `metric` means the formula AGGREGATES — re-aggregating it is wrong at
-   * any grain, whatever `type` says. `column` means row-level, with no warehouse column behind it.
-   * Absent is an ordinary native column, which may be rolled up.
+   * Calculated fields only. `metric` means the formula AGGREGATES — a query cannot aggregate it
+   * again, whatever `type` says; read `rollupAggregations` to combine its values. `column` means
+   * row-level, with no warehouse column behind it. Absent is an ordinary native column, which may
+   * be rolled up.
    */
   calculatedFieldLevel?: 'metric' | 'column';
+  /**
+   * Set only on a calculated metric column with no `aggregateFunction`. The functions that combine
+   * values this column computed for separate groups of rows into the value for all of them. `[]`
+   * means no function does: query the coarser grain.
+   */
+  rollupAggregations?: Array<'SUM' | 'MIN' | 'MAX'>;
 };
 
 export class ReportsApi {

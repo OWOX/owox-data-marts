@@ -220,7 +220,8 @@ function calculatedFieldHeaders(
         metric.description,
         metric.type as StorageFieldType,
         undefined,
-        metric.level
+        metric.level,
+        metric.rollupAggregations
       ),
     ];
   }

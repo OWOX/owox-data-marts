@@ -483,6 +483,7 @@ describe('Data Mart management through MCP', () => {
               formula: `COUNTIF({{ref field="status"}} = 'cancelled')`,
               level: 'metric',
               warehouseValidation: 'skipped',
+              rollupAggregations: [],
             },
           }),
         ]),
@@ -490,6 +491,8 @@ describe('Data Mart management through MCP', () => {
       const http = await agent.put(`/api/data-marts/${id}/schema`).set(browser).send({ schema });
       expect(http.status).toBe(200);
       expect(http.body.schema).toEqual(saved.schema);
+      const setup = await call(client, 'get_data_mart_setup', { data_mart_id: id });
+      expect(setup.schema).toEqual(saved.schema);
     }
   );
 

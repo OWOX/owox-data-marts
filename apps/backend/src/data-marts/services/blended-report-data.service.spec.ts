@@ -2730,6 +2730,7 @@ describe('BlendedReportDataService', () => {
             type: 'FLOAT',
             formula: 'SUM({{ref field="clicks"}}) / NULLIF(SUM({{ref field="impressions"}}), 0)',
             level: 'metric',
+            rollupAggregations: [],
             alias: 'CTR, %',
             description: undefined,
             // Analysed even with no joined path: "absent" tells the builder "not analysed", and it
@@ -2796,11 +2797,16 @@ describe('BlendedReportDataService', () => {
         const CTR = 'SUM({{ref field="clicks"}}) / NULLIF(SUM({{ref field="impressions"}}), 0)';
         const SESSION_KEY = 'CONCAT({{ref field="session_id"}}, {{ref field="user_id"}})';
 
-        const resolveLevel = async (calculated: object, aggregationConfig?: AggregationRule[]) => {
+        const resolveLevel = async (
+          calculated: object,
+          aggregationConfig?: AggregationRule[],
+          storageType = DataStorageType.GOOGLE_BIGQUERY
+        ) => {
           const report = makeReport({
             columnConfig: ['computed', 'blended_field'],
             aggregationConfig,
           });
+          report.dataMart.storage.type = storageType;
           report.dataMart.schema = makeMainSchema([
             { name: 'clicks', type: 'INTEGER', status: 'CONNECTED' },
             { name: 'impressions', type: 'INTEGER', status: 'CONNECTED' },
@@ -2836,6 +2842,33 @@ describe('BlendedReportDataService', () => {
           expect(await resolveLevel({ formula: CTR })).toEqual([
             expect.objectContaining({ outputName: 'computed', level: 'metric' }),
           ]);
+        });
+
+        // The output schema reads its plans only from here.
+        it('gives a SUM metric its rollup functions on the plan', async () => {
+          const plans = await resolveLevel({
+            formula: 'SUM({{ref field="clicks"}})',
+            level: 'metric',
+          });
+
+          expect(plans?.[0].rollupAggregations).toEqual(['SUM']);
+        });
+
+        it('gives a row-level calculated field no rollup functions on the plan', async () => {
+          const plans = await resolveLevel({ formula: SESSION_KEY, level: 'column' });
+
+          expect(plans?.[0].rollupAggregations).toBeUndefined();
+        });
+
+        // Athena truncates `INTEGER / INTEGER` per group, so the group values no longer add up.
+        it('reads the storage type for a division', async () => {
+          const scaled = { formula: 'SUM({{ref field="clicks"}}) / 100', level: 'metric' };
+
+          expect((await resolveLevel(scaled))?.[0].rollupAggregations).toEqual(['SUM']);
+          expect(
+            (await resolveLevel(scaled, undefined, DataStorageType.AWS_ATHENA))?.[0]
+              .rollupAggregations
+          ).toEqual([]);
         });
 
         // The blended path builds its OWN plan, so the grain has to be decided here too — the

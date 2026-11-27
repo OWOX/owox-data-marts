@@ -2446,6 +2446,7 @@ describe('McpReportsFacadeImpl.getReportOutputSchema', () => {
           type: BigQueryFieldType.DATE,
           aggregateFunction: null,
           calculatedFieldLevel: null,
+          rollupAggregations: null,
         },
         {
           name: 'clicks',
@@ -2454,9 +2455,45 @@ describe('McpReportsFacadeImpl.getReportOutputSchema', () => {
           type: null,
           aggregateFunction: null,
           calculatedFieldLevel: null,
+          rollupAggregations: null,
         },
       ],
     });
+  });
+
+  it('carries the rollup functions of a calculated metric from the header', async () => {
+    const { facade, getReportOutputSchemaService } = createFacade();
+    getReportOutputSchemaService.run.mockResolvedValue([
+      new ReportDataHeader(
+        'revenue',
+        undefined,
+        undefined,
+        BigQueryFieldType.FLOAT,
+        undefined,
+        'metric',
+        ['SUM']
+      ),
+      new ReportDataHeader(
+        'ctr',
+        undefined,
+        undefined,
+        BigQueryFieldType.FLOAT,
+        undefined,
+        'metric',
+        []
+      ),
+    ]);
+
+    const result = await facade.getReportOutputSchema({
+      projectId: 'project-1',
+      userId: 'user-1',
+      roles: ['viewer'],
+      reportId: 'report-1',
+    });
+
+    expect(result.columns[0].rollupAggregations).toEqual(['SUM']);
+    // `[]` says no function combines the values; `null` says the column is not a metric.
+    expect(result.columns[1].rollupAggregations).toEqual([]);
   });
 
   it('lets the service refuse a caller who cannot see the source data mart', async () => {

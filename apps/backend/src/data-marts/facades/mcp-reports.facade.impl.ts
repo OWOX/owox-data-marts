@@ -199,6 +199,7 @@ export class McpReportsFacadeImpl implements McpReportsFacade {
         type: header.storageFieldType ?? null,
         aggregateFunction: header.aggregateFunction ?? null,
         calculatedFieldLevel: header.calculatedFieldLevel ?? null,
+        rollupAggregations: header.rollupAggregations ?? null,
       })),
     };
   }

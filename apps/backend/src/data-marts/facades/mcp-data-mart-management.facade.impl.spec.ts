@@ -46,7 +46,11 @@ describe('McpDataMartManagementFacadeImpl', () => {
   const contexts = { updateDataMartContexts: jest.fn() };
   const sharing = { updateDataMartSharing: jest.fn() };
   const summary = { id: 'mart', title: 'Orders', status: 'DRAFT' };
-  const mapper = { toSummary: jest.fn().mockReturnValue(summary), toSetup: jest.fn() };
+  const mapper = {
+    toSummary: jest.fn().mockReturnValue(summary),
+    toSetup: jest.fn(),
+    toSchema: jest.fn(),
+  };
   const connectors = {
     resolveConnectorSpecification: jest.fn(),
     resolveSourceKeys: jest.fn(),
@@ -252,6 +256,19 @@ describe('McpDataMartManagementFacadeImpl', () => {
       { code: 'SCHEMA_WARNING', message: expect.stringContaining('OWOX') },
     ]);
     expect(JSON.stringify(result)).not.toContain('secret');
+  });
+
+  it('returns the saved schema the way the Data Mart details return it', async () => {
+    const dto = { id: 'mart', schema: { fields: [] }, warnings: [] };
+    const effective = { type: 'bigquery-data-mart-schema', fields: [] };
+    mapper.toSchema.mockReturnValue(effective);
+    mocks.get(UpdateDataMartSchemaService)!.run.mockResolvedValue(dto);
+    mocks.get(ActualizeDataMartSchemaService)!.run.mockResolvedValue(dto);
+
+    expect((await facade.updateSchema(actor, 'mart', {} as never)).schema).toBe(effective);
+    expect((await facade.actualizeSchema(actor, 'mart')).schema).toBe(effective);
+    expect(mapper.toSchema).toHaveBeenCalledTimes(2);
+    expect(mapper.toSchema).toHaveBeenCalledWith(dto);
   });
 
   it('bounds returned warnings while preserving the total count', async () => {

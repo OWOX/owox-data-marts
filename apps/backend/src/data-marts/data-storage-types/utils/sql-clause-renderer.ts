@@ -151,6 +151,11 @@ export interface CalculatedFieldPlan {
    */
   level: CalculatedFieldLevel;
   /**
+   * The functions that combine this metric's values over groups. Set only on the plans that the
+   * blended decision builds for selected fields. Absent on a row-level field.
+   */
+  rollupAggregations?: ReportAggregateFunction[];
+  /**
    * Whether the REPORT applies an aggregation rule to this field — decided once by
    * `partitionCalculatedPlans`. Absent means no rule names the field.
    */

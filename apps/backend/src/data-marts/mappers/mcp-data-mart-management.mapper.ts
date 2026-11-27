@@ -1,4 +1,6 @@
 import { Injectable } from '@nestjs/common';
+import { withEffectiveCalculatedFields } from '../calculated-fields/calculated-field.utils';
+import type { DataMartSchema } from '../data-storage-types/data-mart-schema.type';
 import { SourceCredentialBindingService } from '../connector-types/source-credential-binding.service';
 import type { DataMartDto } from '../dto/domain/data-mart.dto';
 import type { DataMartListItemDto } from '../dto/domain/data-mart-list-item.dto';
@@ -34,6 +36,15 @@ export class McpDataMartManagementMapper {
     };
   }
 
+  /** The schema as `GET /api/data-marts/:id` returns it: calculated fields carry the effective values. */
+  toSchema(dto: DataMartDto): DataMartSchema | null {
+    if (!dto.schema) return null;
+    return {
+      ...dto.schema,
+      fields: withEffectiveCalculatedFields(dto.schema.fields, dto.storage?.type),
+    } as DataMartSchema;
+  }
+
   async toSetup(dto: DataMartDto): Promise<McpDataMartSetupDto> {
     const definition = await this.toDefinition(dto);
     return {
@@ -46,7 +57,7 @@ export class McpDataMartManagementMapper {
         dto.definition && !definition
           ? 'The saved definition could not be read safely. Repair the connector in OWOX before replacing its definition.'
           : null,
-      schema: dto.schema ?? null,
+      schema: this.toSchema(dto),
       businessOwnerIds: dto.businessOwnerUsers.map(user => user.userId),
       technicalOwnerIds: dto.technicalOwnerUsers.map(user => user.userId),
       contexts: dto.contexts.map(context => ({ id: context.id, name: context.name })),

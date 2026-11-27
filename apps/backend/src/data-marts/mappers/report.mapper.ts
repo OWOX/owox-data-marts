@@ -292,10 +292,10 @@ export class ReportMapper {
       description: header.description,
       type: header.storageFieldType,
       aggregateFunction: header.aggregateFunction,
-      // Carried rather than dropped: `type` alone cannot separate a non-additive calculated metric
-      // from an ordinary numeric column, and a consumer that re-aggregates the first is wrong at
-      // any grain. See the field's own doc on ReportDataHeader.
+      // Carried rather than dropped: `type` alone cannot tell a calculated metric from a
+      // re-summable column; `rollupAggregations` says how it combines. See ReportDataHeader.
       calculatedFieldLevel: header.calculatedFieldLevel,
+      rollupAggregations: header.rollupAggregations,
     }));
   }
 

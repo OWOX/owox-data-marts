@@ -751,6 +751,52 @@ describe('resolveReportDataHeaders', () => {
       expect(headers[0]).not.toHaveProperty('isCalculatedField');
     });
 
+    describe('rollupAggregations', () => {
+      it('carries the rollup functions of a metric onto its header', () => {
+        const headers = resolveReportDataHeaders(
+          [],
+          {
+            calculatedFields: [
+              {
+                outputName: 'revenue',
+                type: 'FLOAT',
+                formula: 'SUM({{ref field="amount"}})',
+                level: 'metric',
+                rollupAggregations: ['SUM'],
+              },
+            ],
+          },
+          BQ
+        );
+
+        expect(headers[0].rollupAggregations).toEqual(['SUM']);
+      });
+
+      // The function the report applies already tells how the column combines.
+      it('leaves it off the headers of a row-level field the report aggregates', () => {
+        const headers = resolveReportDataHeaders(
+          [],
+          {
+            calculatedFields: [
+              {
+                outputName: 'session_key',
+                type: 'STRING',
+                formula: '…',
+                level: 'column',
+                isAggregatedByReport: true,
+                rollupAggregations: ['SUM'],
+              },
+            ],
+            aggregationConfig: [{ column: 'session_key', function: 'COUNT_DISTINCT' }],
+          },
+          BQ
+        );
+
+        expect(headers).toHaveLength(1);
+        expect(headers[0].rollupAggregations).toBeUndefined();
+      });
+    });
+
     it('appends the calculated field header last, after Unique Count', () => {
       const headers = resolveReportDataHeaders(
         [],

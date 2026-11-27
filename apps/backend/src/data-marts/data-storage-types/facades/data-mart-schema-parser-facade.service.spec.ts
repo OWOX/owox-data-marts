@@ -9,6 +9,7 @@ import { BigQueryFieldMode } from '../bigquery/enums/bigquery-field-mode.enum';
 import { BigQueryDataMartSchemaType } from '../bigquery/schemas/bigquery-data-mart.schema';
 import { DataMartSchemaParserFacade } from './data-mart-schema-parser-facade.service';
 import type { DataMartSchema } from '../data-mart-schema.type';
+import { BigQueryDataMartSchemaParser } from '../bigquery/services/bigquery-data-mart-schema.parser';
 import { BusinessViolationException } from '../../../common/exceptions/business-violation.exception';
 
 describe('DataMartSchemaParserFacade — calculated fields must be top-level', () => {
@@ -355,5 +356,32 @@ describe('DataMartSchemaParserFacade — a calculated field cannot be part of th
     await setupWith(parsed);
 
     await expect(save()).resolves.toEqual(parsed);
+  });
+});
+
+describe('BigQuery schema parser — rollupAggregations is read-only', () => {
+  it('drops a client-sent rollupAggregations from a calculated field', async () => {
+    const parsed = await new BigQueryDataMartSchemaParser().validateAndParse({
+      type: BigQueryDataMartSchemaType,
+      table: 'p.d.t',
+      fields: [
+        {
+          name: 'roas',
+          type: BigQueryFieldType.FLOAT,
+          mode: BigQueryFieldMode.NULLABLE,
+          status: DataMartSchemaFieldStatus.CONNECTED,
+          calculated: {
+            formula: 'SUM({{ref field="revenue"}})',
+            level: 'metric',
+            rollupAggregations: ['SUM'],
+          },
+        },
+      ],
+    });
+
+    expect(parsed.fields[0].calculated).toEqual({
+      formula: 'SUM({{ref field="revenue"}})',
+      level: 'metric',
+    });
   });
 });

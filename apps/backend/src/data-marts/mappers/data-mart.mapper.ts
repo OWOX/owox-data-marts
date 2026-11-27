@@ -1,4 +1,5 @@
 import { Injectable } from '@nestjs/common';
+import { withEffectiveCalculatedFields } from '../calculated-fields/calculated-field.utils';
 import { ClsService } from 'nestjs-cls';
 import { isPluginRuntimeCall } from '../../idp/utils/is-plugin-runtime-call';
 import { RunType } from '../../common/scheduler/shared/types';
@@ -6,6 +7,7 @@ import { AuthorizationContext } from '../../idp';
 import { UserProjectionDto } from '../../idp/dto/domain/user-projection.dto';
 import { UserProjectionsListDto } from '../../idp/dto/domain/user-projections-list.dto';
 import { ConnectorState as ConnectorStateData } from '../connector-types/interfaces/connector-state';
+import { DataMartSchema } from '../data-storage-types/data-mart-schema.type';
 import { toHumanReadable } from '../data-storage-types/enums/data-storage-type.enum';
 import { ValidationResult } from '../data-storage-types/interfaces/data-mart-validator.interface';
 import { ActualizeDataMartSchemaCommand } from '../dto/domain/actualize-data-mart-schema.command';
@@ -223,7 +225,12 @@ export class DataMartMapper {
       }),
       description: dto.description,
       icon: dto.icon,
-      schema: dto.schema,
+      schema:
+        dto.schema &&
+        ({
+          ...dto.schema,
+          fields: withEffectiveCalculatedFields(dto.schema.fields, dto.storage?.type),
+        } as DataMartSchema),
       connectorState: omitConnectorOwnedState(dto.connectorState),
       triggersCount: dto.triggersCount,
       reportsCount: dto.reportsCount,

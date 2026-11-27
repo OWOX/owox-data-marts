@@ -24,6 +24,7 @@ describe('GetReportOutputSchemaTool', () => {
       type: 'DATE',
       aggregateFunction: null,
       calculatedFieldLevel: null,
+      rollupAggregations: null,
     },
     {
       name: 'revenue | SUM',
@@ -32,6 +33,7 @@ describe('GetReportOutputSchemaTool', () => {
       type: 'NUMERIC',
       aggregateFunction: 'SUM',
       calculatedFieldLevel: null,
+      rollupAggregations: null,
     },
     {
       name: 'ctr',
@@ -40,10 +42,11 @@ describe('GetReportOutputSchemaTool', () => {
       type: 'FLOAT',
       aggregateFunction: null,
       calculatedFieldLevel: 'metric',
+      rollupAggregations: [],
     },
   ];
 
-  // The tool renames to snake_case at its edge; the two discriminators must survive that hop, or a
+  // The tool renames to snake_case at its edge; the discriminators must survive that hop, or a
   // consumer cannot tell a non-additive metric from an ordinary numeric column.
   const snakeColumns = columns.map(column => ({
     name: column.name,
@@ -52,6 +55,7 @@ describe('GetReportOutputSchemaTool', () => {
     type: column.type,
     aggregate_function: column.aggregateFunction,
     calculated_field_level: column.calculatedFieldLevel,
+    rollup_aggregations: column.rollupAggregations,
   }));
 
   it('returns the report columns using token project-member context', async () => {
@@ -90,11 +94,31 @@ describe('GetReportOutputSchemaTool', () => {
           type: 'FLOAT',
           aggregate_function: null,
           calculated_field_level: 'a-level-added-later',
+          rollup_aggregations: ['SUM'],
         },
       ],
     });
 
     expect(parsed.success).toBe(true);
+  });
+
+  // Clients read the published JSON schema, so the key must be declared, not only passed through.
+  it('declares rollup_aggregations on each column of its output schema', () => {
+    const tool = new GetReportOutputSchemaTool({} as McpReportsFacade);
+    const rollup_aggregations = {
+      anyOf: [{ type: 'array', items: { type: 'string' } }, { type: 'null' }],
+    };
+
+    expect(z.toJSONSchema(z.object(tool.outputSchema), { io: 'output' })).toMatchObject({
+      properties: {
+        columns: {
+          items: {
+            properties: { rollup_aggregations },
+            required: expect.arrayContaining(['rollup_aggregations']),
+          },
+        },
+      },
+    });
   });
 
   it('rejects an input that names no report, or carries anything extra', () => {

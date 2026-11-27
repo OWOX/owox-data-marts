@@ -53,6 +53,7 @@ import {
   calculatedDependencyPlans,
   calculatedFieldLevelOf,
   calculatedFieldsOf,
+  calculatedRollupAggregationsOf,
   columnFilterWithoutCalculatedFields,
   joinedCalculatedFieldRefusals,
   type CalculatedSchemaField,
@@ -308,12 +309,17 @@ export class BlendedReportDataService {
         : undefined;
     const planOf = (
       f: CalculatedSchemaField,
-      dialect: FormulaFunctionDialect
+      dialect: FormulaFunctionDialect,
+      selected: boolean
     ): CalculatedFieldPlan => ({
       outputName: f.name,
       type: String(f.type),
       formula: f.calculated.formula,
       level: calculatedFieldLevelOf(f, schemaFields),
+      // The output schema reads only the plans of selected fields.
+      ...(selected && {
+        rollupAggregations: calculatedRollupAggregationsOf(f, schemaFields, dataMart.storage.type),
+      }),
       // The formulas this one reads, carried so the renderer can substitute them. A
       // dependency's own JOINED references are refused at that substitution rather than
       // routed: `formulaJoinedFieldNames` below reads the SELECTED metrics' formulas only, so
@@ -329,15 +335,18 @@ export class BlendedReportDataService {
       // degrades to it instead of leaving a blending decision as a 500.
       formulaOwnership: this.analyseFormulaOwnership(f.calculated.formula, dialect),
     });
-    const plansFor = (fields: readonly CalculatedSchemaField[]): CalculatedFieldPlan[] =>
+    const plansFor = (
+      fields: readonly CalculatedSchemaField[],
+      selected: boolean
+    ): CalculatedFieldPlan[] =>
       formulaDialect
         ? partitionCalculatedPlans(
-            fields.map(f => planOf(f, formulaDialect)),
+            fields.map(f => planOf(f, formulaDialect, selected)),
             report.aggregationConfig ?? undefined
           ).all
         : [];
-    const calculatedFields = plansFor(selectedCalculated);
-    const calculatedFilterMetrics = plansFor(filteredCalculated);
+    const calculatedFields = plansFor(selectedCalculated, true);
+    const calculatedFilterMetrics = plansFor(filteredCalculated, false);
     // Non-null: the helper only returns `undefined` for an undefined `columnFilter`, and the
     // null/undefined `columnConfig` branch above has already returned.
     const nonMetricColumns = columnFilterWithoutCalculatedFields(columnConfig, calculatedFields)!;

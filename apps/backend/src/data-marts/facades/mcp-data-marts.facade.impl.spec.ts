@@ -45,7 +45,12 @@ describe('McpDataMartsFacadeImpl', () => {
 
   const createDataMartService = (dataMart?: Partial<DataMart>) =>
     ({
-      actualizeSchemaIfExpired: jest.fn().mockResolvedValue(dataMart),
+      actualizeSchemaIfExpired: jest.fn().mockResolvedValue(
+        dataMart && {
+          storage: { type: DataStorageType.GOOGLE_BIGQUERY },
+          ...dataMart,
+        }
+      ),
     }) as unknown as jest.Mocked<DataMartService>;
 
   const createGetDataMartService = (status = DataMartStatus.PUBLISHED) =>
@@ -1317,6 +1322,82 @@ describe('McpDataMartsFacadeImpl', () => {
     });
 
     expect(result.joinedFields).toEqual([]);
+  });
+
+  describe('calculated fields in the details', () => {
+    const fieldsOf = async (fields: object[], storageType?: DataStorageType) => {
+      const facade = new McpDataMartsFacadeImpl(
+        createListDataMartsService([]),
+        createGetDataMartService(),
+        createDataMartService({
+          id: 'dm_1',
+          title: 'Orders',
+          description: '',
+          ...(storageType && {
+            storage: { type: storageType } as unknown as DataMart['storage'],
+          }),
+          schema: { type: BigQueryDataMartSchemaType, fields } as never,
+        }),
+        createQueryDataMartService(),
+        createBlendableSchemaService(),
+        createRelationshipService(),
+        createSummarizeMcpDataCatalogService(),
+        createFormulaFunctionDialectRegistry()
+      );
+      const response = await facade.getDataMartDetails({
+        projectId: 'project-1',
+        userId: 'user-1',
+        roles: ['viewer'],
+        dataMartId: 'dm_1',
+      });
+      return response.fields;
+    };
+    const field = (name: string, calculated?: { formula: string; level: string }) => ({
+      name,
+      type: BigQueryFieldType.FLOAT,
+      status: DataMartSchemaFieldStatus.CONNECTED,
+      ...(calculated && { calculated }),
+    });
+
+    it('publishes the effective level and rollup functions of a calculated metric, without its formula', async () => {
+      const fields = await fieldsOf([
+        field('total', { formula: 'SUM({{ref field="a"}})', level: 'metric' }),
+        field('stale', { formula: 'SUM({{ref field="a"}})', level: 'column' }),
+      ]);
+
+      expect(fields[0].calculated).toEqual({ level: 'metric', rollupAggregations: ['SUM'] });
+      expect(fields[1].calculated).toMatchObject({ level: 'metric' });
+      expect(JSON.stringify(fields)).not.toContain('formula');
+    });
+
+    it('gives a native field no calculated object, and a ratio of sums none', async () => {
+      const fields = await fieldsOf([
+        field('a'),
+        field('ratio', {
+          formula: 'SUM({{ref field="a"}}) / SUM({{ref field="a"}})',
+          level: 'metric',
+        }),
+      ]);
+
+      expect(fields[0]).not.toHaveProperty('calculated');
+      expect(fields[1].calculated).toEqual({ level: 'metric', rollupAggregations: [] });
+    });
+
+    // Athena truncates `INTEGER / INTEGER` per group, so the group values no longer add up.
+    it('reads the storage type for a division', async () => {
+      const scaled = [
+        field('scaled', { formula: 'SUM({{ref field="a"}}) / 100', level: 'metric' }),
+      ];
+
+      expect((await fieldsOf(scaled, DataStorageType.GOOGLE_BIGQUERY))[0].calculated).toEqual({
+        level: 'metric',
+        rollupAggregations: ['SUM'],
+      });
+      expect((await fieldsOf(scaled, DataStorageType.AWS_ATHENA))[0].calculated).toEqual({
+        level: 'metric',
+        rollupAggregations: [],
+      });
+    });
   });
 
   // The incident this feature exists for happened through exactly this call: an agent reading

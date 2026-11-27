@@ -723,6 +723,114 @@ describe('Output controls API (e2e)', () => {
         ])
       );
     });
+
+    it('GET output-schema gives each selected calculated metric its rollup functions', async () => {
+      const schemaRes = await agent
+        .put(`/api/data-marts/${cmDataMartId}/schema`)
+        .set(AUTH_HEADER)
+        .send({
+          schema: {
+            type: 'bigquery-data-mart-schema',
+            fields: [
+              { name: 'clicks', type: 'INTEGER', mode: 'NULLABLE', status: 'CONNECTED' },
+              { name: 'impressions', type: 'INTEGER', mode: 'NULLABLE', status: 'CONNECTED' },
+              {
+                name: 'ctr',
+                type: 'FLOAT',
+                mode: 'NULLABLE',
+                status: 'CONNECTED',
+                calculated: { formula: CTR_FORMULA, level: 'metric' },
+              },
+              {
+                name: 'total_clicks',
+                type: 'INTEGER',
+                mode: 'NULLABLE',
+                status: 'CONNECTED',
+                calculated: { formula: 'SUM({{ref field="clicks"}})', level: 'metric' },
+              },
+            ],
+          },
+        });
+      expect(schemaRes.status).toBe(200);
+
+      const reportRes = await agent
+        .put(`/api/reports/${cmReportId}`)
+        .set(AUTH_HEADER)
+        .send({
+          title: 'Rollup functions',
+          dataDestinationId: cmDataDestinationId,
+          destinationConfig: { type: 'looker-studio-config', cacheLifetime: 3600 },
+          columnConfig: ['total_clicks', 'ctr'],
+        });
+      expect(reportRes.status).toBe(200);
+
+      const res = await agent.get(`/api/reports/${cmReportId}/output-schema`).set(AUTH_HEADER);
+
+      expect(res.status).toBe(200);
+      expect(res.body).toHaveLength(2);
+      expect(res.body).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({
+            name: 'total_clicks',
+            calculatedFieldLevel: 'metric',
+            rollupAggregations: ['SUM'],
+          }),
+          expect.objectContaining({
+            name: 'ctr',
+            calculatedFieldLevel: 'metric',
+            rollupAggregations: [],
+          }),
+        ])
+      );
+    });
+
+    // The value is derived on each read, so a save that sends one back changes nothing.
+    it('GET data mart derives the rollup functions and ignores the ones a save sends', async () => {
+      const schemaRes = await agent
+        .put(`/api/data-marts/${cmDataMartId}/schema`)
+        .set(AUTH_HEADER)
+        .send({
+          schema: {
+            type: 'bigquery-data-mart-schema',
+            fields: [
+              { name: 'clicks', type: 'INTEGER', mode: 'NULLABLE', status: 'CONNECTED' },
+              { name: 'impressions', type: 'INTEGER', mode: 'NULLABLE', status: 'CONNECTED' },
+              {
+                name: 'ctr',
+                type: 'FLOAT',
+                mode: 'NULLABLE',
+                status: 'CONNECTED',
+                calculated: { formula: CTR_FORMULA, level: 'metric' },
+              },
+              {
+                name: 'total_clicks',
+                type: 'INTEGER',
+                mode: 'NULLABLE',
+                status: 'CONNECTED',
+                calculated: {
+                  formula: 'SUM({{ref field="clicks"}})',
+                  level: 'metric',
+                  rollupAggregations: ['MAX'],
+                },
+              },
+            ],
+          },
+        });
+      expect(schemaRes.status).toBe(200);
+
+      const res = await agent.get(`/api/data-marts/${cmDataMartId}`).set(AUTH_HEADER);
+
+      expect(res.status).toBe(200);
+      const fields = res.body.schema.fields as { name: string; calculated?: object }[];
+      expect(fields.find(f => f.name === 'total_clicks')?.calculated).toMatchObject({
+        level: 'metric',
+        rollupAggregations: ['SUM'],
+      });
+      expect(fields.find(f => f.name === 'ctr')?.calculated).toMatchObject({
+        level: 'metric',
+        rollupAggregations: [],
+      });
+    });
   });
 
   // A main-owner calculated field on a report that ALSO spans a joined Data Mart. Forced onto

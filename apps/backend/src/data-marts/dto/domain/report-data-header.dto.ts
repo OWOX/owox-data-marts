@@ -39,7 +39,8 @@ export class ReportDataHeader {
      * - `undefined` — an ordinary native column. Looker reads it as METRIC + defaultAggregation SUM
      *   + isReaggregatable for a numeric type.
      * - `'metric'` — the formula AGGREGATES. Re-aggregating `SUM(clicks) / NULLIF(SUM(impressions),
-     *   0)` is wrong at any grain, so consumers must not roll it up, whatever its declared type says.
+     *   0)` is wrong at any grain, so consumers must not roll it up by its declared type.
+     *   `rollupAggregations` tells which functions combine its values.
      * - `'column'` — the formula is ROW-LEVEL and behaves like a column of its declared type. Still
      *   marked rather than left undefined: no warehouse column backs it, and consumers that resolve
      *   one by name (filters, MCP field lookups) need to see the difference.
@@ -47,6 +48,12 @@ export class ReportDataHeader {
      * A row-level field the REPORT aggregates carries both: the header is named `<field> | <TOKEN>`
      * and holds that `aggregateFunction`, while this level still says no column backs it.
      */
-    public readonly calculatedFieldLevel?: CalculatedFieldLevel
+    public readonly calculatedFieldLevel?: CalculatedFieldLevel,
+
+    /**
+     * Set only on a calculated metric with no `aggregateFunction`: the functions that combine its
+     * values for separate groups of rows. `[]` means no function does.
+     */
+    public readonly rollupAggregations?: ReportAggregateFunction[]
   ) {}
 }

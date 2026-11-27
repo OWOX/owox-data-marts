@@ -8,6 +8,7 @@ import { analyzeFormula } from '../calculated-fields/formula-analyzer';
 import {
   calculatedFieldsOf,
   readsJoinedDataMart,
+  withEffectiveCalculatedFields,
 } from '../calculated-fields/calculated-field.utils';
 import {
   FORMULA_FUNCTION_DIALECT_RESOLVER,
@@ -111,7 +112,9 @@ export class McpDataMartsFacadeImpl implements McpDataMartsFacade {
     const schema = dataMart.schema
       ? (prepareSchema({
           ...dataMart.schema,
-          fields: this.filterAvailableFields(dataMart.schema.fields),
+          fields: this.filterAvailableFields(
+            withEffectiveCalculatedFields(dataMart.schema.fields, dataMart.storage.type)
+          ),
         } as DataMartSchema) as { fields: Array<Record<string, unknown>> })
       : undefined;
 
