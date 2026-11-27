@@ -18,7 +18,6 @@ const deletedRecord = () => ({
   serviceAccountEmail: 'owox-st-abc@sa-project.iam.gserviceaccount.com',
   deprovisionedAt: new Date('2026-10-01T03:00:00Z'),
   deprovisionPending: false,
-  lastActivityAt: new Date('2026-08-01T00:00:00Z'),
 });
 
 function makeService({ record = deletedRecord() as unknown, canEdit = true } = {}) {
@@ -129,7 +128,7 @@ describe('RestoreOwoxStorageService', () => {
 
     expect(s.engine.restore).toHaveBeenCalledWith(record, 'proj-1', false);
     expect(s.dataMartService.findByStorage).toHaveBeenCalledWith(storage);
-    expect(s.managedStorages.markRestored).toHaveBeenCalledWith('storage-1', NOW);
+    expect(s.managedStorages.markRestored).toHaveBeenCalledWith('storage-1');
     expect(s.connectorStates.deleteByDataMartIds).toHaveBeenCalledWith(['dm-1', 'dm-2']);
     expect(s.managedStorages.markRestored.mock.invocationCallOrder[0]).toBeLessThan(
       s.connectorStates.deleteByDataMartIds.mock.invocationCallOrder[0]
@@ -148,7 +147,7 @@ describe('RestoreOwoxStorageService', () => {
       s.engine.restore.mock.invocationCallOrder[0]
     );
     expect(s.engine.restore).toHaveBeenCalledWith(record, 'proj-1', true);
-    expect(s.managedStorages.markRestored).toHaveBeenCalledWith('storage-1', NOW);
+    expect(s.managedStorages.markRestored).toHaveBeenCalledWith('storage-1');
   });
 
   it('changes nothing when a concurrent restore already cleared the record', async () => {

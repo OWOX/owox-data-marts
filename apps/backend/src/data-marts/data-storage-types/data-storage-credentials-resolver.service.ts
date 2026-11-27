@@ -98,7 +98,8 @@ export class DataStorageCredentialsResolver {
         // A restore changes the record, so a recreated account gets a new client on every pod.
         authClient: await this.identity.impersonate(
           managed.serviceAccountEmail,
-          managed.modifiedAt.getTime().toString()
+          managed.modifiedAt.getTime().toString(),
+          storage.id
         ),
         serviceAccountEmail: managed.serviceAccountEmail,
         datasetId: managed.datasetId,

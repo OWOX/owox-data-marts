@@ -17,7 +17,6 @@ describe('OwoxStorageUsageService', () => {
     serviceAccountEmail: 'owox-st-abc@owox-storage.iam.gserviceaccount.com',
     storageLimitBytes: null,
     createdAt: new Date('2020-01-01T00:00:00Z'),
-    lastActivityAt: null,
     deprovisionedAt: null,
   } as ManagedStorage;
 

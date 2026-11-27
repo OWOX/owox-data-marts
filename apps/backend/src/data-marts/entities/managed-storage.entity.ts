@@ -42,10 +42,6 @@ export class ManagedStorage {
   @Column({ type: 'bigint', nullable: true, transformer: bytes })
   storageLimitBytes: number | null;
 
-  // Newest known use of the storage, for a future cleanup of unused storages.
-  @Column({ type: 'datetime', nullable: true })
-  lastActivityAt: Date | null;
-
   // Set when the storage was deleted for the customer.
   @Column({ type: 'datetime', nullable: true })
   deprovisionedAt: Date | null;

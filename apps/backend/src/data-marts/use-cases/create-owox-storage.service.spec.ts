@@ -89,7 +89,6 @@ describe('CreateOwoxStorageService', () => {
       projectId: 'p1',
       ...provisioned,
       storageLimitBytes: null,
-      lastActivityAt: null,
       deprovisionedAt: null,
       deprovisionPending: false,
     });

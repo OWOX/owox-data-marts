@@ -67,6 +67,8 @@ export class BigQueryApiAdapter {
   private readonly authClient: JWT | OAuth2Client;
   /** An OWOX Storage runs SELECT only; Google's quotas cap its daily queries. */
   private readonly owoxStorage: boolean;
+  /** An OWOX Storage: the project of its jobs and the project of its datasets. */
+  private readonly owoxStorageProjects?: { process: string; datasets: string };
   private location?: string;
 
   constructor(credentials: BigQueryCredentials, config: BigQueryConfig) {
@@ -86,6 +88,12 @@ export class BigQueryApiAdapter {
 
     this.authClient = auth;
     this.owoxStorage = credentials.type === BIGQUERY_MANAGED_TYPE;
+    if (credentials.type === BIGQUERY_MANAGED_TYPE) {
+      this.owoxStorageProjects = {
+        process: credentials.processProjectId,
+        datasets: config.projectId,
+      };
+    }
     const shouldAutodetectLocation = config.location === BIGQUERY_AUTODETECT_LOCATION;
     this.bigQuery = new BigQuery({
       // The jobs of an OWOX Storage run in its process project; table names carry config.projectId.
@@ -179,14 +187,27 @@ export class BigQueryApiAdapter {
       }
       // A refused job creation, and so every dry run, can name the account too.
       if (this.owoxStorage && error instanceof Error) {
-        error.message = withoutServiceAccount(error.message);
+        error.message = this.forOwoxStorage(error.message);
         if (error.stack) error.stack = withoutServiceAccount(error.stack);
         for (const item of errors ?? []) {
-          if (typeof item.message === 'string') item.message = withoutServiceAccount(item.message);
+          if (typeof item.message === 'string') item.message = this.forOwoxStorage(item.message);
         }
       }
       throw error;
     }
+  }
+
+  /**
+   * The text of a Google error on an OWOX Storage: without the account email. A two-part table name
+   * is looked up in the process project, which the user never sees: the error then gives the rule.
+   */
+  private forOwoxStorage(message: string): string {
+    const missing = /^Not found: Dataset ([^:\s]+):(\S+) was not found/.exec(message);
+    const projects = this.owoxStorageProjects;
+    if (projects && missing?.[1] === projects.process) {
+      return `Dataset ${missing[2]} was not found. On an OWOX Storage, write each table name in full: ${projects.datasets}.${missing[2]}.<table>.`;
+    }
+    return withoutServiceAccount(message);
   }
 
   private async runJob(queryConfig: Query, signal?: AbortSignal): Promise<{ jobId: string }> {
@@ -235,7 +256,7 @@ export class BigQueryApiAdapter {
           }
           const message =
             errorResult.message ?? 'BigQuery query job failed without an error message';
-          throw new Error(this.owoxStorage ? withoutServiceAccount(message) : message);
+          throw new Error(this.owoxStorage ? this.forOwoxStorage(message) : message);
         }
         return;
       }

@@ -45,14 +45,14 @@ describe('DataStorageCredentialsResolver (managed storage)', () => {
       processProjectId: 'owox-process',
     });
     expect(result).toHaveProperty('authClient', await identity.impersonate.mock.results[0].value);
-    expect(identity.impersonate).toHaveBeenCalledWith('a@x.iam', '1700000000000');
+    expect(identity.impersonate).toHaveBeenCalledWith('a@x.iam', '1700000000000', 'a');
     expect(binding.resolveForStorage).not.toHaveBeenCalled();
     expect(legacy.resolve).not.toHaveBeenCalled();
   });
 
   it('resolves each managed storage to its own account', async () => {
     const result = await resolver.resolve({ id: 'b' } as DataStorage);
-    expect(identity.impersonate).toHaveBeenCalledWith('b@x.iam', '1700000000000');
+    expect(identity.impersonate).toHaveBeenCalledWith('b@x.iam', '1700000000000', 'b');
     expect(result).toMatchObject({ serviceAccountEmail: 'b@x.iam' });
   });
 

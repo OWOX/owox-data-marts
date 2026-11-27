@@ -1,6 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { In, IsNull, LessThan, Not, Or, Repository } from 'typeorm';
+import { In, IsNull, Not, Repository } from 'typeorm';
 import { ManagedStorage } from '../entities/managed-storage.entity';
 import type { OwoxStorageLocation } from './owox-storage-settings';
 
@@ -34,10 +34,10 @@ export class ManagedStorageService {
   }
 
   // False when the record is not deleted, so a restore that lost a race changes nothing.
-  async markRestored(storageId: string, now: Date): Promise<boolean> {
+  async markRestored(storageId: string): Promise<boolean> {
     const { affected } = await this.repository.update(
       { storageId, deprovisionedAt: Not(IsNull()) },
-      { deprovisionedAt: null, deprovisionPending: false, lastActivityAt: now }
+      { deprovisionedAt: null, deprovisionPending: false }
     );
     return affected === 1;
   }
@@ -55,18 +55,6 @@ export class ManagedStorageService {
     await this.repository.update(
       { storageId, deprovisionedAt: Not(IsNull()) },
       { deprovisionPending: pending }
-    );
-  }
-
-  // At most one write an hour per storage: a cleanup of unused storages would count days.
-  async recordUse(storageId: string, at: Date): Promise<void> {
-    await this.repository.update(
-      {
-        storageId,
-        deprovisionedAt: IsNull(),
-        lastActivityAt: Or(IsNull(), LessThan(new Date(at.getTime() - 60 * 60 * 1000))),
-      },
-      { lastActivityAt: at }
     );
   }
 

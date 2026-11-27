@@ -36,7 +36,14 @@ function makeService(dataMarts: unknown[] = [], managed: unknown = null) {
     managedStorages as never,
     engine as never
   );
-  return { service, dataStorageRepository, storageCredentials, managedStorages, engine };
+  return {
+    service,
+    dataStorageRepository,
+    dataMartService,
+    storageCredentials,
+    managedStorages,
+    engine,
+  };
 }
 
 const command = new DeleteDataStorageCommand('storage-1', 'proj-1', 'user-1', ['editor']);
@@ -95,6 +102,21 @@ describe('DeleteDataStorageService', () => {
     await expect(service.run(command)).rejects.toThrow(BusinessViolationException);
     expect(managedStorages.markDeleting).not.toHaveBeenCalled();
     expect(engine.deprovision).not.toHaveBeenCalled();
+    expect(managedStorages.remove).not.toHaveBeenCalled();
+  });
+
+  // The deprovision call can take minutes, and a Data Mart created meanwhile must not bind to a
+  // soft-deleted storage without its record: the storage stays deleted and can be restored.
+  it('keeps an OWOX Storage deleted when a Data Mart is created during the deprovision', async () => {
+    const { service, engine, managedStorages, dataStorageRepository, dataMartService } =
+      makeService([], record);
+    dataMartService.findByStorage
+      .mockResolvedValueOnce([])
+      .mockResolvedValueOnce([{ id: 'mart-2' }]);
+
+    await expect(service.run(command)).rejects.toThrow(BusinessViolationException);
+    expect(engine.deprovision).toHaveBeenCalled();
+    expect(dataStorageRepository.softDelete).not.toHaveBeenCalled();
     expect(managedStorages.remove).not.toHaveBeenCalled();
   });
 

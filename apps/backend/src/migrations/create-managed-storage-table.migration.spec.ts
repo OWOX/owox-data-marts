@@ -38,7 +38,6 @@ describe('CreateManagedStorageTable migration', () => {
         'internalDatasetId',
         'serviceAccountEmail',
         'storageLimitBytes',
-        'lastActivityAt',
         'deprovisionedAt',
         'deprovisionPending',
         'createdAt',

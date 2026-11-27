@@ -116,7 +116,7 @@ export class RestoreOwoxStorageService {
 
   @Transactional()
   private async finishRestore(storageId: string, dataMartIds: string[]): Promise<boolean> {
-    if (!(await this.managedStorages.markRestored(storageId, new Date()))) return false;
+    if (!(await this.managedStorages.markRestored(storageId))) return false;
     // The restored tables are empty: the next runs must load from each connector's start.
     await this.connectorStates.deleteByDataMartIds(dataMartIds);
     return true;

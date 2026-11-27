@@ -14,7 +14,6 @@ function record(storageId: string, projectId = 'project-1'): ManagedStorage {
     internalDatasetId: 'owox_aaaaaaaaaaaa_internal',
     serviceAccountEmail: 'owox-st-aaaaaaaaaaaa@gcp-1.iam.gserviceaccount.com',
     storageLimitBytes: null,
-    lastActivityAt: null,
     deprovisionedAt: null,
     deprovisionPending: false,
     createdAt: new Date(),
@@ -82,16 +81,14 @@ describe('ManagedStorageService', () => {
   ])(
     'markRestored clears the deleted state only of a deleted record (%i row)',
     async (affected, result) => {
-      const now = new Date('2026-11-02T10:00:00Z');
       repository.update.mockResolvedValue({ affected });
 
-      expect(await service.markRestored('s1', now)).toBe(result);
+      expect(await service.markRestored('s1')).toBe(result);
       expect(repository.update).toHaveBeenCalledWith(
         { storageId: 's1', deprovisionedAt: Not(IsNull()) },
         {
           deprovisionedAt: null,
           deprovisionPending: false,
-          lastActivityAt: now,
         }
       );
     }

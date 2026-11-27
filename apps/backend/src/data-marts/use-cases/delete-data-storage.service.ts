@@ -71,14 +71,7 @@ export class DeleteDataStorageService {
       );
     }
 
-    const dataMartsForStorage = await this.dataMartService.findByStorage(dataStorage);
-
-    if (dataMartsForStorage.length > 0) {
-      throw new BusinessViolationException(
-        'Cannot delete the storage because it is referenced by existing data marts.',
-        { referencedDataMarts: dataMartsForStorage.map(mart => mart.id) }
-      );
-    }
+    await this.assertNoDataMarts(dataStorage);
 
     if (managed) {
       // An already deleted record keeps its date.
@@ -100,11 +93,28 @@ export class DeleteDataStorageService {
       }
     }
 
-    await this.softDelete(command, managed !== null);
+    await this.softDelete(command, dataStorage, managed !== null);
+  }
+
+  private async assertNoDataMarts(dataStorage: DataStorage): Promise<void> {
+    const dataMartsForStorage = await this.dataMartService.findByStorage(dataStorage);
+    if (dataMartsForStorage.length > 0) {
+      throw new BusinessViolationException(
+        'Cannot delete the storage because it is referenced by existing data marts.',
+        { referencedDataMarts: dataMartsForStorage.map(mart => mart.id) }
+      );
+    }
   }
 
   @Transactional()
-  private async softDelete(command: DeleteDataStorageCommand, managed: boolean): Promise<void> {
+  private async softDelete(
+    command: DeleteDataStorageCommand,
+    dataStorage: DataStorage,
+    managed: boolean
+  ): Promise<void> {
+    // Again: the deprovision of an OWOX Storage can take minutes. A Data Mart created meanwhile
+    // keeps the storage deleted and restorable instead of bound to a storage without its record.
+    await this.assertNoDataMarts(dataStorage);
     await this.dataStorageRepository.softDelete({
       id: command.id,
       projectId: command.projectId,

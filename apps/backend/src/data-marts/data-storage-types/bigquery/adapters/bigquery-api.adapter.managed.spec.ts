@@ -183,6 +183,50 @@ describe('BigQueryApiAdapter (OWOX Storage)', () => {
       expect(error.code).toBe(403);
     });
 
+    // A two-part name resolves in the job's project, the process project, which the user never sees.
+    const NOT_IN_PROCESS =
+      'Not found: Dataset owox-process:owox_eu_0123456789ab was not found in location EU';
+    const FULL_NAME =
+      'Dataset owox_eu_0123456789ab was not found. On an OWOX Storage, write each table name in full: p.owox_eu_0123456789ab.<table>.';
+
+    it('answers a two-part table name refused by the dry run with the full-name rule', async () => {
+      createQueryJob.mockRejectedValue(
+        Object.assign(new Error(NOT_IN_PROCESS), {
+          code: 404,
+          errors: [{ reason: 'notFound', message: NOT_IN_PROCESS }],
+        })
+      );
+
+      const error = await new BigQueryApiAdapter(managed, config)
+        .executeQuery('SELECT * FROM owox_eu_0123456789ab.holidays')
+        .catch(e => e);
+
+      expect(error.message).toBe(FULL_NAME);
+      expect(error.errors).toEqual([{ reason: 'notFound', message: FULL_NAME }]);
+      expect(error.code).toBe(404);
+    });
+
+    it('answers a two-part table name refused by the job with the full-name rule', async () => {
+      failJob('notFound', NOT_IN_PROCESS);
+
+      const error = await new BigQueryApiAdapter(managed, config)
+        .executeQuery('SELECT 1')
+        .catch(e => e);
+
+      expect(error.message).toBe(FULL_NAME);
+    });
+
+    it('keeps the text of a table that is not found in the datasets project', async () => {
+      const missing = 'Not found: Table p:owox_eu_0123456789ab.nope was not found in location EU';
+      failJob('notFound', missing);
+
+      const error = await new BigQueryApiAdapter(managed, config)
+        .executeQuery('SELECT 1')
+        .catch(e => e);
+
+      expect(error.message).toBe(missing);
+    });
+
     it('keeps other quota errors as they are', async () => {
       failJob('quotaExceeded', 'Exceeded rate limits: too many concurrent queries');
 

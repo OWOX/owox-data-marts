@@ -45,6 +45,25 @@ describe('OwoxStorageIdentity', () => {
     expect(await identity.impersonate('a@x', '2')).toBe(g2);
   });
 
+  // The US and EU storages of a project share an account, but their records have their own generation.
+  it('keeps one client for each cache key, so storages that share an account do not replace it', async () => {
+    const identity = new OwoxStorageIdentity();
+    const us = await identity.impersonate('a@x', '1', 'storage-us');
+    const eu = await identity.impersonate('a@x', '2', 'storage-eu');
+    expect(await identity.impersonate('a@x', '1', 'storage-us')).toBe(us);
+    expect(await identity.impersonate('a@x', '2', 'storage-eu')).toBe(eu);
+    expect(Impersonated).toHaveBeenCalledTimes(2);
+  });
+
+  it('forgets every cached client of an email, whatever its cache key', async () => {
+    const identity = new OwoxStorageIdentity();
+    const us = await identity.impersonate('a@x', '1', 'storage-us');
+    const b = await identity.impersonate('b@x', '1', 'storage-b');
+    identity.forget('a@x');
+    expect(await identity.impersonate('a@x', '1', 'storage-us')).not.toBe(us);
+    expect(await identity.impersonate('b@x', '1', 'storage-b')).toBe(b);
+  });
+
   it('forgets the cached client of one email only', async () => {
     const identity = new OwoxStorageIdentity();
     const a = await identity.impersonate('a@x');

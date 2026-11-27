@@ -12,7 +12,6 @@ const record = (id: string, patch: Partial<ManagedStorage> = {}) =>
     projectId: `p-${id}`,
     datasetId: `ds_${id}`,
     serviceAccountEmail: `${id}@sa.example`,
-    lastActivityAt: ago(90),
     deprovisionedAt: null,
     deprovisionPending: false,
     createdAt: ago(200),
@@ -84,7 +83,7 @@ describe('OwoxStorageLifecycleService.runDaily', () => {
     const restored = leftover('a');
     const removed = leftover('b');
     const { service, engine, managed, stored } = setup([restored, removed]);
-    stored.set('a', record('a', { lastActivityAt: now }));
+    stored.set('a', record('a'));
     stored.delete('b');
     await service.runDaily();
     expect(engine.deprovision).not.toHaveBeenCalled();

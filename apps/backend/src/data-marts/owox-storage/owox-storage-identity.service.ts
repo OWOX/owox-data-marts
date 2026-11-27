@@ -15,14 +15,27 @@ export class OwoxStorageIdentity {
   private readonly auth = new GoogleAuth({
     scopes: ['https://www.googleapis.com/auth/cloud-platform'],
   });
-  private readonly impersonated = new Map<string, { client: Impersonated; generation: string }>();
+  private readonly impersonated = new Map<
+    string,
+    { email: string; client: Impersonated; generation: string }
+  >();
   private readonly bigQueries = new Map<string, BigQuery>();
 
-  /** An empty `generation` reuses any cached client; a different non-empty one replaces it. */
-  async impersonate(serviceAccountEmail: string, generation = ''): Promise<OAuth2Client> {
-    const fits = (entry?: { client: Impersonated; generation: string }) =>
-      entry && (!generation || entry.generation === generation) ? entry : undefined;
-    const cached = fits(this.impersonated.get(serviceAccountEmail));
+  /**
+   * An empty `generation` reuses any cached client; a different non-empty one replaces it. The US
+   * and EU storages of a project share an account, so a storage passes its own id as `cacheKey`:
+   * their different generations then do not replace each other's client.
+   */
+  async impersonate(
+    serviceAccountEmail: string,
+    generation = '',
+    cacheKey = serviceAccountEmail
+  ): Promise<OAuth2Client> {
+    const fits = (entry?: { email: string; client: Impersonated; generation: string }) =>
+      entry?.email === serviceAccountEmail && (!generation || entry.generation === generation)
+        ? entry
+        : undefined;
+    const cached = fits(this.impersonated.get(cacheKey));
     if (cached) return cached.client;
     const client = new Impersonated({
       sourceClient: await this.auth.getClient(),
@@ -31,15 +44,17 @@ export class OwoxStorageIdentity {
       lifetime: 3600,
     });
     // A concurrent caller may have stored one while the source resolved; keep the first.
-    const stored = fits(this.impersonated.get(serviceAccountEmail));
+    const stored = fits(this.impersonated.get(cacheKey));
     if (stored) return stored.client;
-    this.impersonated.set(serviceAccountEmail, { client, generation });
+    this.impersonated.set(cacheKey, { email: serviceAccountEmail, client, generation });
     return client;
   }
 
   // A recreated account rejects the old token; other pods keep theirs until it expires.
   forget(serviceAccountEmail: string): void {
-    this.impersonated.delete(serviceAccountEmail);
+    for (const [key, entry] of this.impersonated) {
+      if (entry.email === serviceAccountEmail) this.impersonated.delete(key);
+    }
   }
 
   bigQuery(projectId: string, location: OwoxStorageLocation): BigQuery {
