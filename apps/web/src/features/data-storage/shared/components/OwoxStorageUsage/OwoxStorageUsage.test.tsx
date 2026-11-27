@@ -234,6 +234,52 @@ describe('OwoxStorageUsage', () => {
     });
   });
 
+  it('keeps the newest usage when an older load answers last', async () => {
+    const holidays = usage({ tables: [{ name: 'holidays', sizeBytes: 225, rowCount: 8 }] });
+    getOwoxStorageUsage.mockResolvedValueOnce(holidays);
+    render(<OwoxStorageUsage storageId='s1' />);
+    await screen.findByText('holidays');
+
+    // A table delete starts while a Refresh is still loading.
+    let resolveRefresh: (value: OwoxStorageUsageResponseDto) => void = () => undefined;
+    getOwoxStorageUsage.mockReturnValueOnce(
+      new Promise(resolve => {
+        resolveRefresh = resolve;
+      })
+    );
+    fireEvent.click(screen.getByRole('button', { name: 'Refresh' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Delete table holidays' }));
+    getOwoxStorageUsage.mockResolvedValueOnce(usage());
+    fireEvent.click(await screen.findByRole('button', { name: 'Delete table' }));
+    await screen.findByText(
+      'No tables yet. Connector Data Marts create tables here when they load data.'
+    );
+
+    resolveRefresh(holidays);
+    await new Promise(resolve => setTimeout(resolve, 0));
+    expect(screen.queryByText('holidays')).toBeNull();
+    expect(screen.getByRole('button', { name: 'Refresh' })).toBeEnabled();
+  });
+
+  it('closes the dialog and reloads the list when the table is already deleted', async () => {
+    getOwoxStorageUsage.mockResolvedValueOnce(
+      usage({ tables: [{ name: 'holidays', sizeBytes: 225, rowCount: 8 }] })
+    );
+    getOwoxStorageUsage.mockResolvedValueOnce(usage());
+    deleteOwoxStorageTable.mockRejectedValueOnce(
+      Object.assign(new Error('Not found'), { isAxiosError: true, response: { status: 404 } })
+    );
+    render(<OwoxStorageUsage storageId='s1' />);
+
+    fireEvent.click(await screen.findByRole('button', { name: 'Delete table holidays' }));
+    fireEvent.click(await screen.findByRole('button', { name: 'Delete table' }));
+
+    await waitFor(() => {
+      expect(screen.queryByRole('dialog')).toBeNull();
+    });
+    expect(getOwoxStorageUsage).toHaveBeenNthCalledWith(2, 's1', true);
+  });
+
   it('disables cancel while deleting', async () => {
     getOwoxStorageUsage.mockResolvedValue(
       usage({ tables: [{ name: 'holidays', sizeBytes: 225, rowCount: 8 }] })

@@ -33,7 +33,8 @@ describe('getStorageFlowParams', () => {
     expect(result.hint).toMatch(/dataset and table/);
   });
 
-  it('shows an OWOX Storage dataset and table without links, copied without the project', () => {
+  // SQL on an OWOX Storage runs in another project than its datasets: a name without the project is not found.
+  it('shows an OWOX Storage dataset and table without links, copied with the project', () => {
     const owox = {
       ...storage(DataStorageType.GOOGLE_BIGQUERY, { projectId: 'owox-gcp', location: 'US' }),
       owoxStorage: { location: 'US', datasetId: 'owox_x' },
@@ -41,8 +42,8 @@ describe('getStorageFlowParams', () => {
     const result = getStorageFlowParams(owox, 'owox_x.daily');
 
     expect(result.primary).toEqual([
-      { label: 'Dataset', value: 'owox_x', copyValue: 'owox_x' },
-      { label: 'Table', value: 'daily', copyValue: 'owox_x.daily' },
+      { label: 'Dataset', value: 'owox_x', copyValue: 'owox-gcp.owox_x' },
+      { label: 'Table', value: 'daily', copyValue: 'owox-gcp.owox_x.daily' },
     ]);
     // OWOX creates the dataset with the storage; only the table comes with the first run.
     expect(result.hint).toBe(

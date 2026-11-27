@@ -44,7 +44,7 @@ function StorageTypeIcon({
 }) {
   const storage = storages.find(s => s.id === storageId);
   if (!storage) return null;
-  const Icon = DataStorageTypeModel.getInfo(storage.type).icon;
+  const Icon = DataStorageTypeModel.getStorageInfo(storage).icon;
   return <Icon size={20} className='shrink-0' />;
 }
 
@@ -133,8 +133,12 @@ export function DataMartCreateForm({ initialData, onSuccess }: DataMartFormProps
   };
 
   const selectOwoxStorage = async (storage: DataStorage) => {
-    await getDataStorageById(storage.id);
-    form.setValue('storageId', storage.id);
+    try {
+      await getDataStorageById(storage.id);
+      form.setValue('storageId', storage.id);
+    } catch (error) {
+      console.error('Failed to load the new storage:', error);
+    }
   };
 
   const storageOptions = useMemo(() => {

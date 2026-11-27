@@ -1,4 +1,5 @@
-import { useCallback, useEffect, useState } from 'react';
+import { isAxiosError } from 'axios';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import toast from 'react-hot-toast';
 import { dataStorageApiService } from '../api';
 import type { OwoxStorageUsageResponseDto } from '../api/types';
@@ -11,20 +12,26 @@ export function useOwoxStorageUsage(storageId: string) {
   const [tableToDelete, setTableToDelete] = useState<string | null>(null);
   const [deleting, setDeleting] = useState(false);
   const [restoring, setRestoring] = useState(false);
+  const latestLoad = useRef(0);
 
   // Keeps the usage on screen while it reloads; only a failed load clears it.
   // `fresh` skips the table list the backend caches for 60 s (the Refresh button).
   const load = useCallback(
     async (fresh = false) => {
+      // Only the latest load sets the state: an older answer can hold a table that was deleted since.
+      const request = ++latestLoad.current;
       setFailed(false);
       setLoading(true);
       try {
-        setUsage(await dataStorageApiService.getOwoxStorageUsage(storageId, fresh));
+        const next = await dataStorageApiService.getOwoxStorageUsage(storageId, fresh);
+        if (request === latestLoad.current) setUsage(next);
       } catch {
-        setUsage(null);
-        setFailed(true);
+        if (request === latestLoad.current) {
+          setUsage(null);
+          setFailed(true);
+        }
       } finally {
-        setLoading(false);
+        if (request === latestLoad.current) setLoading(false);
       }
     },
     [storageId]
@@ -42,8 +49,13 @@ export function useOwoxStorageUsage(storageId: string) {
       setTableToDelete(null);
       // Fresh: another backend server can still cache the deleted table.
       await load(true);
-    } catch {
-      // The default error toast has already reported it; keep the dialog open to retry.
+    } catch (error) {
+      // The default error toast has already reported it. A table that is already gone (another tab)
+      // leaves the list; other errors keep the dialog open to retry.
+      if (isAxiosError(error) && error.response?.status === 404) {
+        setTableToDelete(null);
+        await load(true);
+      }
     } finally {
       setDeleting(false);
     }

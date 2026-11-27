@@ -211,6 +211,53 @@ describe('getBigQueryClient', () => {
       });
     });
 
+    // An OWOX Storage runs its jobs in the process project, and a job reads `dataset.table` in its
+    // own project: every table name must carry the datasets project.
+    it('runs the client in ProjectID and names every table with DestinationProjectID', async () => {
+      const clientOptions = [];
+      const capturingBigQuery = globalThis.BigQuery;
+      globalThis.BigQuery = class {
+        constructor(options) {
+          clientOptions.push(options);
+        }
+      };
+      const queries = [];
+      const storage = Object.assign(Object.create(proto), {
+        _bigqueryClient: null,
+        uniqueKeyColumns: ['id'],
+        schema: { id: { type: 'STRING' } },
+        getSelectedFields: () => ['id'],
+        getColumnType: () => 'STRING',
+        config: {
+          logMessage() {},
+          ProjectID: configValue('process'),
+          DestinationProjectID: configValue('p'),
+          DestinationDatasetName: configValue('owox_abc'),
+          DestinationDatasetID: configValue('p.owox_abc'),
+          DestinationDatasetExists: configValue(true),
+          DestinationTableName: configValue('ads'),
+          DestinationLocation: configValue('US'),
+          ImpersonateServiceAccount: configValue('owox-st-abc@p.iam.gserviceaccount.com'),
+        },
+      });
+      storage.executeQuery = async query => {
+        queries.push(query);
+        return [];
+      };
+
+      try {
+        await storage.init();
+        storage.getBigQueryClient();
+      } finally {
+        globalThis.BigQuery = capturingBigQuery;
+      }
+
+      expect(clientOptions.map(o => o.projectId)).toEqual(['process']);
+      const targets = queries.flatMap(q => [...q.matchAll(/`([^`]+)`/g)].map(m => m[1]));
+      expect(targets.length).toBeGreaterThan(0);
+      expect(targets.filter(t => !t.startsWith('p.'))).toEqual([]);
+    });
+
     it('refuses to fall back to another credential when the impersonated client was not prepared', () => {
       expect(() => impersonatingStorage().getBigQueryClient()).toThrow(/not prepared/);
       expect(capturedAuthClients).toHaveLength(0);
