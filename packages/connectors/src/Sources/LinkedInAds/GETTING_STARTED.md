@@ -88,8 +88,8 @@ What to expect from these endpoints:
 
 - **More API requests than Ad Analytics.** LinkedIn breaks location down only for one campaign at a time. For every day, the connector first reads which campaigns ran, then asks for each of those campaigns separately. LinkedIn returns up to 18 metrics per request, so every further 18 selected metrics add one more request per campaign.
 - **Clicks and spend by location are incomplete.** LinkedIn treats location as a member demographic and describes such metrics as approximate. Impressions by location can add up to nearly all of the campaign's impressions in **Ad Analytics**, while clicks and spend by location add up to only part of the campaign's. Spend by location can be well below the campaign's spend, even for a campaign that runs in a single country, and a campaign spread over many locations can show no clicks or spend at all. To protect member privacy, LinkedIn also drops a location with fewer than 3 events, returns at most the top 100 locations for each ad on each day, and returns location data only for ads that reached enough members. Rows LinkedIn returns without a location or a date are not imported, and the run says how many.
-- **Data arrives 12–24 hours late.** The default **Reimport Lookback Window** of 2 days re-imports those days on the next run.
-- **Two years of history.** LinkedIn keeps location breakdowns for two years, so a backfill further back returns no rows.
+- **Data can be 24–48 hours late.** The default **Reimport Lookback Window** of 2 days re-imports those days on the next run.
+- **Two years of history.** LinkedIn keeps location breakdowns for two years. Choose a start date within the last two years.
 - **Some metrics are missing.** LinkedIn does not break down `approximateMemberReach`, `audiencePenetration`, `conversionValueInLocalCurrency`, or the carousel card metrics by location, so these endpoints do not offer them.
 
 To estimate spend by location, split each campaign's daily spend from **Ad Analytics** by each location's share of that campaign's impressions. The estimate is only as good as the impressions by location, so first check that they add up to nearly all of the campaign's impressions in **Ad Analytics**.
@@ -122,6 +122,34 @@ Location names:
 - If LinkedIn does not allow the name lookup for your app, the run imports the metrics and the location URNs, leaves every name empty, and finishes with a **Warning** status.
 - If LinkedIn rejects the lookup for some locations, only those names stay empty, and the **Warning** lists them.
 - If the name lookup fails for a while (for example LinkedIn is overloaded), the affected days are not imported and the run fails, so the next run imports them again with their names.
+
+### How do I see metrics by company, job title, or other member demographics?
+
+Choose one of these endpoints:
+
+- **Ad Analytics by Company** – table `linkedin_ads_ad_analytics_by_company`
+- **Ad Analytics by Job Title** – table `linkedin_ads_ad_analytics_by_job_title`
+- **Ad Analytics by Seniority** – table `linkedin_ads_ad_analytics_by_seniority`
+- **Ad Analytics by Job Function** – table `linkedin_ads_ad_analytics_by_job_function`
+- **Ad Analytics by Industry** – table `linkedin_ads_ad_analytics_by_industry`
+- **Ad Analytics by Company Size** – table `linkedin_ads_ad_analytics_by_company_size`
+
+Each row holds one campaign's metrics for one value on one day. The value comes as a LinkedIn URN (for example `urn:li:organization:1035`) and as its English name (for example `Microsoft`). The `campaign` column holds the campaign URN.
+
+What to expect from these endpoints:
+
+- **One breakdown at a time.** LinkedIn gives one member breakdown per request. You cannot get company by job title, or the roles inside a company.
+- **Rows link to the campaign.** They do not link to the creative.
+- **Limited and approximate data.** LinkedIn returns at most the top 100 values for each creative for each day. It returns no values for an ad that reached too few members. It drops a value with fewer than 3 events. Its metrics are approximate.
+- **Lower sums.** The sum over days can be lower than Campaign Manager shows for the same period. Companies with little daily delivery can be missing.
+- **Extra companies.** The results by company can include companies that the campaign did not target.
+- **Data can be 24–48 hours late.** The **Reimport Lookback Window** controls how many recent days each run imports again.
+- **Rows from an earlier import can stay.** If a value leaves LinkedIn's top 100 between two imports of a day, its row from the first import stays. The sums for that day can then mix early and final metrics.
+- **Two years of history.** LinkedIn keeps this data for two years. Choose a start date within the last two years.
+- **Company size is a band.** LinkedIn returns a band such as `SIZE_201_TO_500`. The name column repeats the band.
+- **More API requests than Ad Analytics.** The connector asks for each campaign separately, as for locations. The answers are larger, and new values need more name requests.
+
+The missing metrics and the name behavior are the same as for locations. See [How do I see spend by country, region, or county?](#how-do-i-see-spend-by-country-region-or-county).
 
 ### Why does my Ad Analytics run finish with a Warning status?
 
