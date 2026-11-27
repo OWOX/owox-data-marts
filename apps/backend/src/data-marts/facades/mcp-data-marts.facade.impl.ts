@@ -233,6 +233,7 @@ export class McpDataMartsFacadeImpl implements McpDataMartsFacade {
           type: f.type,
           description: f.description ?? '',
           sourceDataMart: f.sourceDataMartTitle,
+          aliasPath: f.aliasPath,
           // Expose the raw type only when the dedup changed it — slices run pre-join on the raw value.
           ...(f.sourceFieldType && f.sourceFieldType !== f.type
             ? { sliceType: f.sourceFieldType }
@@ -287,6 +288,7 @@ export class McpDataMartsFacadeImpl implements McpDataMartsFacade {
           type: 'INTEGER',
           description: `Number of unique ${s.title} records, counted by that Data Mart's primary key.`,
           sourceDataMart: s.title,
+          aliasPath: s.aliasPath,
           // A pseudo-field IS the aggregate; further aggregating it is not supported.
           allowedAggregations: [],
         });

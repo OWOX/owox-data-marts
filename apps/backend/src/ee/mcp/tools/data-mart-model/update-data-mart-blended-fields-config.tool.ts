@@ -18,7 +18,7 @@ type Input = z.infer<typeof updateBlendedConfigSchema>;
 export class UpdateDataMartBlendedFieldsConfigTool implements McpToolDefinition<Input> {
   readonly name = 'update_data_mart_blended_fields_config';
   readonly description =
-    'Replace Output Aliases and other settings for joined fields on a root Data Mart. Read blended_fields_config from get_data_mart_setup for the same data_mart_id. Reuse the full join path from joins[].aliasPath in the joined field list or nodes[].aliasPath in the relationship graph. Include all overrides you want to keep. Send null to clear all overrides. You need the editor role and EDIT access to the root Data Mart.';
+    'Replace Output Aliases and other settings for joined fields on a root Data Mart. Read blended_fields_config from get_data_mart_setup for the same data_mart_id. Copy joined_fields[].aliasPath for the selected field or nodes[].aliasPath for a join in the relationship graph. Include all overrides you want to keep. Send null to clear all overrides. You need the editor role and EDIT access to the root Data Mart.';
   readonly zodSchema = updateBlendedConfigSchema;
   readonly outputSchema = savedBlendedConfigOutputSchema;
   readonly annotations = {

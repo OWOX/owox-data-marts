@@ -22,7 +22,7 @@ const fieldSettings = z.strictObject({
 const source = BlendedSourceSchema.shape;
 const sourceSettings = z.strictObject({
   path: source.path.describe(
-    'Full path of relationship SQL Aliases (targetAlias) from the root, such as authority.country.region. Reuse a known path. Copy joins[].aliasPath from get_data_mart_details_by_id with detail_level=with_joined_fields, or nodes[].aliasPath from list_data_mart_relationships.'
+    'Full path of relationship SQL Aliases (targetAlias) from the root Data Mart. For a listed field, copy joined_fields[].aliasPath from get_data_mart_details_by_id with detail_level=with_joined_fields. For other joins, use nodes[].aliasPath from list_data_mart_relationships.'
   ),
   alias: source.alias.meta({
     title: 'Output Alias',

@@ -262,9 +262,14 @@ describe('Data Mart model and connector schedules through MCP', () => {
     }
   );
 
-  it('lists the Output Alias in the schemas for reading and writing joined field settings', async () => {
+  it('lists the join path and Output Alias in the MCP tool schemas', async () => {
     const client = await connect();
     const { tools } = await client.listTools();
+    const details = tools.find(tool => tool.name === 'get_data_mart_details_by_id');
+    expect(details?.outputSchema?.properties?.joined_fields).toHaveProperty(
+      'items.properties.aliasPath.type',
+      'string'
+    );
     const read = tools.find(tool => tool.name === 'get_data_mart_setup');
     const write = tools.find(tool => tool.name === 'update_data_mart_blended_fields_config');
     for (const schema of [read?.outputSchema, write?.inputSchema, write?.outputSchema]) {
@@ -273,6 +278,54 @@ describe('Data Mart model and connector schedules through MCP', () => {
         'Output Alias'
       );
     }
+  });
+
+  it('returns distinct field paths for two joins to the same Data Mart', async () => {
+    const root = await mart('Orders');
+    const address = await mart('Address');
+    const region = await mart('Region');
+    const client = await connect();
+    for (const id of [root, address, region]) {
+      await setDataMartSchema(agent, app, id, {
+        type: 'bigquery-data-mart-schema',
+        fields: [{ name: 'id', type: 'STRING', mode: 'NULLABLE', status: 'CONNECTED' }],
+      });
+    }
+    await database.getRepository(DataMart).update([root, address, region], {
+      status: DataMartStatus.PUBLISHED,
+      schemaActualizedAt: new Date(),
+    });
+    for (const [source, target, alias] of [
+      [root, address, 'billing_address'],
+      [root, address, 'shipping'],
+      [address, region, 'region'],
+    ]) {
+      await call(client, 'create_data_mart_relationship', {
+        data_mart_id: source,
+        target_data_mart_id: target,
+        target_alias: alias,
+        join_conditions: [{ source_field_name: 'id', target_field_name: 'id' }],
+      });
+    }
+
+    const details = await call(client, 'get_data_mart_details_by_id', {
+      data_mart_id: root,
+      detail_level: 'with_joined_fields',
+    });
+    expect(details.joined_fields).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          name: 'billing_address_region__id',
+          sourceDataMart: 'Region',
+          aliasPath: 'billing_address.region',
+        }),
+        expect.objectContaining({
+          name: 'shipping_region__id',
+          sourceDataMart: 'Region',
+          aliasPath: 'shipping.region',
+        }),
+      ])
+    );
   });
 
   it('saves settings for two nested paths to the same Data Mart on the root', async () => {

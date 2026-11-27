@@ -598,6 +598,7 @@ describe('McpDataMartsFacadeImpl', () => {
         type: 'STRING',
         description: 'Organization name',
         sourceDataMart: 'blended_org',
+        aliasPath: 'blended_org',
         allowedAggregations: ['COUNT', 'COUNT_DISTINCT'],
       },
       {
@@ -606,6 +607,7 @@ describe('McpDataMartsFacadeImpl', () => {
         type: 'STRING',
         description: '',
         sourceDataMart: 'blended_users',
+        aliasPath: 'blended_users',
         allowedAggregations: ['COUNT'],
       },
       {
@@ -614,6 +616,7 @@ describe('McpDataMartsFacadeImpl', () => {
         type: 'FLOAT',
         description: '',
         sourceDataMart: 'blended_users',
+        aliasPath: 'blended_users',
         allowedAggregations: [],
       },
     ]);
@@ -893,6 +896,7 @@ describe('McpDataMartsFacadeImpl', () => {
         type: 'INTEGER',
         description: "Number of unique Orders records, counted by that Data Mart's primary key.",
         sourceDataMart: 'Orders',
+        aliasPath: 'orders',
         allowedAggregations: [],
       },
     ]);
@@ -1073,6 +1077,7 @@ describe('McpDataMartsFacadeImpl', () => {
         type: 'STRING',
         description: 'Vendor-supplied unique count string',
         sourceDataMart: 'Orders',
+        aliasPath: 'orders',
       },
     ]);
     expect(result.uniqueCountSources).toEqual([]);
