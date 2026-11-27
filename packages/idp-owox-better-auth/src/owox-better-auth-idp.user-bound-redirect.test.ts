@@ -46,7 +46,6 @@ function createCallbackProvider(params: {
     pageController: { registerRoutes: jest.fn() },
     passwordFlowController: { registerRoutes: jest.fn() },
     googleSheetsAuthController: { registerRoutes: jest.fn() },
-    authFlowMiddleware: { idpStartMiddleware: jest.fn() },
     tokenFacade,
     userAuthInfoPersistenceService: {
       persistAuthInfo: jest.fn().mockResolvedValue(undefined),
@@ -138,12 +137,12 @@ describe('OwoxBetterAuthIdp user-bound project redirects', () => {
     expect(paramsCookieCall).toBeDefined();
     const params = JSON.parse(decodeURIComponent(paramsCookieCall?.[1] as string));
     expect(params).toMatchObject({
-      appRedirectTo: '/auth/idp-start?projectId=microsoft-project',
+      appRedirectTo: '/ui/microsoft-project/data-marts',
       projectRedirectUserId: 'microsoft-user',
     });
   });
 
-  it('binds a generated project redirect from the sign-up fallback', async () => {
+  it('binds a generated project redirect inside the App sign-up attempt', async () => {
     const tokenFacade = {
       parseToken: jest.fn().mockResolvedValue({
         userId: 'current-user',
@@ -153,6 +152,8 @@ describe('OwoxBetterAuthIdp user-bound project redirects', () => {
     const provider = Object.assign(Object.create(OwoxBetterAuthIdp.prototype), {
       serverEvents: new ServerEventsService(undefined),
       tokenFacade,
+      appSignInService: { start: jest.fn().mockResolvedValue('app-' + 'a'.repeat(43)) },
+      pageController: { signUpPage: jest.fn().mockResolvedValue(undefined) },
       config: {
         idpOwox: {
           idpConfig: {
@@ -187,7 +188,7 @@ describe('OwoxBetterAuthIdp user-bound project redirects', () => {
     );
     const params = JSON.parse(decodeURIComponent(paramsCookieCall?.[1] as string));
     expect(params).toMatchObject({
-      appRedirectTo: '/auth/idp-start?projectId=current-project',
+      appRedirectTo: '/ui/current-project/data-marts',
       projectRedirectUserId: 'current-user',
     });
   });
@@ -240,7 +241,7 @@ describe('OwoxBetterAuthIdp user-bound project redirects', () => {
   it('discards an automatic project redirect after a different user signs in', async () => {
     const { callback } = createCallbackProvider({
       authenticatedUserId: 'credential-user',
-      appRedirectTo: '/auth/idp-start?projectId=microsoft-project',
+      appRedirectTo: '/ui/microsoft-project/data-marts',
       projectRedirectUserId: 'microsoft-user',
     });
     const response = createResponse();
@@ -250,20 +251,20 @@ describe('OwoxBetterAuthIdp user-bound project redirects', () => {
     expect(response.redirect).toHaveBeenCalledWith('/');
   });
 
-  it('discards a bound project redirect when the callback user cannot be resolved', async () => {
+  it('restarts sign-in when the callback user cannot be resolved', async () => {
     const { callback } = createCallbackProvider({
-      appRedirectTo: '/auth/idp-start?projectId=previous-project',
+      appRedirectTo: '/ui/previous-project/data-marts',
       projectRedirectUserId: 'previous-user',
     });
     const response = createResponse();
 
     await callback(createCallbackRequest(), response);
 
-    expect(response.redirect).toHaveBeenCalledWith('/');
+    expect(response.redirect).toHaveBeenCalledWith(expect.stringContaining('/auth/sign-in?error='));
   });
 
   it('keeps an automatic project redirect when the same user signs in', async () => {
-    const appRedirectTo = '/auth/idp-start?projectId=microsoft-project';
+    const appRedirectTo = '/ui/microsoft-project/data-marts';
     const { callback } = createCallbackProvider({
       authenticatedUserId: 'microsoft-user',
       appRedirectTo,
@@ -277,7 +278,7 @@ describe('OwoxBetterAuthIdp user-bound project redirects', () => {
   });
 
   it('keeps an explicit project redirect that has no user binding', async () => {
-    const appRedirectTo = '/auth/idp-start?projectId=shared-project';
+    const appRedirectTo = '/ui/shared-project/data-marts';
     const { callback } = createCallbackProvider({
       authenticatedUserId: 'credential-user',
       appRedirectTo,

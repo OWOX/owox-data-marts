@@ -9,7 +9,9 @@ import {
   BETTER_AUTH_STATE_COOKIE,
   CORE_REFRESH_TOKEN_COOKIE,
 } from '../core/constants.js';
+import { APP_SIGN_IN_STATE_TTL_MS, isAppSignInState } from '../core/pkce.js';
 import { clearCookie, setCookie } from './cookie-policy.js';
+import { sanitizeAppRedirect } from './platform-redirect-builder.js';
 export { setCookie } from './cookie-policy.js';
 
 const AUTH_PARAMS = new Set([
@@ -32,17 +34,13 @@ const AUTH_PARAMS = new Set([
   'callbackURL',
   'intent',
   'pendingAction',
+  'prompt',
   'socialIntentVerified',
 ]);
 
 const STATE_COOKIE = 'idp-owox-state';
 const AUTH_FLOW_PARAMS_COOKIE = 'idp-owox-params';
-const AUTH_FLOW_ERROR_COOKIE = 'idp-owox-auth-error';
 const PROJECT_ID_PATTERN = /^[a-zA-Z0-9_-]+$/;
-
-/** Only the legacy email fallback can be requested in a URL. */
-export const PENDING_ACTION_VALUES = ['google', 'microsoft', 'email'] as const;
-export type PendingAction = (typeof PENDING_ACTION_VALUES)[number];
 
 const optionalStringParam = z.preprocess(
   value => (typeof value === 'string' ? value : undefined),
@@ -72,6 +70,8 @@ export const AuthFlowParamsSchema = z.object({
   redirectTo: optionalStringParam,
   appRedirectTo: optionalStringParam,
   projectRedirectUserId: optionalStringParam,
+  generatedProjectRedirect: z.literal(true).optional(),
+  forceReauthentication: z.literal(true).optional(),
   source: optionalStringParam,
   integration: z.preprocess(
     value =>
@@ -174,7 +174,9 @@ export class StateManager {
     // capping the cookie at the same window means a stale cookie left behind
     // by an abandoned or failed attempt self-corrects instead of silently
     // being trusted as "state exists" long after IB would reject it.
-    setCookie(res, this.req, STATE_COOKIE, state, { maxAgeMs: ms('2m') });
+    setCookie(res, this.req, STATE_COOKIE, state, {
+      maxAgeMs: isAppSignInState(state) ? APP_SIGN_IN_STATE_TTL_MS : ms('2m'),
+    });
   }
 }
 
@@ -246,31 +248,24 @@ export function clearAuthFlowStateCookie(res: Response, req?: Request): void {
 export function resetAuthFlowForRetry(req: Request, res: Response): void {
   clearAuthFlowStateCookie(res, req);
   const params = extractAuthFlowParams(req);
-  const appRedirectTo = params.appRedirectTo?.startsWith('/auth/idp-start?projectId=')
-    ? undefined
-    : params.appRedirectTo;
-  const serialized = serializeAuthFlowParams({
+  const appRedirectTo = params.generatedProjectRedirect ? undefined : params.appRedirectTo;
+  const redirectTo = params.redirectTo;
+  // App-relative targets can be rewritten here. Allowlisted absolute URLs are checked at redirect time.
+  const retryParams = {
     ...params,
+    redirectTo: redirectTo?.startsWith('/') ? sanitizeAppRedirect(redirectTo) : redirectTo,
     projectId: undefined,
-    appRedirectTo,
-    projectRedirectUserId: appRedirectTo ? params.projectRedirectUserId : undefined,
-  });
-  if (serialized) {
-    setCookie(res, req, AUTH_FLOW_PARAMS_COOKIE, encodeURIComponent(serialized));
+    appRedirectTo: appRedirectTo?.startsWith('/')
+      ? sanitizeAppRedirect(appRedirectTo)
+      : appRedirectTo,
+    generatedProjectRedirect: undefined,
+  };
+  if (!retryParams.appRedirectTo) retryParams.projectRedirectUserId = undefined;
+  if (serializeAuthFlowParams(retryParams)) {
+    persistAuthFlowParams(req, res, retryParams);
   } else {
     clearCookie(res, AUTH_FLOW_PARAMS_COOKIE, req);
   }
-}
-
-/** Keep a one-time message across the Platform state round trip. */
-export function persistAuthFlowError(req: Request, res: Response, message: string): void {
-  setCookie(res, req, AUTH_FLOW_ERROR_COOKIE, message.slice(0, 200), { maxAgeMs: 2 * 60 * 1000 });
-}
-
-export function consumeAuthFlowError(req: Request, res: Response): string | undefined {
-  const message = getCookie(req, AUTH_FLOW_ERROR_COOKIE);
-  if (message) clearCookie(res, AUTH_FLOW_ERROR_COOKIE, req);
-  return message;
 }
 
 /**
@@ -332,7 +327,10 @@ export function hasStateMismatch(req: Request): boolean {
 /**
  * Extracts redirect parameters from cookie or query.
  */
-export function extractAuthFlowParams(req: Request): AuthFlowParams {
+export function extractAuthFlowParams(
+  req: Request,
+  { includeCookie = true }: { includeCookie?: boolean } = {}
+): AuthFlowParams {
   const extraParams: Record<string, string> = {};
   for (const [key, value] of Object.entries(req.query)) {
     if (!AUTH_PARAMS.has(key) && typeof value === 'string') {
@@ -341,9 +339,8 @@ export function extractAuthFlowParams(req: Request): AuthFlowParams {
   }
   const resolvedExtraParams = Object.keys(extraParams).length > 0 ? extraParams : undefined;
 
-  let cookieParams: AuthFlowParams = {};
-  const cookiePayload = getCookie(req, AUTH_FLOW_PARAMS_COOKIE);
-  cookieParams = parseSerializedAuthFlowParams(cookiePayload) ?? {};
+  const cookiePayload = includeCookie ? getCookie(req, AUTH_FLOW_PARAMS_COOKIE) : undefined;
+  const cookieParams = parseSerializedAuthFlowParams(cookiePayload) ?? {};
 
   const redirectTo =
     (typeof req.query?.['redirect-to'] === 'string' && req.query['redirect-to']) ||
@@ -354,10 +351,11 @@ export function extractAuthFlowParams(req: Request): AuthFlowParams {
     (typeof req.query?.['app-redirect-to'] === 'string' && req.query['app-redirect-to']) ||
     undefined;
   const resolvedAppRedirectTo = appRedirectTo || cookieParams.appRedirectTo;
-  const projectRedirectUserId =
-    resolvedAppRedirectTo && resolvedAppRedirectTo === cookieParams.appRedirectTo
-      ? cookieParams.projectRedirectUserId
-      : undefined;
+  const sameProjectRedirect =
+    resolvedAppRedirectTo && resolvedAppRedirectTo === cookieParams.appRedirectTo;
+  const projectRedirectUserId = sameProjectRedirect
+    ? cookieParams.projectRedirectUserId
+    : undefined;
   const source = typeof req.query?.source === 'string' ? req.query.source : undefined;
   const clientId = typeof req.query?.clientId === 'string' ? req.query.clientId : undefined;
   const codeChallenge =
@@ -390,20 +388,16 @@ export function extractAuthFlowParams(req: Request): AuthFlowParams {
     integration: mcpIntegration,
     appRedirectTo: resolvedAppRedirectTo,
     projectRedirectUserId,
+    generatedProjectRedirect: sameProjectRedirect
+      ? cookieParams.generatedProjectRedirect
+      : undefined,
+    forceReauthentication: cookieParams.forceReauthentication,
     source: source || cookieParams.source,
     clientId: clientId || cookieParams.clientId,
     codeChallenge: codeChallenge || cookieParams.codeChallenge,
     projectId: projectId || cookieParams.projectId,
     extraParams: resolvedExtraParams || cookieParams.extraParams,
   };
-}
-
-/**
- * Only the legacy email fallback may be requested by URL. A social provider
- * named in a link is never treated as a button click.
- */
-export function readPendingActionFromQuery(req: Request): PendingAction | undefined {
-  return req.query?.pendingAction === 'email' ? 'email' : undefined;
 }
 
 /**
@@ -414,7 +408,9 @@ export function persistAuthFlowParams(req: Request, res: Response, params: AuthF
     const serializedParams = serializeAuthFlowParams(params);
     if (!serializedParams) return;
     const serialized = encodeURIComponent(serializedParams);
-    setCookie(res, req, AUTH_FLOW_PARAMS_COOKIE, serialized);
+    setCookie(res, req, AUTH_FLOW_PARAMS_COOKIE, serialized, {
+      ...(params.forceReauthentication && { maxAgeMs: APP_SIGN_IN_STATE_TTL_MS }),
+    });
   } catch {
     // ignore serialization issues
   }

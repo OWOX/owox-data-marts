@@ -8,6 +8,7 @@ import { extractAuthFlowParams } from './request-utils.js';
 import {
   buildPlatformEntryUrl,
   buildPlatformRedirectUrl,
+  sanitizeAppRedirect,
   sanitizeRedirectParam,
 } from './platform-redirect-builder.js';
 
@@ -136,6 +137,21 @@ describe('platform-redirect-builder', () => {
     expect(sanitizeRedirectParam('/ui/p1/data-marts?tab=all', allowed)).toBe(
       '/ui/p1/data-marts?tab=all'
     );
+  });
+
+  it('unwraps a saved App setup continuation with query and fragment', () => {
+    const target = '/ui/p1/connect/credentials/setup-1?source=chat#details';
+    const redirect = `/auth/idp-start?projectId=p1&app-redirect-to=${encodeURIComponent(target)}`;
+    expect(sanitizeAppRedirect(redirect)).toBe(target);
+  });
+
+  it.each([
+    '/auth/idp-start?projectId=p1',
+    '/AUTH/idp-start/?app-redirect-to=%2F%2Fevil.test',
+    '/auth/idp-start?app-redirect-to=%2Fauth%2Fsign-in',
+    '/auth/idp-start?app-redirect-to=%2Fauth%2Fidp-start',
+  ])('drops obsolete continuations without a usable app destination: %s', redirect => {
+    expect(sanitizeAppRedirect(redirect)).toBeUndefined();
   });
 
   it('drops absolute redirects when allowed origins are missing', () => {

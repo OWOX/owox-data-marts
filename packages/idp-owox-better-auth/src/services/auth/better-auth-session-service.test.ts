@@ -2,7 +2,7 @@ import { beforeEach, describe, expect, it, jest } from '@jest/globals';
 import type { Request } from 'express';
 import { createBetterAuthConfig } from '../../config/idp-better-auth-config.js';
 import { BETTER_AUTH_SESSION_COOKIE, SESSION_ERROR_MESSAGES } from '../../core/constants.js';
-import { SessionException } from '../../core/exceptions.js';
+import { SessionException, UnverifiedEmailException } from '../../core/exceptions.js';
 import type { DatabaseStore } from '../../store/database-store.js';
 import type { DatabaseAccount, DatabaseUser } from '../../types/database-models.js';
 import { UserAccountResolver } from '../core/user-account-resolver.js';
@@ -211,6 +211,29 @@ describe('BetterAuthSessionService', () => {
 
       expect(userAccountResolver.resolveByUserId).not.toHaveBeenCalled();
     });
+  });
+
+  describe('resolveVerifiedIdentity', () => {
+    it.each([
+      { emailVerified: false, provider: 'google', exception: UnverifiedEmailException },
+      { emailVerified: true, provider: 'microsoft', exception: SessionException },
+    ])(
+      'rejects a session with emailVerified=$emailVerified for $provider when Google was used',
+      async ({ emailVerified, provider, exception }) => {
+        getSessionMock.mockImplementation(async () => ({
+          user: { id: 'u1', email: 'user@test.com', name: 'User Test', emailVerified },
+          session: { id: 's1', userId: 'u1', token: 'session-token', expiresAt: '2030-01-01' },
+        }));
+        userAccountResolver.resolveByUserId.mockResolvedValue({
+          user: mockUser,
+          account: mockAccount,
+        });
+
+        await expect(
+          service.resolveVerifiedIdentity('session-token', 'state-1', provider)
+        ).rejects.toThrow(exception);
+      }
+    );
   });
 
   describe('buildUserInfoPayload', () => {

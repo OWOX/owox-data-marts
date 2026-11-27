@@ -207,12 +207,12 @@ export function AuthProvider({ children }: AuthProviderProps) {
         const user = await getUserApi(accessToken);
 
         const currentTarget = getPendingConnectProjectTarget();
-        if (currentTarget && user.projectId !== currentTarget.projectId) {
-          throw new ConnectProjectMismatchError(currentTarget);
-        }
-
         if (currentTarget && expectedUserId && user.id !== expectedUserId) {
           throw new ConnectAccountMismatchError(currentTarget);
+        }
+
+        if (currentTarget && user.projectId !== currentTarget.projectId) {
+          throw new ConnectProjectMismatchError(currentTarget);
         }
 
         // Install the verified token, project, and account before requests can use the new session.

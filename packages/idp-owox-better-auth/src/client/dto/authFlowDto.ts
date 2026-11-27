@@ -14,6 +14,27 @@ export interface AuthFlowRequest {
   };
 }
 
+/** Sign-in attempt authorized by the Cloud App backend. */
+export interface AppSignInRequest extends AuthFlowRequest {
+  codeChallenge: string;
+  projectId?: string;
+  projectRedirectUserId?: string;
+  integration?: string;
+}
+
+/** IB returns this error when there is no project for the App session. */
+export const AppSignInNoProjectResponseSchema = z.union([
+  z
+    .object({
+      code: z.literal('APP_SIGN_IN_NO_PROJECT'),
+      details: z.object({ viewOnly: z.boolean() }),
+    })
+    .transform(({ details }) => details),
+  z
+    .object({ message: z.literal('Authentication Flow Error, no project') })
+    .transform(() => ({ viewOnly: false })),
+]);
+
 /** One-time authorization code response. */
 export interface AuthFlowResponse {
   code: string;

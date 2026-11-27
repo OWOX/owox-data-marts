@@ -35,6 +35,7 @@ jobs:
           - name: 'Overall test @owox/backend'
             command: 'npm run test -w @owox/backend'
             build: 'npm run build:dep -w @owox/backend'
+            sqlite: true
             timeout: 10
           - name: 'Overall test @owox/web'
             command: 'npm run test -w @owox/web'
@@ -50,6 +51,7 @@ jobs:
           - name: 'Overall test @owox/idp-owox-better-auth'
             command: 'npm run test -w @owox/idp-owox-better-auth'
             build: 'npm run build:dep -w @owox/idp-owox-better-auth'
+            sqlite: true
             timeout: 10
           - name: 'Overall test @owox/api-client'
             command: 'npm run test -w @owox/api-client'
@@ -92,7 +94,7 @@ jobs:
         run: npm ci --prefer-offline --no-audit --ignore-scripts --no-fund --loglevel error
 
       - name: Build better-sqlite3 native binding
-        if: startsWith(matrix.test.name, 'Overall test @owox/backend')
+        if: matrix.test.sqlite
         run: npm rebuild better-sqlite3 --foreground-scripts
 
       # Each suite builds only the workspace packages it resolves from dist; the web,

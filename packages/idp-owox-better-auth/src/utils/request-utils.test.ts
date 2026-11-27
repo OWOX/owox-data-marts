@@ -18,7 +18,6 @@ import {
   parseAuthFlowParams,
   parseSerializedAuthFlowParams,
   persistAuthFlowContext,
-  readPendingActionFromQuery,
   resetAuthFlowForRetry,
   serializeAuthFlowParams,
   setCookie,
@@ -290,7 +289,7 @@ describe('request-utils', () => {
   });
 
   it('keeps a project redirect owner when the query continues the same redirect', () => {
-    const appRedirectTo = '/auth/idp-start?projectId=project_1';
+    const appRedirectTo = '/ui/project_1/data-marts';
     const payload = encodeURIComponent(
       JSON.stringify({ appRedirectTo, projectRedirectUserId: 'user-1' })
     );
@@ -466,18 +465,8 @@ describe('request-utils', () => {
         query: { pendingAction: 'google' },
         headers: { cookie: '' },
       } as unknown as Request;
-      expect(readPendingActionFromQuery(req)).toBeUndefined();
+
       expect(extractAuthFlowParams(req)).not.toHaveProperty('pendingAction');
-    });
-
-    it('keeps the email fallback from the query string', () => {
-      const req = { query: { pendingAction: 'email' } } as unknown as Request;
-      expect(readPendingActionFromQuery(req)).toBe('email');
-    });
-
-    it('rejects a pendingAction value outside the known allowlist', () => {
-      const req = { query: { pendingAction: 'not-a-real-action' } } as unknown as Request;
-      expect(readPendingActionFromQuery(req)).toBeUndefined();
     });
 
     it('ignores a legacy social action persisted in the params cookie', () => {
@@ -489,7 +478,6 @@ describe('request-utils', () => {
         query: {},
       } as unknown as Request;
 
-      expect(readPendingActionFromQuery(req)).toBeUndefined();
       expect(extractAuthFlowParams(req)).not.toHaveProperty('pendingAction');
       expect(extractAuthFlowParams(req)).not.toHaveProperty('socialIntentVerified');
     });
@@ -521,13 +509,14 @@ describe('request-utils', () => {
       });
     });
 
-    it('drops a generated project redirect that could loop after a failed callback', () => {
+    it('drops an automatically selected project after a failed callback', () => {
       const payload = encodeURIComponent(
         JSON.stringify({
           redirectTo: '/dashboard',
-          appRedirectTo: '/auth/idp-start?projectId=project-1',
+          appRedirectTo: '/ui/project-1/data-marts',
           projectId: 'project-1',
           projectRedirectUserId: 'user-1',
+          generatedProjectRedirect: true,
         })
       );
       const req = {
@@ -546,6 +535,30 @@ describe('request-utils', () => {
       expect(persisted.appRedirectTo).toBeUndefined();
       expect(persisted.projectId).toBeUndefined();
       expect(persisted.projectRedirectUserId).toBeUndefined();
+    });
+
+    it('keeps an explicit project home continuation and fresh sign-in intent on retry', () => {
+      const appRedirectTo = '/ui/project-1/data-marts';
+      const payload = encodeURIComponent(
+        JSON.stringify({
+          appRedirectTo,
+          projectId: 'project-1',
+          forceReauthentication: true,
+        })
+      );
+      const req = {
+        headers: { cookie: `idp-owox-params=${payload}` },
+        query: {},
+      } as unknown as Request;
+      const res = createResponseMock();
+
+      resetAuthFlowForRetry(req, res);
+
+      const [, value] = (res.cookie as jest.Mock).mock.calls[0] as [string, string];
+      expect(JSON.parse(decodeURIComponent(value))).toEqual({
+        appRedirectTo,
+        forceReauthentication: true,
+      });
     });
 
     it('clears an empty params cookie on retry', () => {

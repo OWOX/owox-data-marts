@@ -174,13 +174,13 @@ describe('OwoxBetterAuthIdp MCP OAuth methods', () => {
     );
   });
 
-  it('redirects MCP OAuth continuation to Platform sign-in when there is no refresh cookie', async () => {
-    const idpStartMiddleware = jest.fn().mockResolvedValue(undefined);
+  it('saves the MCP OAuth continuation in the local App sign-in attempt', async () => {
+    const start = jest.fn().mockResolvedValue('app-' + 'a'.repeat(43));
+    const signInPage = jest.fn().mockResolvedValue(undefined);
     const provider = Object.assign(Object.create(OwoxBetterAuthIdp.prototype), {
       serverEvents: new ServerEventsService(undefined),
-      authFlowMiddleware: {
-        idpStartMiddleware,
-      },
+      appSignInService: { start },
+      pageController: { signInPage },
       config: {
         idpOwox: {
           idpConfig: {
@@ -212,19 +212,14 @@ describe('OwoxBetterAuthIdp MCP OAuth methods', () => {
 
     await provider.signInMiddleware(request, response, jest.fn());
 
-    expect(idpStartMiddleware).not.toHaveBeenCalled();
-    expect(response.clearCookie).toHaveBeenCalledWith(
-      'idp-owox-state',
-      expect.objectContaining({ path: '/' })
+    expect(start).toHaveBeenCalledWith(
+      expect.objectContaining({
+        redirectTo: '/oauth/authorize?response_type=code&client_id=mcp-client&state=client-state',
+        integration: 'claude',
+      })
     );
-    expect(response.redirect).toHaveBeenCalledWith(
-      expect.stringContaining('https://platform.test/auth/sign-in')
-    );
-    expect(response.redirect).toHaveBeenCalledWith(expect.stringContaining('source=app'));
-    expect(response.redirect).toHaveBeenCalledWith(expect.stringContaining('integration=claude'));
-    expect(response.redirect).toHaveBeenCalledWith(
-      expect.stringContaining('app-redirect-to=%2Foauth%2Fauthorize')
-    );
+    expect(signInPage).toHaveBeenCalledWith(request, response, true);
+    expect(response.redirect).not.toHaveBeenCalled();
   });
 
   it('continues MCP OAuth authorize flow after IDP callback', async () => {
@@ -259,7 +254,6 @@ describe('OwoxBetterAuthIdp MCP OAuth methods', () => {
       pageController: { registerRoutes: jest.fn() },
       passwordFlowController: { registerRoutes: jest.fn() },
       googleSheetsAuthController: { registerRoutes: jest.fn() },
-      authFlowMiddleware: { idpStartMiddleware: jest.fn() },
       tokenFacade,
       userAuthInfoPersistenceService: {
         persistAuthInfo: jest.fn().mockResolvedValue(undefined),
@@ -344,7 +338,6 @@ describe('OwoxBetterAuthIdp MCP OAuth methods', () => {
       pageController: { registerRoutes: jest.fn() },
       passwordFlowController: { registerRoutes: jest.fn() },
       googleSheetsAuthController: { registerRoutes: jest.fn() },
-      authFlowMiddleware: { idpStartMiddleware: jest.fn() },
       tokenFacade,
       userAuthInfoPersistenceService: {
         persistAuthInfo: jest.fn().mockResolvedValue(undefined),

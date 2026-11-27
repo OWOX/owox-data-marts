@@ -119,7 +119,10 @@ Disabled unless `IDP_OWOX_SERVER_EVENTS_COLLECT_URL` is set. Then the provider
 sends, in GA4 `g/collect` format:
 
 - `page_view` when it renders the sign-in or sign-up page;
-- `login` with `uid` = the user id after a completed sign-in (`/auth/callback`).
+- `login` with `uid` = the user id after a completed sign-in. For direct App
+  sign-in, the page location is the Better Auth completion request
+  (`/auth/better-auth/callback/<provider>` or `/auth/better-auth/sign-in/email`).
+  A legacy Platform handoff reports `/auth/callback`.
 
 Events are sent only for a visitor with the cookie named by
 `IDP_OWOX_SERVER_EVENTS_VISITOR_COOKIE`, and that cookie is forwarded. The
