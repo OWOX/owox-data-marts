@@ -37,6 +37,28 @@ describe('BigQueryReportHeadersGenerator', () => {
     expect(headers.map(h => h.name)).toEqual(['clicks']);
   });
 
+  it('omits a nested field hidden for reporting under a visible RECORD', () => {
+    const leaf = (name: string, isHiddenForReporting = false) => ({
+      name,
+      type: 'STRING',
+      mode: 'NULLABLE',
+      status: DataMartSchemaFieldStatus.CONNECTED,
+      isPrimaryKey: false,
+      isHiddenForReporting,
+    });
+    const headers = generator.generateHeaders(
+      schemaWith([
+        {
+          ...leaf('metrics'),
+          type: BigQueryFieldType.RECORD,
+          fields: [leaf('cost'), leaf('internal_cost', true)],
+        },
+      ] as unknown as BigqueryDataMartSchema['fields'])
+    );
+
+    expect(headers.map(h => h.name)).toEqual(['metrics.cost']);
+  });
+
   it('omits a calculated field even when its warehouse-derived status is DISCONNECTED', () => {
     const headers = generator.generateHeaders(
       schemaWith([

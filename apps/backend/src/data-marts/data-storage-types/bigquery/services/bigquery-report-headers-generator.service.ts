@@ -45,7 +45,9 @@ export class BigQueryReportHeadersGenerator implements ReportHeadersGenerator {
     // A calculated field has no warehouse column behind it — isConnected() reports it as
     // "connected" for the available-field lists, but a report header must resolve to a real
     // projection. Its header (when selected as a metric) is synthesized elsewhere.
-    if (isCalculatedField(field) || !isConnected(field)) {
+    // A nested field hidden for reporting is skipped like a top-level one: `generateHeaders` filters
+    // only the top level, and every reporting list (`collectSchemaFieldPathDescriptors`) prunes it.
+    if (isCalculatedField(field) || !isConnected(field) || field.isHiddenForReporting) {
       return fieldHeaders;
     }
 

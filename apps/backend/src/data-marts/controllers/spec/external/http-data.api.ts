@@ -71,10 +71,11 @@ export function StreamHttpDataSpec() {
         'multiple exact column names; the order of repetition is preserved in row ' +
         'objects. Values are opaque strings. `column=*` and `column=**` refer to literal ' +
         'columns named `*` and `**`; use `columns=*` or `columns=**` for selectors. ' +
-        'Overlaps are de-duplicated. A Data Mart field hidden from reports is returned when ' +
-        'named here or in `filter`, `sort`, `aggregation`, `dateTrunc` or `havingGroupBy` — for ' +
-        'example a hidden primary key a client selects a row by. A hidden calculated field and ' +
-        "a joined Data Mart's hidden field stay unavailable.",
+        'Overlaps are de-duplicated. A Data Mart field hidden from reports can be selected ' +
+        'here by name, and used by name in `filter`, `sort`, `aggregation`, `dateTrunc` or ' +
+        '`havingGroupBy` — for example a hidden primary key a client selects a row by. Only ' +
+        '`column` adds it to the output. A hidden calculated field, a hidden RECORD with a ' +
+        "child hidden on its own, and a joined Data Mart's hidden field stay unavailable.",
       required: false,
       schema: {
         type: 'array',

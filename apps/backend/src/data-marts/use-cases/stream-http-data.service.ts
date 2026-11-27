@@ -39,7 +39,7 @@ import { ReportDataHeader } from '../dto/domain/report-data-header.dto';
 import { StreamHttpDataCommand } from '../dto/domain/stream-http-data.command';
 import { StreamHttpReportDataCommand } from '../dto/domain/stream-http-report-data.command';
 import { DataMart } from '../entities/data-mart.entity';
-import type { DataMartSchema } from '../data-storage-types/data-mart-schema.type';
+import { dataMartWithSchemaFields } from '../utils/data-mart-with-schema-fields';
 import {
   collectHiddenForReportingPaths,
   withHiddenFieldsShown,
@@ -216,17 +216,7 @@ export function deriveStreamPlanContext(plan: ExecuteStreamPlan): StreamPlanCont
  */
 function withHiddenFieldsShownOn(dataMart: DataMart, paths: readonly string[]): DataMart {
   if (paths.length === 0 || !dataMart.schema) return dataMart;
-  // Keeps the prototype: `DataMart` exposes its owner ids as accessors, which a spread would drop.
-  return Object.assign(
-    Object.create(Object.getPrototypeOf(dataMart) as object) as DataMart,
-    dataMart,
-    {
-      schema: {
-        ...dataMart.schema,
-        fields: withHiddenFieldsShown(dataMart.schema.fields, paths),
-      } as DataMartSchema,
-    }
-  );
+  return dataMartWithSchemaFields(dataMart, withHiddenFieldsShown(dataMart.schema.fields, paths));
 }
 
 @Injectable()

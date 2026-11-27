@@ -2501,6 +2501,31 @@ describe('BlendedReportDataService', () => {
         });
       });
 
+      it('reads a hidden native field the HTTP Data read shows, beside a joined field', async () => {
+        // The HTTP Data read hands over a copy of the Data Mart with the named field shown, and
+        // the list of shown fields: the schema this service reloads by id must show them too.
+        const report = Object.assign(
+          makeReport({ columnConfig: ['date', 'secret', 'blended_field'] }),
+          { shownHiddenFields: ['secret'] }
+        );
+        report.dataMart.schema = makeMainSchema([
+          nativeField('date'),
+          nativeField('secret', { isHiddenForReporting: false }),
+        ]);
+        blendableSchemaService.computeBlendableSchema.mockResolvedValue(
+          makeBlendableSchema(['blended_field'])
+        );
+        mockChains();
+
+        await service.resolveBlendingDecision(report, { userId: 'user-1', roles: ['admin'] });
+
+        for (const call of blendableSchemaService.computeBlendableSchema.mock.calls) {
+          expect(call[3]).toEqual({ showHiddenFields: ['secret'] });
+        }
+        expect(blendableSchemaService.computeBlendableSchema).toHaveBeenCalled();
+        expect(blendedQueryBuilderFacade.buildBlendedQuery).toHaveBeenCalled();
+      });
+
       it('calls those fields hidden, not disconnected — nothing is missing and no schema needs restoring', async () => {
         // The assertion above is deliberately partial and passed before this distinction existed.
         // This is the half that would not: the message the analyst reads, and the key that tells

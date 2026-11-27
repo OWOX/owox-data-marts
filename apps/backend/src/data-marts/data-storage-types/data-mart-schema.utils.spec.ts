@@ -735,6 +735,28 @@ describe('showing hidden fields for one read', () => {
 
       expect(collectRevealableHiddenPaths(fields)).toEqual(['obligation_id']);
     });
+
+    it('keeps back a hidden RECORD whose child is hidden on its own, but not its other children', () => {
+      const fields = [
+        mkField('ids', {
+          type: 'RECORD',
+          isHiddenForReporting: true,
+          fields: [mkField('order_id'), mkField('ssn', { isHiddenForReporting: true })],
+        }),
+        mkField('meta', {
+          type: 'RECORD',
+          isHiddenForReporting: true,
+          fields: [mkField('source')],
+        }),
+      ];
+
+      expect(collectRevealableHiddenPaths(fields)).toEqual([
+        'ids.order_id',
+        'ids.ssn',
+        'meta',
+        'meta.source',
+      ]);
+    });
   });
 
   describe('withHiddenFieldsShown', () => {

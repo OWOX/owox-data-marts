@@ -115,14 +115,24 @@ export function collectHiddenForReportingPaths(
  * The paths of `collectHiddenForReportingPaths` a read may show when a caller names them: stored
  * columns only. A calculated field stays hidden even when named — its formula may read other
  * hidden columns, and showing a metric is a reporting decision, not a lookup of a stored value.
+ * A RECORD stays hidden when a field under it is hidden in its own right: selecting the RECORD
+ * reads the whole struct, which would hand out that field too. Its other children stay readable
+ * one by one.
  */
 export function collectRevealableHiddenPaths(fields: readonly DataMartSchemaField[]): string[] {
-  const calculatedPaths = new Set(
-    collectFormulaReferenceableFields(fields)
-      .filter(({ field }) => isCalculatedField(field))
-      .map(({ name }) => name)
+  const refused = new Set<string>();
+  for (const { name, field } of collectFormulaReferenceableFields(fields)) {
+    if (isCalculatedField(field) || hasOwnHiddenDescendant(field)) refused.add(name);
+  }
+  return collectHiddenForReportingPaths(fields).filter(path => !refused.has(path));
+}
+
+function hasOwnHiddenDescendant(field: DataMartSchemaField): boolean {
+  const children =
+    'fields' in field && Array.isArray(field.fields) ? (field.fields as DataMartSchemaField[]) : [];
+  return children.some(
+    child => child.isHiddenForReporting === true || hasOwnHiddenDescendant(child)
   );
-  return collectHiddenForReportingPaths(fields).filter(path => !calculatedPaths.has(path));
 }
 
 /**
