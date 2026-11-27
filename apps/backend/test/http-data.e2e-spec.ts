@@ -1716,23 +1716,28 @@ describe('HTTP Data API (e2e)', () => {
     it('is selected and filtered on when the caller names it', async () => {
       const filter = b64([{ column: 'obligation_id', operator: 'eq', value: 42 }]);
       // The warehouse returns the projected row; the stream must hand it out under both names.
+      // The batch mock is replaced for this request only: a once-value another test left queued
+      // would otherwise be read first.
       const readerMock = jest.mocked(mockReader);
+      const defaultReadBatch = readerMock.readReportDataBatch.getMockImplementation()!;
       readerMock.prepareReportData.mockImplementationOnce(async (_plan, options) => {
         capturedPrepareOptions = options as Record<string, unknown>;
-        readerMock.readReportDataBatch.mockResolvedValueOnce(
-          new ReportDataBatch([[42, '2026-05-01']], null)
-        );
         return new ReportDataDescription(
           [new ReportDataHeader('obligation_id'), new ReportDataHeader('date')],
           1
         );
       });
+      readerMock.readReportDataBatch.mockReset();
+      readerMock.readReportDataBatch.mockImplementation(
+        async () => new ReportDataBatch([[42, '2026-05-01']], null)
+      );
 
       const res = await agent
         .get(
           `/api/external/http-data/data-marts/${hiddenDataMartId}.ndjson?column=obligation_id&column=date&filter=${filter}`
         )
-        .set(AUTH_HEADER);
+        .set(AUTH_HEADER)
+        .finally(() => readerMock.readReportDataBatch.mockImplementation(defaultReadBatch));
 
       expect(res.status).toBe(200);
       const [plan] = (mockReader.prepareReportData as jest.Mock).mock.calls.at(-1)!;
