@@ -246,17 +246,19 @@ export class BigQueryReportReader implements DataStorageReportReader {
    * The value of a header in a result row. A header is a field path (`profile.user_id`), and a row
    * holds it in one of two shapes: inside its RECORD when the query selected the whole RECORD
    * (`SELECT *`), or under its last segment when the query selected the path itself — BigQuery
-   * names `SELECT profile.user_id` `user_id` (implicit alias of a path expression). A NULL RECORD
-   * makes every path under it NULL.
+   * names `SELECT profile.user_id` `user_id` (implicit alias of a path expression). Only a row
+   * without the RECORD takes the second shape; a row that has it is read inside it alone, so a
+   * key the RECORD lacks reads as missing, and a NULL RECORD makes every path under it NULL.
    */
   private readCell(tableRow: TableRow, columnName: string): unknown {
     const nodes = columnName.split('.');
+    if (nodes.length > 1 && !Object.hasOwn(tableRow, nodes[0])) {
+      return tableRow[nodes[nodes.length - 1]];
+    }
     let cell: unknown = tableRow;
     for (const node of nodes) {
       if (cell === null) return null;
-      if (typeof cell !== 'object' || !(node in cell)) {
-        return nodes.length > 1 ? tableRow[nodes[nodes.length - 1]] : undefined;
-      }
+      if (typeof cell !== 'object' || !(node in cell)) return undefined;
       cell = (cell as Record<string, unknown>)[node];
     }
     return cell;

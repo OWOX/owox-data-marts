@@ -130,8 +130,10 @@ export function collectRevealableHiddenPaths(fields: readonly DataMartSchemaFiel
 function hasOwnHiddenDescendant(field: DataMartSchemaField): boolean {
   const children =
     'fields' in field && Array.isArray(field.fields) ? (field.fields as DataMartSchemaField[]) : [];
+  // A DISCONNECTED child is gone from the source, so the struct no longer carries it.
   return children.some(
-    child => child.isHiddenForReporting === true || hasOwnHiddenDescendant(child)
+    child =>
+      isConnected(child) && (child.isHiddenForReporting === true || hasOwnHiddenDescendant(child))
   );
 }
 

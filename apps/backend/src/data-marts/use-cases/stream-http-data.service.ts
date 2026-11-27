@@ -288,23 +288,20 @@ export class StreamHttpDataService {
         // it hidden. See `hiddenFieldsNamedBy`.
         const storedFields = storedDataMart.schema?.fields ?? [];
         const namedHiddenFields = hiddenFieldsNamedBy(storedFields, query);
-        const computeSchema = (showHiddenFields: readonly string[]) =>
-          this.blendableSchemaService.computeBlendableSchema(
-            storedDataMart.id,
-            storedDataMart.projectId,
-            accessor,
-            { showHiddenFields }
-          );
-        let blendableSchema = await computeSchema(namedHiddenFields);
+        const blendableSchema = await this.blendableSchemaService.computeBlendableSchema(
+          storedDataMart.id,
+          storedDataMart.projectId,
+          accessor,
+          { showHiddenFields: namedHiddenFields }
+        );
         // A joined column may carry the same name as a hidden one of the Data Mart's own
-        // (`orders__amount`), and the SQL resolves that name to the joined column. Showing the own
-        // column would let the checks below accept a name the query then reads from the join, so
-        // such a name keeps resolving to the joined column only, exactly as before it was named.
+        // (`orders__amount`). The blended SQL binds that name to the joined column, so showing
+        // the own column would let validation accept a name the query reads from elsewhere. Such
+        // a name stays bound to the joined column alone, exactly as before it was named.
+        // `isSelectable` below keeps the own column out of `native`; the joined Data Marts do not
+        // depend on which main fields are shown, so the schema above needs no second load.
         const joinedNames = new Set(blendableSchema.blendedFields.map(field => field.name));
         const shownHiddenFields = namedHiddenFields.filter(name => !joinedNames.has(name));
-        if (shownHiddenFields.length !== namedHiddenFields.length) {
-          blendableSchema = await computeSchema(shownHiddenFields);
-        }
         const currentDataMart = withHiddenFieldsShownOn(storedDataMart, shownHiddenFields);
         // Showing a nested path shows its hidden RECORD too, so the path can be reached. The RECORD
         // itself stays unselectable unless it was shown in its own right: selecting it reads the
@@ -322,6 +319,7 @@ export class StreamHttpDataService {
           reportableSources: reportableSourcePaths(blendableSchema),
         };
         const columns = this.columnResolver.resolve(query.columnSelector, reportingColumns);
+        assertNoSharedResultName(columns, shownPaths);
         this.columnValidator.validate(
           {
             selectedColumns: columns,
@@ -1257,4 +1255,28 @@ export class StreamHttpDataService {
       );
     }
   }
+}
+
+/**
+ * Refuses a projection where a shown hidden field and another selected column come back under
+ * the same result name. BigQuery names a selected path by its last segment (`profile.user_id` →
+ * `user_id`) and renames a duplicate (`user_id_1`), so the reader would hand the first column's
+ * value out under both names. The clash predates hidden fields for visible ones; a shown hidden
+ * field must not widen it.
+ */
+function assertNoSharedResultName(columns: readonly string[], shown: ReadonlySet<string>): void {
+  const resultNameOf = (column: string) => column.slice(column.lastIndexOf('.') + 1);
+  const clashing = columns.filter(
+    column =>
+      shown.has(column) &&
+      columns.some(other => other !== column && resultNameOf(other) === resultNameOf(column))
+  );
+  if (clashing.length === 0) return;
+  const names = [...new Set(clashing.map(resultNameOf))];
+  const involved = columns.filter(column => names.includes(resultNameOf(column)));
+  throw new InvalidQueryColumnsException(
+    `Columns ${involved.join(', ')} come back under the same name (${names.join(', ')}); ` +
+      'select one of them per request.',
+    { columns: involved }
+  );
 }

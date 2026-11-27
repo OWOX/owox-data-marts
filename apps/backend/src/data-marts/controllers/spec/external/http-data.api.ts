@@ -58,8 +58,9 @@ export function StreamHttpDataSpec() {
         '`columns=*` may be combined with repeated `column` values. `columns=**` cannot ' +
         'be combined with `column` or another `columns` value. Omit `columns` and ' +
         '`column` to select all current Data Mart output columns, unless `uniqueCount` is ' +
-        'given: then the read returns a single total row. Selectors never include a field ' +
-        'hidden from reports; name it with `column` to read it.',
+        'given: then the read returns a single total row. Selectors leave out a field ' +
+        'hidden from reports; name it with `column` to read it. A RECORD a selector returns ' +
+        'still comes back whole, a field hidden inside it included.',
       required: false,
       enum: ['*', '**'],
       example: '*',

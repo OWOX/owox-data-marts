@@ -13,7 +13,8 @@ import type { HavingGroupBy } from '../../dto/schemas/having-group-by.schema';
 import { calculatedFieldsOf } from '../../calculated-fields/calculated-field.utils';
 
 export interface ReportingColumns {
-  /** Every reporting-visible native field name, INCLUDING a calculated field — the existence
+  /** Every native field name the read may select — the reporting-visible ones plus the hidden
+   * ones the request shows (see `hiddenFieldsNamedBy`), INCLUDING a calculated field — the existence
    * authority `HttpDataColumnValidator` binds an explicitly named column against. A calculated
    * metric is a real, selectable field; it must read as "known" the moment it is asked for by
    * name, same as any other column. */

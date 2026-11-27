@@ -130,6 +130,14 @@ describe('BigQueryReportReader value transport', () => {
     ).toEqual(['u-1', 'd']);
   });
 
+  it('reads a key its RECORD lacks as missing, not as a top-level column of that name', () => {
+    expect(
+      reader.getStructuredReportRowData({ profile: { email: 'e' }, user_id: 'other' } as never, [
+        'profile.user_id',
+      ])
+    ).toEqual([undefined]);
+  });
+
   it('reads a nested path as NULL when its RECORD is NULL', () => {
     expect(
       reader.getStructuredReportRowData({ profile: null, user_id: 'other' } as never, [

@@ -1720,8 +1720,7 @@ describe('HTTP Data API (e2e)', () => {
       // would otherwise be read first.
       const readerMock = jest.mocked(mockReader);
       const defaultReadBatch = readerMock.readReportDataBatch.getMockImplementation()!;
-      readerMock.prepareReportData.mockImplementationOnce(async (_plan, options) => {
-        capturedPrepareOptions = options as Record<string, unknown>;
+      readerMock.prepareReportData.mockImplementationOnce(async () => {
         return new ReportDataDescription(
           [new ReportDataHeader('obligation_id'), new ReportDataHeader('date')],
           1
@@ -1732,12 +1731,16 @@ describe('HTTP Data API (e2e)', () => {
         async () => new ReportDataBatch([[42, '2026-05-01']], null)
       );
 
-      const res = await agent
-        .get(
-          `/api/external/http-data/data-marts/${hiddenDataMartId}.ndjson?column=obligation_id&column=date&filter=${filter}`
-        )
-        .set(AUTH_HEADER)
-        .finally(() => readerMock.readReportDataBatch.mockImplementation(defaultReadBatch));
+      let res: supertest.Response;
+      try {
+        res = await agent
+          .get(
+            `/api/external/http-data/data-marts/${hiddenDataMartId}.ndjson?column=obligation_id&column=date&filter=${filter}`
+          )
+          .set(AUTH_HEADER);
+      } finally {
+        readerMock.readReportDataBatch.mockImplementation(defaultReadBatch);
+      }
 
       expect(res.status).toBe(200);
       const [plan] = (mockReader.prepareReportData as jest.Mock).mock.calls.at(-1)!;
@@ -1745,9 +1748,12 @@ describe('HTTP Data API (e2e)', () => {
       expect(parseNdjson(res.text)).toEqual([{ obligation_id: 42, date: '2026-05-01' }]);
     });
 
-    it('stays out of a wildcard read', async () => {
+    it('stays out of a wildcard read, even when a filter names it', async () => {
+      const filter = b64([{ column: 'obligation_id', operator: 'eq', value: 42 }]);
       const res = await agent
-        .get(`/api/external/http-data/data-marts/${hiddenDataMartId}.ndjson?columns=*`)
+        .get(
+          `/api/external/http-data/data-marts/${hiddenDataMartId}.ndjson?columns=*&filter=${filter}`
+        )
         .set(AUTH_HEADER);
 
       expect(res.status).toBe(200);
