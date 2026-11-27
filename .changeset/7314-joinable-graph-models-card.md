@@ -10,6 +10,8 @@ When you join Data Marts, the Graph view of the Joinable Data Marts block on Dat
 - the Data Quality, Data Last Updated and sharing footer;
 - the relationship's SQL Alias in a pill of its own, with a tooltip that names it, and the number of fields the relationship brings in.
 
+![The Graph view of the Joinable Data Marts block with three cards: Companies, the tinted source card, joins Customers, which joins Orders; each card shows its input source, SQL Alias, field, report and relationship counts and the quality, freshness and sharing footer](https://imagedelivery.net/zKr-4bdC5CBGL2DuuEmvYw/9a1a5bae-5105-4514-6252-e812edf61400/w=800)
+
 A draft, a loop or a join that is not configured is still named above its card. The graph settings offer the Models canvas options, with Triggers, Reports, Relationships and Quality and sharing added and Status removed.
 
 See [Transitive Joins](../../docs/getting-started/setup-guide/joinable-data-marts.md#transitive-joins).
