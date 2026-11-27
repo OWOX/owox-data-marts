@@ -520,6 +520,94 @@ describe('StreamHttpDataService', () => {
     });
   });
 
+  describe('a hidden field that is not shown on its own', () => {
+    it('keeps a hidden RECORD unselectable when only its child is shown', async () => {
+      dataMartService.getByIdAndProjectId.mockResolvedValueOnce(
+        fakeDataMart({
+          schema: {
+            fields: [
+              { name: 'date', type: 'DATE', status: 'CONNECTED' },
+              {
+                name: 'profile',
+                type: 'RECORD',
+                status: 'CONNECTED',
+                isHiddenForReporting: true,
+                fields: [
+                  { name: 'user_id', type: 'STRING', status: 'CONNECTED' },
+                  {
+                    name: 'secret',
+                    type: 'STRING',
+                    status: 'CONNECTED',
+                    isHiddenForReporting: true,
+                  },
+                ],
+              },
+            ],
+          },
+        } as unknown as Partial<DataMart>)
+      );
+      blendableSchema.computeBlendableSchema.mockResolvedValueOnce({
+        nativeFields: [{ name: 'date' }, { name: 'profile', fields: [{ name: 'user_id' }] }],
+        blendedFields: [],
+        availableSources: [],
+      } as never);
+
+      await service.stream(
+        fakeCommand({ rawQuery: { column: ['profile.user_id', 'profile'] } }),
+        mockResponse()
+      );
+
+      expect(blendableSchema.computeBlendableSchema).toHaveBeenCalledWith(
+        'dm-1',
+        'proj-1',
+        expect.anything(),
+        { showHiddenFields: ['profile.user_id'] }
+      );
+      const [, columns] = columnResolver.resolve.mock.calls.at(-1)!;
+      expect(columns.native).toEqual(['date', 'profile.user_id']);
+    });
+
+    it('is not shown when a joined column carries the same name', async () => {
+      dataMartService.getByIdAndProjectId.mockResolvedValueOnce(
+        fakeDataMart({
+          schema: {
+            fields: [
+              { name: 'date', type: 'DATE', status: 'CONNECTED' },
+              {
+                name: 'orders__amount',
+                type: 'FLOAT',
+                status: 'CONNECTED',
+                isHiddenForReporting: true,
+              },
+            ],
+          },
+        } as unknown as Partial<DataMart>)
+      );
+      blendableSchema.computeBlendableSchema.mockResolvedValue({
+        nativeFields: [{ name: 'date' }],
+        blendedFields: [{ name: 'orders__amount', aliasPath: 'orders', isHidden: true }],
+        availableSources: [
+          { aliasPath: 'orders', isIncluded: true, isAccessibleForReporting: true },
+        ],
+      } as never);
+
+      await service.stream(
+        fakeCommand({ rawQuery: { column: ['date', 'orders__amount'] } }),
+        mockResponse()
+      );
+
+      expect(blendableSchema.computeBlendableSchema).toHaveBeenLastCalledWith(
+        'dm-1',
+        'proj-1',
+        expect.anything(),
+        { showHiddenFields: [] }
+      );
+      const [, columns] = columnResolver.resolve.mock.calls.at(-1)!;
+      expect(columns.native).toEqual(['date']);
+      expect(columns.blended).toEqual([]);
+    });
+  });
+
   it('happy path streams two NDJSON rows, records a SUCCESS run, registers consumption', async () => {
     const res = mockResponse();
     await service.stream(fakeCommand(), res);

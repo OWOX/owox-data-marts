@@ -287,17 +287,33 @@ export class StreamHttpDataService {
         // wildcard below, joined Data Marts, every other consumer of the Data Mart — still sees
         // it hidden. See `hiddenFieldsNamedBy`.
         const storedFields = storedDataMart.schema?.fields ?? [];
-        const shownHiddenFields = hiddenFieldsNamedBy(storedFields, query);
+        const namedHiddenFields = hiddenFieldsNamedBy(storedFields, query);
+        const computeSchema = (showHiddenFields: readonly string[]) =>
+          this.blendableSchemaService.computeBlendableSchema(
+            storedDataMart.id,
+            storedDataMart.projectId,
+            accessor,
+            { showHiddenFields }
+          );
+        let blendableSchema = await computeSchema(namedHiddenFields);
+        // A joined column may carry the same name as a hidden one of the Data Mart's own
+        // (`orders__amount`), and the SQL resolves that name to the joined column. Showing the own
+        // column would let the checks below accept a name the query then reads from the join, so
+        // such a name keeps resolving to the joined column only, exactly as before it was named.
+        const joinedNames = new Set(blendableSchema.blendedFields.map(field => field.name));
+        const shownHiddenFields = namedHiddenFields.filter(name => !joinedNames.has(name));
+        if (shownHiddenFields.length !== namedHiddenFields.length) {
+          blendableSchema = await computeSchema(shownHiddenFields);
+        }
         const currentDataMart = withHiddenFieldsShownOn(storedDataMart, shownHiddenFields);
+        // Showing a nested path shows its hidden RECORD too, so the path can be reached. The RECORD
+        // itself stays unselectable unless it was shown in its own right: selecting it reads the
+        // whole struct, children the caller did not name — and may not be shown — among them.
+        const shownPaths = new Set(shownHiddenFields);
         const hiddenPaths = new Set(collectHiddenForReportingPaths(storedFields));
-        const blendableSchema = await this.blendableSchemaService.computeBlendableSchema(
-          currentDataMart.id,
-          currentDataMart.projectId,
-          accessor,
-          { showHiddenFields: shownHiddenFields }
-        );
+        const isSelectable = (name: string) => !hiddenPaths.has(name) || shownPaths.has(name);
         const reportingColumns: ReportingColumns = {
-          native: nativeColumnNames(blendableSchema),
+          native: nativeColumnNames(blendableSchema).filter(isSelectable),
           implicitAllNative: implicitAllNativeColumnNames(blendableSchema).filter(
             name => !hiddenPaths.has(name)
           ),

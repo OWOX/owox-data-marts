@@ -1715,6 +1715,18 @@ describe('HTTP Data API (e2e)', () => {
 
     it('is selected and filtered on when the caller names it', async () => {
       const filter = b64([{ column: 'obligation_id', operator: 'eq', value: 42 }]);
+      // The warehouse returns the projected row; the stream must hand it out under both names.
+      const readerMock = jest.mocked(mockReader);
+      readerMock.prepareReportData.mockImplementationOnce(async (_plan, options) => {
+        capturedPrepareOptions = options as Record<string, unknown>;
+        readerMock.readReportDataBatch.mockResolvedValueOnce(
+          new ReportDataBatch([[42, '2026-05-01']], null)
+        );
+        return new ReportDataDescription(
+          [new ReportDataHeader('obligation_id'), new ReportDataHeader('date')],
+          1
+        );
+      });
 
       const res = await agent
         .get(
@@ -1723,8 +1735,9 @@ describe('HTTP Data API (e2e)', () => {
         .set(AUTH_HEADER);
 
       expect(res.status).toBe(200);
-      const sqlOverride = capturedPrepareOptions!['sqlOverride'] as string;
-      expect(sqlOverride).toContain('`obligation_id`');
+      const [plan] = (mockReader.prepareReportData as jest.Mock).mock.calls.at(-1)!;
+      expect((plan as { columnConfig: string[] }).columnConfig).toEqual(['obligation_id', 'date']);
+      expect(parseNdjson(res.text)).toEqual([{ obligation_id: 42, date: '2026-05-01' }]);
     });
 
     it('stays out of a wildcard read', async () => {

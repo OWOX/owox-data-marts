@@ -119,6 +119,24 @@ describe('BigQueryReportReader value transport', () => {
   it('keeps a selected scalar descendant scalar', () => {
     expect(reader.getStructuredReportRowData(row, ['wrapped.date'])).toEqual(['2026-09-16']);
   });
+
+  it('reads a nested path selected on its own, which BigQuery names by its last segment', () => {
+    // `SELECT src.profile.user_id` comes back as `user_id`, not inside a `profile` struct.
+    expect(
+      reader.getStructuredReportRowData({ user_id: 'u-1', date: 'd' } as never, [
+        'profile.user_id',
+        'date',
+      ])
+    ).toEqual(['u-1', 'd']);
+  });
+
+  it('reads a nested path as NULL when its RECORD is NULL', () => {
+    expect(
+      reader.getStructuredReportRowData({ profile: null, user_id: 'other' } as never, [
+        'profile.user_id',
+      ])
+    ).toEqual([null]);
+  });
 });
 
 describe('BigQueryReportReader queryTimeoutMs threading (Phase 3)', () => {
