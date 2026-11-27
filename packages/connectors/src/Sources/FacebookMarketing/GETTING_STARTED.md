@@ -82,6 +82,41 @@ OWOX sends one request per distinct link and remembers the answer for 30 days, i
 
 **Ad Creatives** rows get the parsed field on the next run, because every run re-imports them. For **Ad Account Insights by Link URL Asset**, rows imported earlier keep their old values until you run a backfill.
 
+### Split Conversions by Attribution Window
+
+By default, each conversion in an insights table has one number, `value`. It follows the attribution setting of the ad set in Meta, so it can count conversions after a click and after a view together. To see them separately, list Meta attribution windows in **Action Attribution Windows** under **Advanced** settings, separated by commas:
+
+```text
+1d_click,7d_click,1d_view
+```
+
+Meta then adds a value for each listed window to the entries in `actions`, `action_values`, `conversions`, `conversion_values`, and the other action fields:
+
+```json
+[{ "action_type": "purchase", "value": "10", "1d_click": "6", "7d_click": "7", "1d_view": "3" }]
+```
+
+The setting applies to **Ad Account Insights**, every **Ad Account Insights by ...** endpoint, **Ad Insights by Ad Set**, and **Ad Insights by Campaign**. Leave it empty to import only `value`.
+
+- **`value` stays the same.** It still follows the ad set's attribution setting and is not the sum of the listed windows.
+- **Windows that split clicks from views.** Use `1d_click`, `7d_click`, `28d_click`, `1d_view`, and `1d_ev` (engaged view). Meta stopped returning data for `7d_view` and `28d_view` on January 12, 2026. For every window Meta accepts, see [Ad Account Insights](https://developers.facebook.com/docs/marketing-api/reference/ad-account/insights).
+- **A missing window means zero.** An entry has a key only for the windows that have a value. Meta does not split some action types, such as `post_interaction_gross`, so they keep only `value`.
+- **More windows, heavier requests.** Each window is one more value for Meta to compute. If Meta asks you to reduce the amount of data, list fewer windows or lower **API Page Limit**.
+- **Earlier rows.** Rows imported before you set the windows keep only `value` until you run a backfill.
+
+The connector does not add a column for each window. Read a window from the field in SQL. In BigQuery, each of these fields is a JSON array stored as text:
+
+```sql
+SELECT
+  date_start,
+  campaign_name,
+  JSON_VALUE(conversion, '$.action_type') AS action_type,
+  IFNULL(CAST(JSON_VALUE(conversion, '$."7d_click"') AS FLOAT64), 0) AS conversions_7d_click,
+  IFNULL(CAST(JSON_VALUE(conversion, '$."1d_view"') AS FLOAT64), 0) AS conversions_1d_view
+FROM `your_dataset.facebook_ads_ad_account_insights`,
+  UNNEST(JSON_QUERY_ARRAY(conversions)) AS conversion
+```
+
 ## Start a Manual Run
 
 **Publish & Run Data Mart** already started the first import. Without a trigger, the Data Mart does not run again. To import again, click **Manual Run** and choose a run type, or set a trigger. See [schedule connector runs](https://docs.owox.com/docs/getting-started/setup-guide/connector-triggers/).

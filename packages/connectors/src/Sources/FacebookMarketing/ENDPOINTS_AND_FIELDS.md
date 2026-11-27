@@ -290,6 +290,8 @@ Meta limits which metrics each breakdown supports. Plan for these limits before 
 
 Meta documents these limits in [Breakdowns](https://developers.facebook.com/docs/marketing-api/insights/breakdowns/).
 
+To see conversions after a click and after a view separately, see [Split Conversions by Attribution Window](GETTING_STARTED.md#split-conversions-by-attribution-window).
+
 ### Ad Account Insights Fields
 
 Use these fields with `ad-account/insights` and every `ad-account/insights-by-*` endpoint.
