@@ -12,16 +12,16 @@ export function LoadingSpinner({ fullScreen = false, size = 'md', message }: Loa
   };
 
   const containerClasses = fullScreen
-    ? 'flex h-screen items-center justify-center'
+    ? 'bg-background flex min-h-dvh w-full items-center justify-center p-4'
     : 'flex items-center justify-center p-4';
 
   return (
     <div className={containerClasses}>
       <div className='text-center'>
         <div
-          className={` ${sizeClasses[size]} mx-auto mb-4 animate-spin rounded-full border-gray-300 border-t-blue-600`}
+          className={`${sizeClasses[size]} border-border border-t-primary mx-auto mb-4 animate-spin rounded-full`}
         />
-        {message && <p className='text-sm text-gray-600'>{message}</p>}
+        {message && <p className='text-muted-foreground text-sm'>{message}</p>}
       </div>
     </div>
   );
