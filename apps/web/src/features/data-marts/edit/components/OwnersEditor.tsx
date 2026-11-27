@@ -24,7 +24,18 @@ interface OwnersEditorProps {
 }
 
 export function OwnersEditor({ ownerUsers, onSave, projectId }: OwnersEditorProps) {
-  const { members, isLoading: isMembersLoading } = useProjectMembers(projectId);
+  const {
+    members,
+    isLoading: isMembersLoading,
+    error: membersError,
+    refetch: refetchMembers,
+  } = useProjectMembers(projectId);
+  // The member list is empty until it loads (or when loading fails), so every
+  // owner would look removed. Judge membership only once the list is known.
+  // The endpoint needs a project role, so a real list holds at least the
+  // viewer; an empty one is the server degrading an identity provider failure
+  // into a successful response, not a project without members.
+  const isMemberListKnown = !isMembersLoading && membersError === null && members.length > 0;
   const { flags } = useFlags();
   const [isOpen, setIsOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
@@ -72,8 +83,8 @@ export function OwnersEditor({ ownerUsers, onSave, projectId }: OwnersEditorProp
   // Owners whose userId is not found in members at all (edge case: user projection only)
   const memberIds = useMemo(() => new Set(members.map(m => m.userId)), [members]);
   const unknownOwners = useMemo(
-    () => ownerUsers.filter(u => !memberIds.has(u.userId)),
-    [ownerUsers, memberIds]
+    () => (isMemberListKnown ? ownerUsers.filter(u => !memberIds.has(u.userId)) : []),
+    [isMemberListKnown, ownerUsers, memberIds]
   );
 
   // Filter active members by search query
@@ -90,9 +101,9 @@ export function OwnersEditor({ ownerUsers, onSave, projectId }: OwnersEditorProp
     () => new Set(members.filter(m => m.isOutbound).map(m => m.userId)),
     [members]
   );
-  const hasOutboundOwner = ownerUsers.some(
-    u => outboundIds.has(u.userId) || !memberIds.has(u.userId)
-  );
+  const isRemovedOwner = (userId: string) =>
+    isMemberListKnown && (outboundIds.has(userId) || !memberIds.has(userId));
+  const hasOutboundOwner = ownerUsers.some(u => isRemovedOwner(u.userId));
 
   // Reset search when popover closes
   const handleOpenChange = useCallback((open: boolean) => {
@@ -105,7 +116,7 @@ export function OwnersEditor({ ownerUsers, onSave, projectId }: OwnersEditorProp
       {ownerUsers.length === 1 ? (
         <div className='flex items-center gap-1'>
           <UserReference userProjection={ownerUsers[0]} variant='full' />
-          {(outboundIds.has(ownerUsers[0].userId) || !memberIds.has(ownerUsers[0].userId)) && (
+          {isRemovedOwner(ownerUsers[0].userId) && (
             <Tooltip>
               <TooltipTrigger asChild>
                 <AlertTriangle className='h-4 w-4 text-yellow-500' />
@@ -143,6 +154,7 @@ export function OwnersEditor({ ownerUsers, onSave, projectId }: OwnersEditorProp
               variant='ghost'
               size='sm'
               className='text-muted-foreground hover:text-foreground rounded-full'
+              aria-label='Edit owners'
             >
               <Pencil className='size-4' />
             </Button>
@@ -164,6 +176,23 @@ export function OwnersEditor({ ownerUsers, onSave, projectId }: OwnersEditorProp
               {[1, 2, 3].map(i => (
                 <Skeleton key={i} className='h-8 w-full' />
               ))}
+            </div>
+          ) : !isMemberListKnown ? (
+            // Without the member list nobody can be picked, and no owner can be
+            // told apart from one who left — say so instead of listing guesses.
+            <div className='flex flex-col items-center gap-2 py-2 text-center text-sm'>
+              <span className='text-muted-foreground' role='alert'>
+                Couldn&apos;t load the project members.
+              </span>
+              <Button
+                variant='outline'
+                size='sm'
+                onClick={() => {
+                  void refetchMembers();
+                }}
+              >
+                Try again
+              </Button>
             </div>
           ) : (
             <>
