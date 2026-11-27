@@ -109,6 +109,13 @@ export class SessionException extends BaseException {
   }
 }
 
+/** The signed-in OWOX account has no project to open. */
+export class NoSignInProjectException extends BaseException {
+  constructor(readonly viewOnly: boolean) {
+    super('NoSignInProjectException', 'The signed-in OWOX account has no project', { status: 400 });
+  }
+}
+
 /**
  * Error for Identity API 4xx responses with raw body in context.
  */

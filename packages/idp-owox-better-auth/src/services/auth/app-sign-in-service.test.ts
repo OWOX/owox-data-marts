@@ -67,6 +67,7 @@ describe('App sign-in', () => {
       const params = {
         projectId: 'project-2',
         appRedirectTo: '/ui/project-2/data-marts/report-1',
+        source: 'facebook-marketing',
       };
       const state = await service.start(params);
       expect(isAppSignInState(state)).toBe(true);

@@ -1,6 +1,7 @@
 import { describe, expect, it, jest } from '@jest/globals';
 import type { Request, Response } from 'express';
 import { ProtocolRoute } from '@owox/idp-protocol';
+import { IdentityOwoxClient } from './client/index.js';
 import { AUTH_BASE_PATH } from './core/constants.js';
 import { OwoxBetterAuthIdp } from './owox-better-auth-idp.js';
 
@@ -266,6 +267,39 @@ describe('OwoxBetterAuthIdp Cloud sign-in', () => {
     });
   });
 
+  it.each([
+    [ProtocolRoute.SIGN_IN, 'facebook-marketing', undefined],
+    [ProtocolRoute.SIGN_IN, undefined, 'yoy'],
+    [ProtocolRoute.SIGN_UP, 'facebook-marketing', undefined],
+    [ProtocolRoute.SIGN_UP, undefined, 'yoy'],
+  ])(
+    'starts %s on App with incoming source %s and stored source %s',
+    async (route, source, storedSource) => {
+      const provider = createProvider();
+      const oldParams = encodeURIComponent(JSON.stringify({ source: storedSource }));
+      const request = {
+        path: `${AUTH_BASE_PATH}/${route}`,
+        headers: { cookie: `idp-owox-state=legacy-state; idp-owox-params=${oldParams}` },
+        query: source ? { source } : {},
+      } as unknown as Request;
+      const response = createResponse();
+
+      if (route === ProtocolRoute.SIGN_IN) {
+        await provider.signInMiddleware(request, response, jest.fn());
+        expect(provider['pageController'].signInPage).toHaveBeenCalledWith(request, response, true);
+      } else {
+        await provider.signUpMiddleware(request, response, jest.fn());
+        expect(provider['pageController'].signUpPage).toHaveBeenCalledWith(request, response, true);
+      }
+
+      expect(provider['appSignInService'].start).toHaveBeenCalledWith(
+        expect.objectContaining({ source: source ?? storedSource })
+      );
+      expect(response.cookie).toHaveBeenCalledWith('idp-owox-state', APP_STATE, expect.anything());
+      expect(response.redirect).not.toHaveBeenCalled();
+    }
+  );
+
   describe('social-intent POST', () => {
     it('issues a fresh nonce on a same-origin button request', async () => {
       const { nonceRoute } = createCallbackProvider();
@@ -503,50 +537,130 @@ describe('OwoxBetterAuthIdp Cloud sign-in', () => {
   });
 
   describe('App sign-in completion', () => {
-    it('installs the IB refresh session and returns to the original deep link', async () => {
-      const redirectTo = '/ui/project/data-marts/data-mart?tab=overview#details';
-      const complete = jest.fn().mockResolvedValue({
-        accessToken: 'access-token',
-        refreshToken: 'rotated-refresh-token',
-        refreshTokenExpiresIn: 3600,
-        authFlowParams: { redirectTo },
-      });
-      const setTokenToCookie = jest.fn();
-      const persistAuthInfo = jest.fn();
-      const { provider } = createCallbackProvider({
-        appSignInService: { complete },
-        tokenFacade: {
-          parseToken: jest.fn().mockResolvedValue({
-            userId: 'user',
-            projectId: 'project',
-            roles: [],
-            viewOnly: true,
-          }),
-          setTokenToCookie,
+    it.each([
+      [
+        {
+          message: 'Authentication Flow Error, no project',
+          code: 'APP_SIGN_IN_NO_PROJECT',
+          details: { viewOnly: true },
         },
-        userAuthInfoPersistenceService: { persistAuthInfo },
-        serverEvents: { login: jest.fn() },
+        'This account has no OWOX project. OWOX cannot create a project automatically in view-only mode. Sign in with a different account or ask a project admin for access.',
+      ],
+      [
+        {
+          message: 'Authentication Flow Error, no project',
+          code: 'APP_SIGN_IN_NO_PROJECT',
+          details: { viewOnly: false },
+        },
+        'This account has no OWOX project. Sign in with a different account or ask a project admin for access.',
+      ],
+      [
+        { message: 'Authentication Flow Error, no project' },
+        'This account has no OWOX project. Sign in with a different account or ask a project admin for access.',
+      ],
+      [{ message: 'invalid request' }, 'Unable to complete sign-in. Please try again.'],
+    ])('maps IB error %j to a sign-in page message', async (body, expectedMessage) => {
+      const client = Object.assign(Object.create(IdentityOwoxClient.prototype), {
+        clientBackchannelPrefix: '/internal-api',
+        getC2cAuthHeader: jest.fn().mockResolvedValue({}),
+        http: {
+          post: jest.fn().mockRejectedValue({
+            isAxiosError: true,
+            response: { status: 400, data: body },
+          }),
+        },
+      }) as IdentityOwoxClient;
+      const { provider } = createCallbackProvider({
+        appSignInService: {
+          complete: () =>
+            client.authorizeAppSignIn({
+              state: APP_STATE,
+              codeChallenge: 'a'.repeat(43),
+              userInfo: { uid: 'subject', signinProvider: 'google', email: 'user@example.test' },
+            }),
+        },
       });
-      const req = {
+      const request = {
         headers: { cookie: `idp-owox-state=${APP_STATE}` },
         query: {},
       } as Request;
-      const res = createResponse();
 
       const destination = await provider['completeAppSignIn'](
-        req,
-        res,
+        request,
+        createResponse(),
         'verified-session',
         'google',
         APP_STATE
       );
 
-      expect(destination.toString()).toBe(`https://app.test${redirectTo}`);
-      expect(setTokenToCookie).toHaveBeenCalledWith(res, req, 'rotated-refresh-token', 3600);
-      expect(persistAuthInfo).not.toHaveBeenCalled();
-      expect(provider['onboardingService'].evaluateAndSetOnboardingStatus).not.toHaveBeenCalled();
-      expect(res.clearCookie).toHaveBeenCalledWith('idp-owox-state', expect.anything());
+      expect(destination.pathname).toBe('/auth/sign-in');
+      expect(destination.searchParams.get('error')).toBe(expectedMessage);
     });
+
+    it.each([
+      {
+        scenario: 'Gmail without organization',
+        projectId: 'new-project',
+        roles: ['admin'],
+        viewOnly: false,
+      },
+      { scenario: 'manual provisioning', projectId: 'main-project', roles: [], viewOnly: false },
+      {
+        scenario: 'automatic provisioning',
+        projectId: 'main-project',
+        roles: ['viewer'],
+        viewOnly: false,
+      },
+      { scenario: 'look as', projectId: 'project', roles: [], viewOnly: true },
+    ])(
+      'installs the IB refresh session and keeps the project link for $scenario',
+      async ({ projectId, roles, viewOnly }) => {
+        const redirectTo = `/ui/${projectId}/data-marts/data-mart?tab=overview#details`;
+        const complete = jest.fn().mockResolvedValue({
+          accessToken: 'access-token',
+          refreshToken: 'rotated-refresh-token',
+          refreshTokenExpiresIn: 3600,
+          authFlowParams: { redirectTo },
+        });
+        const setTokenToCookie = jest.fn();
+        const persistAuthInfo = jest.fn();
+        const { provider } = createCallbackProvider({
+          appSignInService: { complete },
+          tokenFacade: {
+            parseToken: jest.fn().mockResolvedValue({
+              userId: 'user',
+              projectId,
+              roles,
+              viewOnly,
+            }),
+            setTokenToCookie,
+          },
+          userAuthInfoPersistenceService: { persistAuthInfo },
+          serverEvents: { login: jest.fn() },
+        });
+        const req = {
+          headers: { cookie: `idp-owox-state=${APP_STATE}` },
+          query: {},
+        } as Request;
+        const res = createResponse();
+
+        const destination = await provider['completeAppSignIn'](
+          req,
+          res,
+          'verified-session',
+          'google',
+          APP_STATE
+        );
+
+        expect(destination.toString()).toBe(`https://app.test${redirectTo}`);
+        expect(setTokenToCookie).toHaveBeenCalledWith(res, req, 'rotated-refresh-token', 3600);
+        expect(persistAuthInfo.mock.calls).toEqual(viewOnly ? [] : [['access-token']]);
+        expect(provider['onboardingService'].evaluateAndSetOnboardingStatus).toHaveBeenCalledTimes(
+          !viewOnly && roles.length > 0 ? 1 : 0
+        );
+        expect(res.clearCookie).toHaveBeenCalledWith('idp-owox-state', expect.anything());
+      }
+    );
 
     it('rejects a callback when the browser is on a different sign-in attempt', async () => {
       const complete = jest.fn();

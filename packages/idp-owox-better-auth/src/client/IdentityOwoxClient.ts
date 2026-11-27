@@ -10,8 +10,10 @@ import {
   IdentityApiException,
   IdpFailedException,
   IdpNotFoundException,
+  NoSignInProjectException,
 } from '../core/exceptions.js';
 import {
+  AppSignInNoProjectResponseSchema,
   AppSignInRequest,
   AuthFlowRequest,
   AuthFlowResponse,
@@ -391,13 +393,19 @@ export class IdentityOwoxClient {
       );
       return AuthFlowResponseSchema.parse(data);
     } catch (error) {
-      if (axios.isAxiosError(error) && error.response?.status === 403) {
+      const response = axios.isAxiosError(error) ? error.response : undefined;
+      if (response?.status === 400) {
+        const missingProject = AppSignInNoProjectResponseSchema.safeParse(response.data);
+        if (missingProject.success) {
+          throw new NoSignInProjectException(missingProject.data.viewOnly);
+        }
+      }
+      if (response?.status === 403) {
         throw new ForbiddenException('The selected project is unavailable');
       }
       if (
-        axios.isAxiosError(error) &&
-        error.response?.status === 401 &&
-        IdpAuthenticationErrorResponseSchema.safeParse(error.response.data).success
+        response?.status === 401 &&
+        IdpAuthenticationErrorResponseSchema.safeParse(response.data).success
       ) {
         throw new AuthenticationException('The OWOX account or project is unavailable');
       }

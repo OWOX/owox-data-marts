@@ -44,6 +44,7 @@ import { AUTH_BASE_PATH, CORE_REFRESH_TOKEN_COOKIE, SOURCE } from './core/consta
 import {
   AuthenticationException,
   IdpFailedException,
+  NoSignInProjectException,
   SessionException,
 } from './core/exceptions.js';
 import { isPersonalEmailDomain } from './core/personal-email-domains.js';
@@ -505,12 +506,17 @@ export class OwoxBetterAuthIdp implements IdpProvider {
       resetAuthFlowForRetry(req, res);
       clearVerifiedSocialIntent(req, res);
       clearBetterAuthCookies(res, req);
-      const message =
-        error instanceof SessionException
-          ? 'Verify your email address, then try signing in again.'
-          : error instanceof AuthenticationException
-            ? 'Your sign-in session expired or your project is unavailable. Please try again.'
-            : 'Unable to complete sign-in. Please try again.';
+      let message = 'Unable to complete sign-in. Please try again.';
+      if (error instanceof NoSignInProjectException) {
+        const explanation = error.viewOnly
+          ? ' OWOX cannot create a project automatically in view-only mode.'
+          : '';
+        message = `This account has no OWOX project.${explanation} Sign in with a different account or ask a project admin for access.`;
+      } else if (error instanceof SessionException) {
+        message = 'Verify your email address, then try signing in again.';
+      } else if (error instanceof AuthenticationException) {
+        message = 'Your sign-in session expired or your project is unavailable. Please try again.';
+      }
       return new URL(this.signInErrorRedirect(message), this.config.idpOwox.baseUrl);
     }
   }
