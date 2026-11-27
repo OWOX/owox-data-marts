@@ -116,9 +116,10 @@ SELECT
   traffic_source.medium AS medium,
   traffic_source.name AS campaign
   FROM
-    `your_project_id.your_ga4_dataset_id.events_2025*`
+    `your_project_id.your_ga4_dataset_id.events_*`
   WHERE
-    event_name = 'session_start'
+    _TABLE_SUFFIX BETWEEN '20250101' AND '20991231' -- set your reporting period
+    AND event_name = 'session_start'
     AND user_pseudo_id IS NOT NULL
 )
 
@@ -161,6 +162,4 @@ SELECT
 
     ELSE 'Other'
   END AS channelGrouping
-FROM raw_data
-SELECT *
-FROM final_pageviews;
+FROM raw_data;

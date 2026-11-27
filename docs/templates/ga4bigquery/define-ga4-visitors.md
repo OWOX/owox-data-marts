@@ -34,9 +34,10 @@ WITH raw_data AS (
   SELECT
     user_pseudo_id,
     PARSE_DATE('%Y%m%d', event_date) AS visit_date
-       FROM `your_project_id.your_ga4_dataset_id.events_2025*`
+       FROM `your_project_id.your_ga4_dataset_id.events_*`
   WHERE
-    user_pseudo_id IS NOT NULL
+    _TABLE_SUFFIX BETWEEN '20250101' AND '20991231' -- set your reporting period
+    AND user_pseudo_id IS NOT NULL
 ),
 aggregated_visitors AS (
   -- Aggregate visitor-level metrics

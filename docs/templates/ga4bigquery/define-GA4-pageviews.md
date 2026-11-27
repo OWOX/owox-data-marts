@@ -40,9 +40,10 @@ WITH raw_data AS (
     (SELECT value.string_value FROM UNNEST(event_params) WHERE key = 'page_referrer') AS pagereferrer,
     (SELECT value.int_value FROM UNNEST(event_params) WHERE key = 'engagement_time_msec') AS engagementtime
   FROM
-    `your_project_id.your_ga4_dataset_id.events_2025*`
+    `your_project_id.your_ga4_dataset_id.events_*`
   WHERE
-    event_name = 'page_view'
+    _TABLE_SUFFIX BETWEEN '20250101' AND '20991231' -- set your reporting period
+    AND event_name = 'page_view'
     AND user_pseudo_id IS NOT NULL
 ),
 

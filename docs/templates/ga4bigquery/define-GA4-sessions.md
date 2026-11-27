@@ -36,7 +36,8 @@ WITH
         *,
         REGEXP_REPLACE(user_pseudo_id, r'^GA\d\.\d\.', '') || '_' || (SELECT value.int_value FROM UNNEST(event_params) WHERE KEY = 'ga_session_id') sessionId,
         (SELECT MAX(IF(ep.key='page_location', ep.value.string_value, null)) FROM UNNEST(event_params) AS ep) AS pageLocation,
-       FROM `your_project_id.your_ga4_dataset_id.events_2025*`
+       FROM `your_project_id.your_ga4_dataset_id.events_*`
+       WHERE _TABLE_SUFFIX BETWEEN '20250101' AND '20991231' -- set your reporting period
     ),
   final_data AS --making of final data structure
     (
