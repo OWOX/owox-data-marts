@@ -65,7 +65,12 @@ import {
 import { buildSourceList } from './source-entries';
 import { TargetDataMartPicker } from './TargetDataMartPicker';
 import { useBlendedFieldsConfigEditor } from './useBlendedFieldsConfigEditor';
-import { useRelationshipDefinitionTypes } from './useRelationshipDefinitionTypes';
+import {
+  useRelationshipCardDetails,
+  type RelationshipCardRoot,
+} from './useRelationshipCardDetails';
+import { extractApiError } from '../../../../../app/api';
+import { dataQualityService } from '../../../data-quality/api/data-quality.service';
 import { useTransientRelationships } from './useTransientRelationships';
 
 // Load React Flow and the graph renderer only when the user switches to graph
@@ -232,12 +237,43 @@ export function DataMartRelationshipsContent({
   const { rows: transientRows, isLoading: isLoadingTransient } =
     useTransientRelationships(relationshipGraph);
 
-  // Enrichment fetches full data-mart details — only worth it when the
-  // diagram is actually on screen (the list view never renders badges).
-  const definitionTypes = useRelationshipDefinitionTypes(
+  // The cards' facts (input source, counts, quality, freshness, sharing) cost
+  // extra requests — only worth it while the diagram is on screen (the list
+  // view shows none of them).
+  const cardRoot = useMemo<RelationshipCardRoot>(
+    () => ({
+      id: dataMartId,
+      storageId,
+      icon: dataMart?.icon ?? null,
+      availableForReporting: dataMart?.availableForReporting,
+      availableForMaintenance: dataMart?.availableForMaintenance,
+    }),
+    [
+      dataMartId,
+      storageId,
+      dataMart?.icon,
+      dataMart?.availableForReporting,
+      dataMart?.availableForMaintenance,
+    ]
+  );
+  const { definitionTypes, cardDetails, refetchQuality } = useRelationshipCardDetails({
+    root: cardRoot,
     relationshipGraph,
     relationships,
-    viewMode === 'graph'
+    enabled: viewMode === 'graph',
+  });
+  const handleRunQuality = useCallback(
+    async (targetId: string) => {
+      try {
+        await dataQualityService.startRun(targetId);
+        toast.success('Data Quality run queued');
+        await refetchQuality();
+      } catch (caught) {
+        const apiError = extractApiError(caught) as ReturnType<typeof extractApiError> | undefined;
+        toast.error(apiError?.message ?? 'Failed to start Data Quality run');
+      }
+    },
+    [refetchQuality]
   );
 
   // Toolbar filters apply to both the list and the diagram (and keep the
@@ -539,6 +575,8 @@ export function DataMartRelationshipsContent({
             objectLabels={objectLabels}
             onObjectLabelsChange={handleObjectLabelsChange}
             fieldsByAliasPath={canvasFieldsByAliasPath}
+            cardDetails={cardDetails}
+            onRunQuality={handleRunQuality}
             onRequestFullscreen={() => {
               setIsFullscreen(true);
             }}
@@ -733,6 +771,8 @@ export function DataMartRelationshipsContent({
                 objectLabels={objectLabels}
                 onObjectLabelsChange={handleObjectLabelsChange}
                 fieldsByAliasPath={canvasFieldsByAliasPath}
+                cardDetails={cardDetails}
+                onRunQuality={handleRunQuality}
                 className='rounded-none border-0'
                 style={{ width: '100%', height: '100%' }}
               />

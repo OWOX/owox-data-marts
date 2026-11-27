@@ -3,7 +3,18 @@ import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { describe, expect, it, vi } from 'vitest';
 import type { ErdCardField } from '../../../shared/canvas/erd-fields';
 import { ALL_HIDDEN, NOTHING_HIDDEN } from '../../../shared/canvas/object-labels';
+import { DataMartDefinitionType } from '../../../shared/enums/data-mart-definition-type.enum';
 import { RelationshipFlowNode, type RelationshipFlowNodeType } from './RelationshipCanvas';
+import {
+  aliasBadgeTitle,
+  hasRelationshipCardFooter,
+  relationshipCardBadgeLines,
+  type RelationshipCardDetails,
+} from './relationship-card';
+
+vi.mock('../../../shared/canvas/measure-badge-text', () => ({
+  measureBadgeText: (text: string) => text.length * 6,
+}));
 
 vi.mock('@xyflow/react', async importOriginal => {
   const actual = await importOriginal<typeof import('@xyflow/react')>();
@@ -20,32 +31,55 @@ function renderNode(
   onOpenExternal = vi.fn(),
   dataOverrides: Partial<RelationshipFlowNodeType['data']> = {}
 ) {
+  const base = {
+    isSource: false,
+    label: 'Customers',
+    targetAlias: 'customers',
+    fieldCount: 3,
+    description: 'Customer dimension',
+    definitionType: null,
+    isDraft: false,
+    isBlocked: false,
+    isJoinNotConfigured: false,
+    isCycleStub: false,
+    isMissingPrimaryKey: false,
+    userHasAccess: true,
+    hasOutgoing: false,
+    highlighted: false,
+    dimmed: false,
+    fields: [],
+    viewMode: 'compact' as const,
+    objectLabels: NOTHING_HIDDEN,
+    direction: 'horizontal' as const,
+    onOpenExternal,
+    onOpenQuality: vi.fn(),
+    onRunQuality: vi.fn(() => Promise.resolve()),
+    ...dataOverrides,
+  };
+  // The canvas packs the pills and decides the footer before rendering — do the same here.
+  const data = {
+    ...base,
+    badgeLines:
+      dataOverrides.badgeLines ??
+      relationshipCardBadgeLines(
+        {
+          definitionType: base.definitionType,
+          targetAlias: base.targetAlias,
+          fieldCount: base.fieldCount,
+          triggersCount: base.details?.triggersCount,
+          reportsCount: base.details?.reportsCount,
+          relationshipCount: base.details?.relationshipCount,
+        },
+        base.isSource ? 'compact' : base.viewMode,
+        base.objectLabels
+      ),
+    withFooter:
+      dataOverrides.withFooter ?? hasRelationshipCardFooter(base.details, base.objectLabels),
+  };
   const props = {
     id: 'customers',
     type: 'relationshipNode',
-    data: {
-      isSource: false,
-      label: 'Customers',
-      targetAlias: 'customers',
-      fieldCount: 3,
-      description: 'Customer dimension',
-      definitionType: null,
-      isDraft: false,
-      isBlocked: false,
-      isJoinNotConfigured: false,
-      isCycleStub: false,
-      isMissingPrimaryKey: false,
-      userHasAccess: true,
-      hasOutgoing: false,
-      highlighted: false,
-      dimmed: false,
-      fields: [],
-      viewMode: 'compact' as const,
-      objectLabels: NOTHING_HIDDEN,
-      direction: 'horizontal' as const,
-      onOpenExternal,
-      ...dataOverrides,
-    },
+    data,
     dragging: false,
     zIndex: 0,
     selectable: false,
@@ -168,6 +202,67 @@ describe('RelationshipFlowNode', () => {
     renderNode(vi.fn(), { objectLabels: NOTHING_HIDDEN });
 
     expect(screen.getByText('3 fields')).toBeInTheDocument();
+  });
+
+  it('shows the Models card pills: input source, alias, fields and the Data Mart counts', () => {
+    renderNode(vi.fn(), {
+      definitionType: DataMartDefinitionType.VIEW,
+      details: { triggersCount: 2, reportsCount: 1, relationshipCount: 4 },
+    });
+
+    expect(screen.getByText('View')).toBeInTheDocument();
+    expect(screen.getByText('customers')).toHaveAttribute('title', aliasBadgeTitle('customers'));
+    expect(screen.getByText('3 fields')).toBeInTheDocument();
+    expect(screen.getByText('2 triggers')).toBeInTheDocument();
+    expect(screen.getByText('1 report')).toBeInTheDocument();
+    expect(screen.getByText('4 relationships')).toBeInTheDocument();
+  });
+
+  it('shows no pill for a count of zero or a count still unknown', () => {
+    renderNode(vi.fn(), { fieldCount: 0, details: { triggersCount: 0 } });
+
+    expect(screen.queryByText(/field/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/trigger/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/report/)).not.toBeInTheDocument();
+  });
+
+  it('shows the quality, freshness and sharing footer once the details are known', () => {
+    const details: RelationshipCardDetails = {
+      dataLastUpdated: null,
+      availableForReporting: true,
+      availableForMaintenance: false,
+    };
+    renderNode(vi.fn(), { details });
+
+    expect(screen.getByRole('button', { name: /Data Last Updated/ })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Shared for reporting' })).toBeInTheDocument();
+    expect(
+      screen.queryByRole('button', { name: 'Shared for maintenance' })
+    ).not.toBeInTheDocument();
+  });
+
+  it('drops the footer when its object label is unticked or the details are unknown', () => {
+    const details: RelationshipCardDetails = { availableForReporting: true };
+    renderNode(vi.fn(), { details, objectLabels: { ...NOTHING_HIDDEN, footer: true } });
+    expect(screen.queryByRole('button', { name: 'Shared for reporting' })).not.toBeInTheDocument();
+
+    renderNode(vi.fn(), { details: undefined });
+    expect(screen.queryByRole('button', { name: /Data Last Updated/ })).not.toBeInTheDocument();
+  });
+
+  it('gives the root card no "open in new tab" action and no alias', () => {
+    renderNode(vi.fn(), { isSource: true, targetAlias: undefined, fieldCount: undefined });
+
+    expect(screen.getByText('Customers')).toBeInTheDocument();
+    expect(
+      screen.queryByRole('button', { name: 'Open Customers in new tab' })
+    ).not.toBeInTheDocument();
+  });
+
+  it('names a draft once, in the warning above the card', () => {
+    renderNode(vi.fn(), { isDraft: true });
+
+    expect(screen.getAllByText('Draft')).toHaveLength(1);
   });
 });
 

@@ -7,6 +7,15 @@ import type { DataMartRelationship } from '../../../shared/types/relationship.ty
 import { RelationshipCanvas } from './RelationshipCanvas';
 import { getViewportForBounds } from '@xyflow/react';
 import { GRAPH_READABLE_ZOOM, getGraphZoomRange } from './relationship-canvas-zoom';
+import {
+  CARD_FIRST_BADGE_ROW_HEIGHT,
+  CARD_NO_FOOTER_PADDING,
+  CARD_TITLE_ROW_HEIGHT,
+} from '../../../model-canvas/model/erd-node';
+
+/** A related card's header with one pill line and no footer (no details passed in). */
+const CARD_HEADER_WITHOUT_FOOTER =
+  CARD_TITLE_ROW_HEIGHT + CARD_FIRST_BADGE_ROW_HEIGHT + CARD_NO_FOOTER_PADDING;
 
 const FIT_VIEW_PADDING = 1 / 0.85 - 1;
 
@@ -724,11 +733,13 @@ describe('RelationshipCanvas view settings', () => {
     fireEvent.click(screen.getByRole('switch', { name: 'Show join fields' }));
     expect(props.onShowJoinFieldsChange).toHaveBeenCalledWith(true);
 
-    fireEvent.click(screen.getByRole('checkbox', { name: /^Status/ }));
+    fireEvent.click(screen.getByRole('checkbox', { name: /^Reports/ }));
     expect(props.onObjectLabelsChange).toHaveBeenCalledWith({
       ...NOTHING_HIDDEN,
-      status: true,
+      reports: true,
     });
+    // A draft is named by the warning above its card, so there is no draft option.
+    expect(screen.queryByRole('checkbox', { name: /^Status|^Draft/ })).not.toBeInTheDocument();
   });
 
   it('sizes ERD cards to their collapsed field rows', async () => {
@@ -744,9 +755,10 @@ describe('RelationshipCanvas view settings', () => {
       expect(reactFlowHarness.latestProps?.nodes).toHaveLength(2);
     });
     const target = reactFlowHarness.latestProps?.nodes?.find(node => !node.data.isSource);
-    // 92 header + 4 collapsed rows × 26 + the "+2 more" toggle row.
+    // Header (title, the alias pill line, no footer until the details load)
+    // + 4 collapsed rows × 26 + the "+2 more" toggle row.
     expect(target?.width).toBe(256);
-    expect(target?.height).toBe(92 + 4 * 26 + 26);
+    expect(target?.height).toBe(CARD_HEADER_WITHOUT_FOOTER + 4 * 26 + 26);
     // The rows themselves must reach the card, not just the sizing math.
     expect(target?.data.fields?.map(field => field.name)).toEqual([
       'field_0',
@@ -774,8 +786,8 @@ describe('RelationshipCanvas view settings', () => {
       expect(reactFlowHarness.latestProps?.nodes).toHaveLength(2);
     });
     const target = () => reactFlowHarness.latestProps?.nodes?.find(node => !node.data.isSource);
-    // 92 header + 2 rows × 26 + one 14px description line.
-    expect(target()?.height).toBe(92 + 2 * 26 + 14);
+    // Header + 2 rows × 26 + one 14px description line.
+    expect(target()?.height).toBe(CARD_HEADER_WITHOUT_FOOTER + 2 * 26 + 14);
 
     rerender(
       <RelationshipCanvas
@@ -786,7 +798,7 @@ describe('RelationshipCanvas view settings', () => {
       />
     );
     await waitFor(() => {
-      expect(target()?.height).toBe(92 + 2 * 26);
+      expect(target()?.height).toBe(CARD_HEADER_WITHOUT_FOOTER + 2 * 26);
     });
   });
 

@@ -1,13 +1,16 @@
-import { Badge } from '@owox/ui/components/badge';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@owox/ui/components/tooltip';
 import {
   ExternalLink,
   Info,
   Locate,
   Maximize2,
+  Share2,
+  Tag,
   TriangleAlert,
+  Users,
   ZoomIn,
   ZoomOut,
+  type LucideIcon,
 } from 'lucide-react';
 import { useCallback, useEffect, useId, useMemo, useRef, useState } from 'react';
 import {
@@ -55,18 +58,24 @@ import {
   type DagreLayoutNode,
 } from '../../../shared/canvas/dagre-layout';
 import { EdgeJoinLabel } from '../../../shared/canvas/edge-join-label';
-import {
-  ERD_NODE_WIDTH,
-  erdFieldsBodyHeight,
-  type ErdCardField,
-  type ErdFieldRowLabels,
-} from '../../../shared/canvas/erd-fields';
+import { ERD_NODE_WIDTH, type ErdCardField } from '../../../shared/canvas/erd-fields';
 import { ErdCardFieldsSection } from '../../../shared/canvas/erd-fields-section';
 import { RELATIONSHIP_CANVAS_OBJECT_LABEL_OPTIONS } from './relationship-canvas-object-label-options';
 import { toFieldRowLabels, type ObjectLabelsHidden } from '../../../shared/canvas/object-labels';
 import type { CanvasViewMode } from '../../../shared/canvas/view-mode';
 import { OWOX_GRAY_DARK, OWOX_YELLOW_BASE } from '../../../shared/canvas/owox-palette';
-import { ErdDefinitionBadge, ErdStatusDot } from '../../../shared/canvas/erd-card';
+import { CARD_COUNT_BADGE_ICONS, CardPill, SharingIcon } from '../../../shared/canvas/card-parts';
+import { DataMartDefinitionTypeModel } from '../../../shared/types/data-mart-definition-type.model';
+import { DataMartIconGlyph } from '../../../shared/components/DataMartIcon/DataMartIconGlyph';
+import { DataQualityCanvasStatusIcon } from '../../../model-canvas/components/DataQualityCanvasStatusIcon';
+import { DataLastUpdatedCanvasIcon } from '../../../model-canvas/components/DataLastUpdatedCanvasIcon';
+import {
+  hasRelationshipCardFooter,
+  relationshipCardBadgeLines,
+  relationshipCardHeight,
+  type RelationshipCardBadge,
+  type RelationshipCardDetails,
+} from './relationship-card';
 import { computeCanvasHighlight, NO_HIGHLIGHT } from '../../../shared/canvas/highlight';
 import { clampCanvasViewport, getCanvasGraphBounds } from '../../../shared/canvas/viewport';
 import type { DataMartDefinitionType } from '../../../shared/enums/data-mart-definition-type.enum';
@@ -100,7 +109,7 @@ interface RelationshipCanvasProps {
   dataMartStatus: string;
   /** Definition type of the root data mart (available from the edit-page context). */
   dataMartDefinitionType?: DataMartDefinitionType | null;
-  /** Definition types of target data marts, enriched separately (see useRelationshipDefinitionTypes). */
+  /** Definition types of target data marts, enriched separately (see useRelationshipCardDetails). */
   definitionTypes?: Map<string, DataMartDefinitionType | null>;
   relationships: DataMartRelationship[];
   relationshipGraph: RelationshipGraph | null;
@@ -129,13 +138,15 @@ interface RelationshipCanvasProps {
   onObjectLabelsChange: (next: ObjectLabelsHidden) => void;
   /** Fields per aliasPath (from the blendable schema) — ERD rows in the ERD view. */
   fieldsByAliasPath?: Map<string, ErdCardField[]>;
+  /** Data Mart facts per Data Mart id for the cards: icon, counts, quality, freshness, sharing. */
+  cardDetails?: Map<string, RelationshipCardDetails>;
+  /** Starts a Data Quality run from a card footer. */
+  onRunQuality?: (dataMartId: string) => Promise<void>;
   className?: string;
   style?: React.CSSProperties;
 }
 
 const NODE_W = 240;
-const SRC_H = 48;
-const TGT_H = 92;
 const FIT_VIEW_SCALE = 0.85;
 const FIT_VIEW_PADDING = 1 / FIT_VIEW_SCALE - 1;
 const GRAPH_PAN_PADDING = 150;
@@ -164,7 +175,14 @@ export interface RelationshipNodeData {
   viewMode: CanvasViewMode;
   objectLabels: ObjectLabelsHidden;
   direction: CanvasDirection;
+  /** Data Mart facts from the storage's model; unknown until loaded, and without access. */
+  details?: RelationshipCardDetails;
+  /** The pills, packed into lines by width — the layout height counts the same lines. */
+  badgeLines: RelationshipCardBadge[][];
+  withFooter: boolean;
   onOpenExternal: () => void;
+  onOpenQuality: () => void;
+  onRunQuality: () => Promise<void>;
 }
 
 export type RelationshipFlowNodeType = Node<
@@ -246,6 +264,21 @@ function cardStateStyle(data: RelationshipNodeData, selected: boolean): React.CS
   };
 }
 
+const RELATIONSHIP_BADGE_ICONS: Record<
+  Exclude<RelationshipCardBadge['kind'], 'definition'>,
+  LucideIcon
+> = {
+  ...CARD_COUNT_BADGE_ICONS,
+  alias: Tag,
+};
+
+/**
+ * A Data Mart card in the Models canvas style: icon tile and title, then the
+ * pills packed by width, then the quality, freshness and sharing footer. The
+ * root card (the Data Mart being edited) is tinted, has no incoming handle and
+ * no "open in new tab" action. A draft is named by the warning above the card,
+ * so the card carries no separate draft pill.
+ */
 export function RelationshipFlowNode({ id, data, selected }: NodeProps<RelationshipFlowNodeType>) {
   // Owned here (not in the section) so expansion survives Compact↔ERD
   // round-trips — the node stays mounted while the section unmounts.
@@ -257,16 +290,11 @@ export function RelationshipFlowNode({ id, data, selected }: NodeProps<Relations
     updateNodeInternals(id);
   }, [expanded, id, updateNodeInternals]);
 
-  // Object labels: source badge, field count and status dot toggle
-  // independently. The alias badge is join configuration (not an object
-  // label), so it always stays.
-  const labels = data.objectLabels;
-  const withSource = !labels.source;
-  const withFieldCount = !labels.fields;
-  const withStatus = !labels.status;
-
+  const details = data.details;
   const targetPosition = data.direction === 'vertical' ? Position.Top : Position.Left;
   const sourcePosition = data.direction === 'vertical' ? Position.Bottom : Position.Right;
+  const openExternalLabel = `Open ${data.label} in new tab`;
+  const showFieldRows = !data.isSource && data.viewMode === 'erd' && data.fields.length > 0;
 
   function handleExtClick(e: React.MouseEvent) {
     e.stopPropagation();
@@ -274,60 +302,61 @@ export function RelationshipFlowNode({ id, data, selected }: NodeProps<Relations
     data.onOpenExternal();
   }
 
-  if (data.isSource) {
-    return (
-      <div
-        className='bg-primary/5 relative flex items-center gap-2 rounded-xl border shadow-sm'
-        style={{ ...cardStateStyle(data, selected), height: SRC_H, padding: '0 14px' }}
-      >
-        <IndicatorLabel data={data} />
-        <span
-          className='text-foreground flex-1 truncate text-[13px] font-semibold'
-          title={data.label}
+  function renderBadge(badge: RelationshipCardBadge) {
+    if (badge.kind === 'definition') {
+      return data.definitionType ? (
+        <CardPill
+          key={badge.kind}
+          icon={DataMartDefinitionTypeModel.getInfo(data.definitionType).icon}
         >
-          {data.label}
-        </span>
-        {withStatus && <ErdStatusDot isDraft={data.isDraft} decorative />}
-        {data.hasOutgoing && (
-          <Handle
-            type='source'
-            position={sourcePosition}
-            isConnectable={false}
-            style={SOCKET_STYLE}
-          />
-        )}
-      </div>
+          {badge.label}
+        </CardPill>
+      ) : null;
+    }
+    return (
+      <CardPill key={badge.kind} icon={RELATIONSHIP_BADGE_ICONS[badge.kind]} title={badge.title}>
+        {badge.label}
+      </CardPill>
     );
   }
-
-  const openExternalLabel = `Open ${data.label} in new tab`;
-  const showFieldRows = data.viewMode === 'erd' && data.fields.length > 0;
 
   return (
     <div
       title={data.isCycleStub ? CYCLE_STUB_TOOLTIP : undefined}
-      className='bg-background relative flex flex-col rounded-xl border shadow-sm'
+      className={`${data.isSource ? 'bg-primary/5' : 'bg-background'} relative flex flex-col rounded-xl border shadow-sm`}
       style={cardStateStyle(data, selected)}
     >
       <IndicatorLabel data={data} />
-      <Handle type='target' position={targetPosition} isConnectable={false} style={SOCKET_STYLE} />
+      {!data.isSource && (
+        <Handle
+          type='target'
+          position={targetPosition}
+          isConnectable={false}
+          style={SOCKET_STYLE}
+        />
+      )}
 
-      {/* Header: title + status + actions */}
-      <div className='flex items-center gap-2 px-3.5 pt-3 pb-1'>
+      {/* Title row: icon tile + name + actions */}
+      <div className='flex items-center gap-2 pt-3 pr-3 pl-3'>
         <span
-          className='text-foreground flex-1 truncate text-[13px] font-semibold'
+          className='bg-muted text-foreground flex h-7 w-7 shrink-0 items-center justify-center rounded-md'
+          aria-hidden='true'
+        >
+          <DataMartIconGlyph icon={details?.icon ?? null} className='h-4 w-4' />
+        </span>
+        <span
+          className='text-foreground min-w-0 flex-1 truncate text-sm font-semibold'
           title={data.label}
         >
           {data.label}
         </span>
-        {withStatus && <ErdStatusDot isDraft={data.isDraft} decorative />}
         {!data.userHasAccess && <NoAccessIndicatorNative />}
         {data.description && (
           <Tooltip>
             <TooltipTrigger asChild>
               <button
                 type='button'
-                className='text-muted-foreground hover:text-foreground inline-flex cursor-default rounded p-0.5 transition-colors'
+                className='text-muted-foreground hover:text-foreground inline-flex shrink-0 cursor-default rounded p-0.5 transition-colors'
                 aria-label={`Description for ${data.label}`}
                 onPointerDown={event => {
                   event.stopPropagation();
@@ -341,44 +370,68 @@ export function RelationshipFlowNode({ id, data, selected }: NodeProps<Relations
             </TooltipContent>
           </Tooltip>
         )}
-        <button
-          type='button'
-          className='text-muted-foreground hover:text-foreground shrink-0 cursor-pointer rounded p-0.5 transition-colors'
-          onPointerDown={e => {
-            e.stopPropagation();
-          }}
-          onClick={handleExtClick}
-          title={openExternalLabel}
-          aria-label={openExternalLabel}
-        >
-          <ExternalLink className='h-3.5 w-3.5' aria-hidden='true' />
-        </button>
+        {!data.isSource && (
+          <button
+            type='button'
+            className='text-muted-foreground hover:text-foreground shrink-0 cursor-pointer rounded p-0.5 transition-colors'
+            onPointerDown={e => {
+              e.stopPropagation();
+            }}
+            onClick={handleExtClick}
+            title={openExternalLabel}
+            aria-label={openExternalLabel}
+          >
+            <ExternalLink className='h-3.5 w-3.5' aria-hidden='true' />
+          </button>
+        )}
       </div>
 
-      {/* Meta row: definition badge + alias + connected field count */}
-      <div className='flex min-w-0 items-center gap-2 px-3.5 pt-1 pb-3'>
-        {withSource && <ErdDefinitionBadge type={data.definitionType} />}
-        {data.targetAlias && (
-          <Badge
-            variant='secondary'
-            className='inline-block max-w-[90px] truncate px-1.5 py-0 text-[10px]'
-            title={data.targetAlias}
-          >
-            {data.targetAlias}
-          </Badge>
-        )}
-        {withFieldCount && (
-          <span className='text-muted-foreground ml-auto shrink-0 text-[11px]'>
-            {data.fieldCount ?? 0} field{data.fieldCount !== 1 ? 's' : ''}
+      {/* Pill lines: source, alias, fields, triggers, reports, relationships — packed by width */}
+      {data.badgeLines.map((line, index) => (
+        <div
+          key={line.map(badge => badge.kind).join('+')}
+          className={`flex items-center gap-1 overflow-hidden pr-3 pl-3 ${index === 0 ? 'pt-2' : 'pt-1'}`}
+        >
+          {line.map(renderBadge)}
+        </div>
+      ))}
+
+      {/* Without the footer the card still closes with its bottom padding. */}
+      {!data.withFooter && <div className='h-3' aria-hidden='true' />}
+      {data.withFooter && details && (
+        <div className='text-muted-foreground flex items-center gap-1 pt-2.5 pr-3 pb-3 pl-3 text-[11px]'>
+          {details.qualitySummary && (
+            <DataQualityCanvasStatusIcon
+              dataMartTitle={data.label}
+              summary={details.qualitySummary}
+              onOpenQuality={data.onOpenQuality}
+              onRunQuality={data.onRunQuality}
+            />
+          )}
+          <DataLastUpdatedCanvasIcon
+            dataMartTitle={data.label}
+            block={details.dataLastUpdated ?? null}
+          />
+          <span className='ml-auto flex items-center gap-1'>
+            <SharingIcon
+              icon={Share2}
+              flag='availableForReporting'
+              on={details.availableForReporting}
+            />
+            <SharingIcon
+              icon={Users}
+              flag='availableForMaintenance'
+              on={details.availableForMaintenance}
+            />
           </span>
-        )}
-      </div>
+        </div>
+      )}
 
       {/* ERD body: field rows (only in the ERD view) */}
       {showFieldRows && (
         <ErdCardFieldsSection
           fields={data.fields}
-          labels={toFieldRowLabels(labels)}
+          labels={toFieldRowLabels(data.objectLabels)}
           expanded={expanded}
           onToggleExpanded={() => {
             setExpanded(v => !v);
@@ -533,19 +586,10 @@ interface BuildRelationshipFlowParams {
   direction: CanvasDirection;
   showJoinFields: boolean;
   fieldsByAliasPath: Map<string, ErdCardField[]> | undefined;
+  cardDetails: Map<string, RelationshipCardDetails> | undefined;
   onOpenExternal: (targetDmId: string) => void;
-}
-
-/** Collapsed card height — dagre sizes to it, expansion may overlap (as in owox/models). */
-function relationshipNodeHeight(
-  isSource: boolean,
-  fields: ErdCardField[],
-  viewMode: CanvasViewMode,
-  fieldLabels: ErdFieldRowLabels
-): number {
-  if (isSource) return SRC_H;
-  if (viewMode !== 'erd') return TGT_H;
-  return TGT_H + erdFieldsBodyHeight(fields, fieldLabels);
+  onOpenQuality: (dataMartId: string) => void;
+  onRunQuality: (dataMartId: string) => Promise<void>;
 }
 
 function buildRelationshipFlow({
@@ -565,7 +609,10 @@ function buildRelationshipFlow({
   direction,
   showJoinFields,
   fieldsByAliasPath,
+  cardDetails,
   onOpenExternal,
+  onOpenQuality,
+  onRunQuality,
 }: BuildRelationshipFlowParams): RelationshipFlowGraph {
   // Filtering a node out also drops its subtree: children can't resolve their
   // parent key and are skipped below. The root data mart is always shown.
@@ -679,26 +726,64 @@ function buildRelationshipFlow({
     }
   }
 
-  const fields = new Map<string, ErdCardField[]>();
-  const widths = new Map<string, number>();
-  const heights = new Map<string, number>();
+  interface NodeCard {
+    fields: ErdCardField[];
+    definitionType: DataMartDefinitionType | null;
+    details: RelationshipCardDetails | undefined;
+    badgeLines: RelationshipCardBadge[][];
+    withFooter: boolean;
+    width: number;
+    height: number;
+  }
+  const cards = new Map<string, NodeCard>();
   const fieldLabels = toFieldRowLabels(objectLabels);
   for (const [nodeKey, info] of nodeInfos) {
     const nodeFields =
       info.isSource || info.aliasPath === undefined
         ? []
         : (fieldsByAliasPath?.get(info.aliasPath) ?? []);
-    fields.set(nodeKey, nodeFields);
-    widths.set(nodeKey, info.isSource ? NODE_W : nodeCardWidth(viewMode));
-    heights.set(nodeKey, relationshipNodeHeight(info.isSource, nodeFields, viewMode, fieldLabels));
+    const definitionType = info.isSource
+      ? rootDefinitionType
+      : (definitionTypes?.get(info.dmId) ?? null);
+    // A Data Mart the user cannot open has no facts to show, even when the storage lists it.
+    const details = info.userHasAccess ? cardDetails?.get(info.dmId) : undefined;
+    const badgeLines = relationshipCardBadgeLines(
+      {
+        definitionType,
+        targetAlias: info.targetAlias,
+        fieldCount: info.fieldCount,
+        triggersCount: details?.triggersCount,
+        reportsCount: details?.reportsCount,
+        relationshipCount: details?.relationshipCount,
+      },
+      // The root card keeps the Compact width in every view mode.
+      info.isSource ? 'compact' : viewMode,
+      objectLabels
+    );
+    const withFooter = hasRelationshipCardFooter(details, objectLabels);
+    cards.set(nodeKey, {
+      fields: nodeFields,
+      definitionType,
+      details,
+      badgeLines,
+      withFooter,
+      width: info.isSource ? NODE_W : nodeCardWidth(viewMode),
+      height: relationshipCardHeight({
+        badgeLineCount: badgeLines.length,
+        withFooter,
+        fields: nodeFields,
+        viewMode,
+        fieldLabels,
+      }),
+    });
   }
 
   // Same layout engine as the Models canvas: dagre picks the positions and
   // reserves room for join labels, honoring the Horizontal/Vertical setting.
-  const dagreNodes: DagreLayoutNode[] = [...nodeInfos.keys()].map(nodeKey => ({
+  const dagreNodes: DagreLayoutNode[] = [...cards].map(([nodeKey, card]) => ({
     id: nodeKey,
-    width: widths.get(nodeKey) ?? NODE_W,
-    height: heights.get(nodeKey) ?? TGT_H,
+    width: card.width,
+    height: card.height,
   }));
   const dagreEdges: DagreLayoutEdge[] = edgeInfos.map(edge => ({
     id: `${edge.sourceId}->${edge.targetId}`,
@@ -710,12 +795,14 @@ function buildRelationshipFlow({
 
   const nodes: RelationshipFlowNodeType[] = [];
   for (const [nodeKey, info] of nodeInfos) {
+    const card = cards.get(nodeKey);
+    if (!card) continue;
     nodes.push({
       id: nodeKey,
       type: 'relationshipNode',
       position: positions.get(nodeKey) ?? { x: 0, y: 0 },
-      width: widths.get(nodeKey) ?? NODE_W,
-      height: heights.get(nodeKey) ?? TGT_H,
+      width: card.width,
+      height: card.height,
       draggable: false,
       selectable: false,
       focusable: false,
@@ -726,9 +813,7 @@ function buildRelationshipFlow({
         targetAlias: info.targetAlias,
         fieldCount: info.fieldCount,
         description: info.description,
-        definitionType: info.isSource
-          ? rootDefinitionType
-          : (definitionTypes?.get(info.dmId) ?? null),
+        definitionType: card.definitionType,
         isDraft: info.isDraft ?? false,
         isBlocked: info.isBlocked ?? false,
         isJoinNotConfigured: info.isJoinNotConfigured ?? false,
@@ -738,13 +823,20 @@ function buildRelationshipFlow({
         hasOutgoing: hasOutgoing.has(nodeKey) && !info.isCycleStub,
         highlighted: false,
         dimmed: false,
-        fields: fields.get(nodeKey) ?? [],
+        fields: card.fields,
         viewMode,
         objectLabels,
         direction,
+        details: card.details,
+        badgeLines: card.badgeLines,
+        withFooter: card.withFooter,
         onOpenExternal: () => {
           onOpenExternal(info.dmId);
         },
+        onOpenQuality: () => {
+          onOpenQuality(info.dmId);
+        },
+        onRunQuality: () => onRunQuality(info.dmId),
       },
     });
   }
@@ -797,6 +889,9 @@ interface RelationshipCanvasInnerProps {
   objectLabels: ObjectLabelsHidden;
   onObjectLabelsChange: (next: ObjectLabelsHidden) => void;
   fieldsByAliasPath?: Map<string, ErdCardField[]>;
+  cardDetails?: Map<string, RelationshipCardDetails>;
+  onOpenQuality: (dataMartId: string) => void;
+  onRunQuality: (dataMartId: string) => Promise<void>;
 }
 
 function RelationshipCanvasInner({
@@ -823,6 +918,9 @@ function RelationshipCanvasInner({
   objectLabels,
   onObjectLabelsChange,
   fieldsByAliasPath,
+  cardDetails,
+  onOpenQuality,
+  onRunQuality,
 }: RelationshipCanvasInnerProps) {
   const reactFlow = useReactFlow<RelationshipFlowNodeType, RelationshipFlowEdgeType>();
   const paneWidth = useStore(s => s.width);
@@ -849,7 +947,10 @@ function RelationshipCanvasInner({
         direction,
         showJoinFields,
         fieldsByAliasPath,
+        cardDetails,
         onOpenExternal,
+        onOpenQuality,
+        onRunQuality,
       }),
     [
       dataMartId,
@@ -868,7 +969,10 @@ function RelationshipCanvasInner({
       direction,
       showJoinFields,
       fieldsByAliasPath,
+      cardDetails,
       onOpenExternal,
+      onOpenQuality,
+      onRunQuality,
     ]
   );
 
@@ -1282,15 +1386,30 @@ export function RelationshipCanvas({
   objectLabels,
   onObjectLabelsChange,
   fieldsByAliasPath,
+  cardDetails,
+  onRunQuality,
   className,
   style,
 }: RelationshipCanvasProps) {
-  const { scope } = useProjectRoute();
+  const { scope, navigate } = useProjectRoute();
   const handleOpenExternal = useCallback(
     (targetId: string) => {
       window.open(scope(`/data-marts/${targetId}/data-setup`), '_blank', 'noopener,noreferrer');
     },
     [scope]
+  );
+  const handleOpenQuality = useCallback(
+    (targetId: string) => {
+      navigate(`/data-marts/${targetId}/quality`);
+    },
+    [navigate]
+  );
+  // Behind a ref so a new handler from the parent never rebuilds the graph.
+  const onRunQualityRef = useRef(onRunQuality);
+  onRunQualityRef.current = onRunQuality;
+  const handleRunQuality = useCallback(
+    (targetId: string) => onRunQualityRef.current?.(targetId) ?? Promise.resolve(),
+    []
   );
 
   if (relationships.length === 0) return null;
@@ -1326,6 +1445,9 @@ export function RelationshipCanvas({
           objectLabels={objectLabels}
           onObjectLabelsChange={onObjectLabelsChange}
           fieldsByAliasPath={fieldsByAliasPath}
+          cardDetails={cardDetails}
+          onOpenQuality={handleOpenQuality}
+          onRunQuality={handleRunQuality}
         />
       </ReactFlowProvider>
     </div>

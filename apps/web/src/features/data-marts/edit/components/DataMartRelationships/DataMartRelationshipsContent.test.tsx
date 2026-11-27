@@ -131,8 +131,12 @@ vi.mock('../../../shared/services/data-mart-relationship.service', () => ({
   },
 }));
 
-vi.mock('./useRelationshipDefinitionTypes', () => ({
-  useRelationshipDefinitionTypes: () => new Map<string, null>(),
+vi.mock('./useRelationshipCardDetails', () => ({
+  useRelationshipCardDetails: () => ({
+    definitionTypes: new Map<string, null>(),
+    cardDetails: new Map(),
+    refetchQuality: () => Promise.resolve(),
+  }),
 }));
 
 vi.mock('./RelationshipAccordionItem', () => ({

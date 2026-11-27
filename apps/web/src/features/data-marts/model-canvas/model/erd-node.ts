@@ -178,13 +178,13 @@ export type TextMeasure = (text: string) => number;
  * next badge would not fit the card's width — fewer lines keep the card short.
  * The card renders these lines and the layout estimate counts them, so both agree.
  */
-export function packBadges(
-  badges: readonly CardBadge[],
+export function packBadges<B extends Pick<CardBadge, 'label'>>(
+  badges: readonly B[],
   viewMode: CanvasViewMode,
   measure: TextMeasure = measureBadgeText
-): CardBadge[][] {
+): B[][] {
   const available = nodeWidth(viewMode) - CARD_ROW_INSET;
-  const lines: CardBadge[][] = [];
+  const lines: B[][] = [];
   let lineWidth = 0;
   for (const badge of badges) {
     const width = Math.ceil(measure(badge.label)) + CARD_BADGE_CHROME + CARD_BADGE_SLACK;
@@ -220,6 +220,19 @@ export function cardBadgeLineCount(
   return cardBadgeLines(node, viewMode, options, measure).length;
 }
 
+/**
+ * Height of a card header (everything above the ERD field rows) with this many
+ * badge lines, with or without the footer.
+ */
+export function cardHeaderHeightForLines(badgeLineCount: number, footerHidden: boolean): number {
+  const rowsHeight =
+    badgeLineCount === 0
+      ? 0
+      : CARD_FIRST_BADGE_ROW_HEIGHT + (badgeLineCount - 1) * CARD_BADGE_ROW_HEIGHT;
+  const tail = footerHidden ? CARD_NO_FOOTER_PADDING : CARD_FOOTER_HEIGHT;
+  return CARD_TITLE_ROW_HEIGHT + rowsHeight + tail;
+}
+
 /** Height of the card header (everything above the ERD field rows). */
 function cardHeaderHeight(
   node: CardBadgeInput,
@@ -227,11 +240,10 @@ function cardHeaderHeight(
   options: NodeLayoutOptions,
   measure: TextMeasure
 ): number {
-  const rowCount = cardBadgeLineCount(node, viewMode, options, measure);
-  const rowsHeight =
-    rowCount === 0 ? 0 : CARD_FIRST_BADGE_ROW_HEIGHT + (rowCount - 1) * CARD_BADGE_ROW_HEIGHT;
-  const tail = options.footerHidden ? CARD_NO_FOOTER_PADDING : CARD_FOOTER_HEIGHT;
-  return CARD_TITLE_ROW_HEIGHT + rowsHeight + tail;
+  return cardHeaderHeightForLines(
+    cardBadgeLineCount(node, viewMode, options, measure),
+    options.footerHidden ?? false
+  );
 }
 
 /**
