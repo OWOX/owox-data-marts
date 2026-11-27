@@ -158,6 +158,8 @@ var LinkedInAdsFieldsSchema = {
     "destinationName": "linkedin_ads_ad_analytics_by_company_size",
     "isTimeSeries": true,
     "memberPivot": "MEMBER_COMPANY_SIZE",
-    "memberField": "companySize"
+    "memberField": "companySize",
+    // LinkedIn returns a band such as SIZE_201_TO_500, not a URN, so the band is its own name.
+    "memberValueIsName": true
   }
 }

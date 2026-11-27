@@ -560,13 +560,15 @@ export class LinkedInAdsSource extends AbstractSource {
    * ran, the day's campaigns are read first.
    *
    * pivotValues holds the member value; it becomes the node's value column. A URN's name is
-   * looked up through adTargetingEntities, only when the node's name column is selected; any
-   * other value is its own name. A row without a
+   * looked up through adTargetingEntities on every run, also when the name column is not
+   * selected: the storages add a column for every row key, so a row without the name would
+   * empty that column. Any other value is its own name on a node with memberValueIsName, and
+   * has no name elsewhere. A row without a
    * value or a date is left out: both are part of the unique key, and a key with an empty
    * part never matches on reimport, so the row would be stored again on every run.
    */
   async fetchAdAnalyticsByMember({ nodeName, urn, fields, startDate, endDate }) {
-    const { memberPivot, memberField } = this.fieldsSchema[nodeName];
+    const { memberPivot, memberField, memberValueIsName } = this.fieldsSchema[nodeName];
     const memberNameField = `${memberField}Name`;
     const start = new Date(startDate);
     const end = new Date(endDate);
@@ -602,16 +604,15 @@ export class LinkedInAdsSource extends AbstractSource {
     gaps.incompleteRows += rows.length - complete.length;
 
     const isUrn = value => typeof value === 'string' && value.startsWith('urn:li:');
-    const wantsNames = fields.includes(memberNameField);
-    const names = wantsNames
-      ? await this.resolveMemberNames(complete.map(row => row.pivotValues[0]).filter(isUrn))
-      : new Map();
+    const names = await this.resolveMemberNames(
+      complete.map(row => row.pivotValues[0]).filter(isUrn)
+    );
 
     return this.transformAnalyticsDateRanges(complete).map(row => {
       const { pivotValues, ...rest } = row;
       const value = pivotValues[0];
-      if (!wantsNames) return { ...rest, [memberField]: value };
-      const name = isUrn(value) ? (names.get(value) ?? null) : value;
+      const ownName = memberValueIsName ? value : null;
+      const name = isUrn(value) ? (names.get(value) ?? null) : ownName;
       // A refused lookup is reported once for the run; only the names missing otherwise are
       // listed for the account.
       if (name === null && !this.memberNamesUnavailable) gaps.unnamed.add(value);
@@ -663,7 +664,8 @@ export class LinkedInAdsSource extends AbstractSource {
    * - Any other 4xx may come from a single URN LinkedIn will not take, so the batch is split
    *   until that URN is found: only it stays unnamed, it is named in a warning and in the
    *   account's list, and the rest keep their names. If not one URN of a batch is taken even
-   *   one at a time, the lookup itself is rejected and is treated like a refusal.
+   *   one at a time, and no name was found earlier in the run, the lookup itself is rejected
+   *   and is treated like a refusal.
    *
    * @param {string[]} urns - member value URNs such as urn:li:geo:103644278
    * @returns {Promise<Map<string, string|null>>} URN -> name, for every URN resolved so far
@@ -684,7 +686,9 @@ export class LinkedInAdsSource extends AbstractSource {
       }
 
       const { elements, rejected } = result;
-      if (batch.length > 1 && rejected.length === batch.length) {
+      // Rejected after other names were found: those URNs only, not the lookup itself.
+      const named = [...this.memberNames.values()].some(Boolean);
+      if (batch.length > 1 && rejected.length === batch.length && !named) {
         return this.stopMemberNames(
           `LinkedIn rejected the name lookup for every value asked, one at a ` +
             `time too (${rejected[0].error.message})`
@@ -814,7 +818,7 @@ export class LinkedInAdsSource extends AbstractSource {
     for (const [nodeName, days] of byNode) {
       this.context.log(
         LOG_LEVEL.WARN,
-        `${nodeName} responses for account ${account.id} reached LinkedIn's ` +
+        `${this.fieldsSchema[nodeName].overview} responses for account ${account.id} reached LinkedIn's ` +
           `${this.MAX_RESPONSE_ELEMENTS}-element limit on ${days.length} day(s): ` +
           `${this.listSome(days, this.MAX_TRUNCATED_DAYS_IN_WARNING)}; ` +
           'data for those days may be incomplete'

@@ -731,29 +731,69 @@ describe('fetchAdAnalyticsByMember', () => {
     expect(warnings()).toHaveLength(0);
   });
 
-  it('does not look names up when the name column is not selected', async () => {
-    const MICROSOFT = 'urn:li:organization:1035';
-    const { makeRequest, requests } = buildLinkedIn({
-      campaigns: [CAMPAIGN_1],
-      rowsByCampaign: { [CAMPAIGN_1]: day => [memberRow(day, MICROSOFT, { impressions: 10 })] },
-      names: {},
-    });
-    const { self, warnings } = buildSource({ makeRequest });
+  /**
+   * The storages add a column for every key of a row, so a Data Mart saved without the name
+   * column has one. A row without the name would set it to NULL on the next import.
+   */
+  it('names the values even when the name column is not selected', async () => {
+    const { makeRequest } = buildLinkedIn({ campaigns: [CAMPAIGN_1] });
+    const { self } = buildSource({ makeRequest });
 
-    const rows = await fetchMemberDay(self, 1, 'adAnalyticsByCompany', [
+    const rows = await fetchMemberDay(self, 1, 'adAnalyticsByCountry', [
       'dateRangeStart',
       'dateRangeEnd',
       'campaign',
-      'company',
+      'country',
       'impressions',
     ]);
 
-    expect(requests.filter(u => u.includes('adTargetingEntities'))).toHaveLength(0);
-    expect(rows).toHaveLength(1);
-    expect(rows[0].company).toBe(MICROSOFT);
-    expect(rows[0]).not.toHaveProperty('companyName');
+    expect(rows).toEqual([expect.objectContaining({ country: US, countryName: 'United States' })]);
+  });
+
+  it('leaves a value that is not a URN unnamed on a node whose values are URNs', async () => {
+    const { makeRequest, requests } = buildLinkedIn({
+      campaigns: [CAMPAIGN_1],
+      rowsByCampaign: { [CAMPAIGN_1]: day => [memberRow(day, 'OTHER', { impressions: 3 })] },
+    });
+    const { self, warnings } = buildSource({ makeRequest });
+
+    const rows = await fetchMemberDay(self, 1);
     sourceProto.onAccountComplete.call(self, { id: URN });
-    expect(warnings()).toHaveLength(0);
+
+    expect(rows).toEqual([expect.objectContaining({ country: 'OTHER', countryName: null })]);
+    expect(requests.filter(u => u.includes('adTargetingEntities'))).toHaveLength(0);
+    expect(warnings()).toEqual([
+      `LinkedIn returned no name for 1 value(s) in Ad Analytics by Country for account ${URN}: ` +
+        'OTHER; their name column is left empty',
+    ]);
+  });
+
+  it('keeps asking for names when LinkedIn rejects a later batch after naming others', async () => {
+    const rejection = Object.assign(new Error('HTTP 400: Invalid URN'), { statusCode: 400 });
+    const [GEO_7, GEO_8, GEO_9] = ['urn:li:geo:7', 'urn:li:geo:8', 'urn:li:geo:9'];
+    const valuesByDay = { 1: [US, DE], 2: [GEO_7, GEO_8], 3: [GEO_9] };
+    const { makeRequest } = buildLinkedIn({
+      campaigns: [CAMPAIGN_1],
+      rowsByCampaign: {
+        [CAMPAIGN_1]: day => valuesByDay[day].map(value => memberRow(day, value, {})),
+      },
+      names: { [US]: 'United States', [DE]: 'Germany', [GEO_9]: 'Nine' },
+      namesError: decoded =>
+        decoded.includes(GEO_7) || decoded.includes(GEO_8) ? rejection : null,
+    });
+    const { self, warnings } = buildSource({ makeRequest });
+
+    await fetchMemberDay(self, 1);
+    const day2 = await fetchMemberDay(self, 2);
+    const day3 = await fetchMemberDay(self, 3);
+
+    expect(day2.map(row => row.countryName)).toEqual([null, null]);
+    expect(day3.map(row => row.countryName)).toEqual(['Nine']);
+    expect(self.memberNamesUnavailable).toBe(false);
+    expect(warnings()).toEqual([
+      `LinkedIn rejected the name lookup for ${GEO_7}, ${GEO_8} (HTTP 400: Invalid URN); ` +
+        'their name column is left empty',
+    ]);
   });
 
   it('reports the gaps of two member nodes as two warnings', async () => {
@@ -959,7 +999,7 @@ describe('fetchAdAnalyticsByMember', () => {
 
     const truncation = warnings().filter(message => message.includes('element limit'));
     expect(truncation).toHaveLength(1);
-    expect(truncation[0]).toContain(`adAnalyticsByCountry responses for account ${URN}`);
+    expect(truncation[0]).toContain(`Ad Analytics by Country responses for account ${URN}`);
     expect(truncation[0]).toContain('on 1 day(s): 2026-08-01;');
   });
 
@@ -1119,7 +1159,7 @@ describe('fetchAdAnalyticsByMember', () => {
     sourceProto.onAccountComplete.call(self, { id: URN });
 
     expect(warnings()).toEqual([
-      `adAnalyticsByRegion responses for account ${URN} reached LinkedIn's 15000-element ` +
+      `Ad Analytics by Region responses for account ${URN} reached LinkedIn's 15000-element ` +
         'limit on 1 day(s): 2026-08-01; data for those days may be incomplete',
     ]);
   });
