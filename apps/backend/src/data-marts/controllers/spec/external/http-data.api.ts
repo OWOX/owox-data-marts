@@ -58,7 +58,9 @@ export function StreamHttpDataSpec() {
         '`columns=*` may be combined with repeated `column` values. `columns=**` cannot ' +
         'be combined with `column` or another `columns` value. Omit `columns` and ' +
         '`column` to select all current Data Mart output columns, unless `uniqueCount` is ' +
-        'given: then the read returns a single total row.',
+        'given: then the read returns a single total row. Selectors leave out a field ' +
+        'hidden from reports; name it with `column` to read it. A RECORD a selector returns ' +
+        'still comes back whole, a field hidden inside it included.',
       required: false,
       enum: ['*', '**'],
       example: '*',
@@ -70,7 +72,17 @@ export function StreamHttpDataSpec() {
         'multiple exact column names; the order of repetition is preserved in row ' +
         'objects. Values are opaque strings. `column=*` and `column=**` refer to literal ' +
         'columns named `*` and `**`; use `columns=*` or `columns=**` for selectors. ' +
-        'Overlaps are de-duplicated.',
+        'Overlaps are de-duplicated. A top-level Data Mart field hidden from reports can be ' +
+        'selected here by name, and used by name in `filter`, `sort`, `aggregation`, ' +
+        '`dateTrunc` or `havingGroupBy` — for example a hidden primary key a client selects a ' +
+        'row by. Only `column` adds it to the output. These stay unavailable by name: a hidden ' +
+        'calculated field, and a field inside a RECORD, whether the field or its RECORD is ' +
+        'hidden — select the hidden RECORD itself, which comes back whole unless a field ' +
+        'inside it is hidden on its own. Joined Data Marts are not affected: their fields are ' +
+        'available here as they are to reports. A request is refused when a hidden field it ' +
+        'selects cannot be told apart in the result from another selected column: one whose ' +
+        'name differs only in letter case, or a nested field with that name in its path, such ' +
+        'as `id` next to `customer.id`.',
       required: false,
       schema: {
         type: 'array',
@@ -235,7 +247,8 @@ export function StreamHttpDataSpec() {
       status: 400,
       description:
         'Invalid request: unknown column (including in an aggregation, dateTrunc or ' +
-        'havingGroupBy rule), ' +
+        'havingGroupBy rule), a hidden field selected next to a column it cannot be told ' +
+        'apart from in the result, ' +
         'forbidden pagination parameter (`pageToken`/`offset`), malformed ' +
         'filter/sort/aggregation/dateTrunc/havingGroupBy/uniqueCount/limit, an `includeTotalRowCount` value other than `true` or `false`, aggregation or dateTrunc without an ' +
         'explicit `column` projection, an empty uniqueCount, uniqueCount with ' +

@@ -187,6 +187,45 @@ describe('ReportSqlComposerService', () => {
     );
   });
 
+  // An HTTP Data read may show a hidden column. Totals re-validate and re-plan the read, and both
+  // steps reload the schema by id — so the list of shown columns has to travel with them, or the
+  // totals of a read that named a hidden key fail validation and are silently dropped.
+  it('carries the hidden columns a read shows into the Totals plan and its validation', async () => {
+    const { service, outputControlsValidator, blendedReportDataService } = createService({
+      needsBlending: false,
+      columnFilter: ['revenue'],
+    });
+    const readPlan = {
+      ...buildReport({
+        columnConfig: ['obligation_id', 'revenue'],
+        aggregationConfig: [{ column: 'revenue', function: 'SUM' }],
+        filterConfig: [{ column: 'revenue', function: 'SUM', operator: 'gt', value: 10 }],
+        dataMart: {
+          id: 'dm-1',
+          projectId: 'project-1',
+          definition: { sqlQuery: 'SELECT 1' },
+          storage: { id: 'storage-1', type: 'GOOGLE_BIGQUERY' },
+          schema: {
+            fields: [
+              { name: 'obligation_id', type: 'INTEGER', status: 'CONNECTED' },
+              { name: 'revenue', type: 'FLOAT', status: 'CONNECTED' },
+            ],
+          },
+        },
+      } as unknown as Partial<Report>),
+      shownHiddenFields: ['obligation_id'],
+    } as never;
+
+    const totals = await service.composeTotals(readPlan, { userId: 'user-1', roles: ['admin'] });
+
+    expect(totals).not.toBeNull();
+    expect(outputControlsValidator.validateForReport).toHaveBeenCalledWith(
+      expect.objectContaining({ showHiddenFields: ['obligation_id'] })
+    );
+    const [totalsPlan] = blendedReportDataService.resolveBlendingDecision.mock.calls.at(-1)!;
+    expect(totalsPlan).toEqual(expect.objectContaining({ shownHiddenFields: ['obligation_id'] }));
+  });
+
   describe('a read with havingGroupBy', () => {
     const accessor = { userId: 'user-1', roles: ['admin'] };
     const where = { column: 'country', operator: 'eq', value: 'UA' };

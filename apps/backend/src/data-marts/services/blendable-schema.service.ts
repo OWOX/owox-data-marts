@@ -28,6 +28,7 @@ import {
   declaredPrimaryKeyFields,
   getReportFieldType,
   getMainUniqueCountKeyFields,
+  withHiddenFieldsShown,
 } from '../data-storage-types/data-mart-schema.utils';
 import { BigQueryFieldMode } from '../data-storage-types/bigquery/enums/bigquery-field-mode.enum';
 import {
@@ -255,10 +256,19 @@ export class BlendableSchemaService {
        * still missing it.
        */
       unsavedMainSchemaFields?: DataMartSchema['fields'];
+      /**
+       * Top-level hidden-for-reporting columns of the main Data Mart to treat as shown — the ones
+       * an HTTP Data read named (`ReportLikeReadPlan.shownHiddenFields`). A nested path shows
+       * nothing (`withHiddenFieldsShown`), and joined Data Marts are not affected.
+       */
+      showHiddenFields?: readonly string[];
     } = {}
   ): Promise<BlendableSchemaDto> {
     const dataMart = await this.dataMartService.getByIdAndProjectId(dataMartId, projectId);
-    const rawSchemaFields = dataMart.schema?.fields ?? [];
+    const rawSchemaFields = withHiddenFieldsShown(
+      dataMart.schema?.fields ?? [],
+      options.showHiddenFields ?? []
+    ) as DataMartSchema['fields'];
     const mainPrimaryKey = declaredPrimaryKeyFields(
       options.unsavedMainSchemaFields ?? rawSchemaFields
     );

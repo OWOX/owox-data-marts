@@ -10,6 +10,8 @@ import {
   getReportFieldType,
   getMainUniqueCountKeyFields,
   hasUsablePrimaryKey,
+  collectRevealableHiddenFieldNames,
+  withHiddenFieldsShown,
 } from './data-mart-schema.utils';
 import { isCalculatedField } from '../calculated-fields/calculated-field.utils';
 import { CALCULATED_FIELD_LEVELS } from '../calculated-fields/formula-level';
@@ -708,5 +710,170 @@ describe('collectHiddenForReportingPaths', () => {
     ];
 
     expect(collectHiddenForReportingPaths(fields)).toEqual(['items']);
+  });
+});
+
+describe('showing hidden fields for one read', () => {
+  const mkField = (name: string, extra: Record<string, unknown> = {}): DataMartSchemaField =>
+    ({
+      name,
+      type: 'STRING',
+      status: DataMartSchemaFieldStatus.CONNECTED,
+      ...extra,
+    }) as unknown as DataMartSchemaField;
+  const hidden = { isHiddenForReporting: true };
+
+  describe('collectRevealableHiddenFieldNames', () => {
+    it('offers hidden stored columns and keeps hidden calculated fields back', () => {
+      const fields = [
+        mkField('obligation_id', hidden),
+        mkField('margin', {
+          ...hidden,
+          calculated: { formula: '{{ref field="clicks"}}', level: 'metric' },
+        }),
+        mkField('clicks'),
+      ];
+
+      expect(collectRevealableHiddenFieldNames(fields)).toEqual(['obligation_id']);
+    });
+
+    it('offers a hidden RECORD by its own name only, never a field under it', () => {
+      const fields = [mkField('meta', { ...hidden, type: 'RECORD', fields: [mkField('source')] })];
+
+      expect(collectRevealableHiddenFieldNames(fields)).toEqual(['meta']);
+    });
+
+    it('never offers a field hidden inside a visible RECORD', () => {
+      const fields = [
+        mkField('billing', {
+          type: 'RECORD',
+          fields: [mkField('amount'), mkField('user_id', hidden)],
+        }),
+      ];
+
+      expect(collectRevealableHiddenFieldNames(fields)).toEqual([]);
+    });
+
+    it('keeps back a hidden RECORD that has a field hidden on its own, at any depth', () => {
+      const fields = [
+        mkField('ids', {
+          ...hidden,
+          type: 'RECORD',
+          fields: [mkField('order_id'), mkField('ssn', hidden)],
+        }),
+        mkField('profile', {
+          ...hidden,
+          type: 'RECORD',
+          fields: [mkField('geo', { type: 'RECORD', fields: [mkField('city', hidden)] })],
+        }),
+      ];
+
+      expect(collectRevealableHiddenFieldNames(fields)).toEqual([]);
+    });
+
+    it('keeps back a hidden RECORD that carries a REPEATED RECORD with a hidden child', () => {
+      // An array is read whole, so a hidden child of it comes back with whatever selects the array.
+      const fields = [
+        mkField('ids', {
+          ...hidden,
+          type: 'RECORD',
+          fields: [
+            mkField('order_id'),
+            mkField('tags', {
+              type: 'RECORD',
+              mode: 'REPEATED',
+              fields: [mkField('label'), mkField('secret', hidden)],
+            }),
+          ],
+        }),
+        mkField('items', {
+          ...hidden,
+          type: 'RECORD',
+          mode: 'REPEATED',
+          fields: [mkField('sku'), mkField('cost', hidden)],
+        }),
+      ];
+
+      expect(collectRevealableHiddenFieldNames(fields)).toEqual([]);
+    });
+
+    it('keeps a RECORD back for a hidden child whatever that child status is', () => {
+      // A child marked DISCONNECTED may be back in the source before the schema catches up.
+      const fields = [
+        mkField('meta', {
+          ...hidden,
+          type: 'RECORD',
+          fields: [
+            mkField('source'),
+            mkField('gone', { ...hidden, status: DataMartSchemaFieldStatus.DISCONNECTED }),
+          ],
+        }),
+      ];
+
+      expect(collectRevealableHiddenFieldNames(fields)).toEqual([]);
+    });
+
+    it('does not offer a hidden column that is gone from the source', () => {
+      const fields = [
+        mkField('gone', { ...hidden, status: DataMartSchemaFieldStatus.DISCONNECTED }),
+      ];
+
+      expect(collectRevealableHiddenFieldNames(fields)).toEqual([]);
+    });
+  });
+
+  describe('withHiddenFieldsShown', () => {
+    it('shows exactly the named columns and leaves the input untouched', () => {
+      const fields = [
+        mkField('obligation_id', hidden),
+        mkField('internal_note', hidden),
+        mkField('clicks'),
+      ];
+
+      const shown = withHiddenFieldsShown(fields, ['obligation_id']);
+
+      expect(shown.map(f => [f.name, f.isHiddenForReporting])).toEqual([
+        ['obligation_id', false],
+        ['internal_note', true],
+        ['clicks', undefined],
+      ]);
+      expect(shown[2]).toBe(fields[2]);
+      expect(fields[0].isHiddenForReporting).toBe(true);
+    });
+
+    it('shows nothing for a nested path, under a hidden RECORD or a visible one', () => {
+      const fields = [
+        mkField('ids', { ...hidden, type: 'RECORD', fields: [mkField('order_id')] }),
+        mkField('billing', { type: 'RECORD', fields: [mkField('user_id', hidden)] }),
+      ];
+
+      const shown = withHiddenFieldsShown(fields, ['ids.order_id', 'billing.user_id']);
+
+      expect(shown[0]).toBe(fields[0]);
+      expect(shown[1]).toBe(fields[1]);
+      expect(collectSchemaFieldPathDescriptors(shown).map(d => d.name)).toEqual(['billing']);
+    });
+
+    it('leaves a field hidden inside a shown RECORD hidden', () => {
+      const fields = [
+        mkField('ids', {
+          ...hidden,
+          type: 'RECORD',
+          fields: [mkField('order_id'), mkField('secret', hidden)],
+        }),
+      ];
+
+      const shown = withHiddenFieldsShown(fields, ['ids']);
+
+      expect(collectSchemaFieldPathDescriptors(shown).map(d => d.name)).toEqual([
+        'ids',
+        'ids.order_id',
+      ]);
+    });
+
+    it('returns the same array when nothing is named', () => {
+      const fields = [mkField('obligation_id', hidden)];
+      expect(withHiddenFieldsShown(fields, [])).toBe(fields);
+    });
   });
 });

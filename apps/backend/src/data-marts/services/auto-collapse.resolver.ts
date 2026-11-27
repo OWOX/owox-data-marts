@@ -8,6 +8,7 @@ import {
 import { categorizeFieldType, mayDivideAsWholeNumbers } from '../dto/schemas/field-type-category';
 import { integerDivisionTruncates } from '../data-storage-types/enums/data-storage-type.enum';
 import { collectSchemaFieldPathDescriptors } from '../data-storage-types/data-mart-schema.utils';
+import { dataMartWithSchemaFields } from '../utils/data-mart-with-schema-fields';
 import { normalizeUniqueCountSources } from '../dto/schemas/unique-count-sources';
 import {
   calculatedFieldLevelOf,
@@ -23,11 +24,7 @@ import {
 } from '../calculated-fields/formula-lifting';
 import { isUniversalAggregateFunction } from '../calculated-fields/formula-function-dialect';
 import { routeFilterClauses } from '../calculated-fields/filter-clause-routing';
-import type {
-  DataMartSchema,
-  DataMartSchemaField,
-} from '../data-storage-types/data-mart-schema.type';
-import type { DataMart } from '../entities/data-mart.entity';
+import type { DataMartSchemaField } from '../data-storage-types/data-mart-schema.type';
 import type { ReportLike, ReportLikeReadPlan } from '../dto/domain/report-like-read-plan';
 
 export type AutoCollapseSkipReason =
@@ -378,12 +375,7 @@ function withLiftedFormulas<T extends ReportLike>(
       : field;
   });
 
-  // Keeps the prototype: `DataMart` exposes its owner ids as accessors, which a spread would drop.
-  const dataMart = Object.assign(
-    Object.create(Object.getPrototypeOf(report.dataMart) as object) as DataMart,
-    report.dataMart,
-    { schema: { ...schema, fields } as DataMartSchema }
-  );
+  const dataMart = dataMartWithSchemaFields(report.dataMart, fields);
   // Through `patched` for the same reason it exists: a spread here would undo on the lift path
   // exactly the prototype the DataMart clone above is careful to keep.
   return patched(report, { dataMart } as Partial<ReportLikeReadPlan>);

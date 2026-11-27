@@ -925,6 +925,40 @@ describe('OutputControlsValidatorService', () => {
       ).resolves.toBeUndefined();
     });
 
+    // An HTTP Data read may show a hidden column. This validator reloads the schema by id, so it
+    // has to ask for the same columns shown — or a filter on a hidden key the read accepted would
+    // be reported here as a hidden column.
+    it('loads the schema with the hidden columns the read shows', async () => {
+      const capabilitySvc = makeCapabilityService(true);
+      const schemaSvc = makeBlendableSchemaService([{ name: 'obligation_id', type: 'INTEGER' }]);
+      const validator = new OutputControlsValidatorService(
+        capabilitySvc as never,
+        schemaSvc as never
+      );
+
+      await expect(
+        validator.validateForReport({
+          storageType: supportedStorageType,
+          dataMartId: 'dm-1',
+          projectId: 'proj-1',
+          columnConfig: ['obligation_id'],
+          filterConfig: [{ column: 'obligation_id', operator: 'eq', value: 42 }],
+          sortConfig: null,
+          limitConfig: null,
+          accessor: { userId: 'user-1', roles: ['admin'] },
+          dataMartSchemaFields: undefined,
+          showHiddenFields: ['obligation_id'],
+        })
+      ).resolves.toBeUndefined();
+
+      expect(schemaSvc.computeBlendableSchema).toHaveBeenCalledWith(
+        'dm-1',
+        'proj-1',
+        { userId: 'user-1', roles: ['admin'] },
+        { showHiddenFields: ['obligation_id'] }
+      );
+    });
+
     it('throws BadRequestException with OUTPUT_CONTROLS_NOT_SUPPORTED for unsupported storage', async () => {
       const capabilitySvc = makeCapabilityService(false);
       const schemaSvc = makeBlendableSchemaService();

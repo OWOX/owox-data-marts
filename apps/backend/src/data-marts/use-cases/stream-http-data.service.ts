@@ -39,6 +39,11 @@ import { ReportDataHeader } from '../dto/domain/report-data-header.dto';
 import { StreamHttpDataCommand } from '../dto/domain/stream-http-data.command';
 import { StreamHttpReportDataCommand } from '../dto/domain/stream-http-report-data.command';
 import { DataMart } from '../entities/data-mart.entity';
+import { dataMartWithSchemaFields } from '../utils/data-mart-with-schema-fields';
+import {
+  collectHiddenForReportingPaths,
+  withHiddenFieldsShown,
+} from '../data-storage-types/data-mart-schema.utils';
 import { InvalidQueryColumnsException } from '../errors/invalid-query-columns.exception';
 import { InvalidOutputControlsException } from '../errors/invalid-output-controls.exception';
 import { DataMartStatus } from '../enums/data-mart-status.enum';
@@ -63,6 +68,8 @@ import { SourceDataLastUpdatedService } from '../services/source-data-last-updat
 import { HttpDataColumnResolver } from '../services/http-data/http-data-column-resolver.service';
 import { HttpDataColumnValidator } from '../services/http-data/http-data-column-validator.service';
 import {
+  columnsAmbiguousWithShownFields,
+  hiddenFieldsNamedBy,
   nativeColumnNames,
   implicitAllNativeColumnNames,
   implicitAllBlendedColumnNames,
@@ -204,6 +211,15 @@ export function deriveStreamPlanContext(plan: ExecuteStreamPlan): StreamPlanCont
   }
 }
 
+/**
+ * The Data Mart as an HTTP Data read sees it: `paths` shown for reporting, nothing else changed.
+ * A copy, never the entity: the read must not persist the change by accident.
+ */
+function withHiddenFieldsShownOn(dataMart: DataMart, paths: readonly string[]): DataMart {
+  if (paths.length === 0 || !dataMart.schema) return dataMart;
+  return dataMartWithSchemaFields(dataMart, withHiddenFieldsShown(dataMart.schema.fields, paths));
+}
+
 @Injectable()
 export class StreamHttpDataService {
   private readonly logger = new Logger(StreamHttpDataService.name);
@@ -267,15 +283,38 @@ export class StreamHttpDataService {
         limit,
       },
       includeTotalRowCount: query.includeTotalRowCount,
-      buildPlan: async currentDataMart => {
+      buildPlan: async storedDataMart => {
+        // A hidden top-level column the caller names is read like any other; the rest of the read
+        // — the wildcard below, joined Data Marts, every other consumer of the Data Mart — still
+        // sees it hidden. See `hiddenFieldsNamedBy`.
+        const storedFields = storedDataMart.schema?.fields ?? [];
+        const namedHiddenFields = hiddenFieldsNamedBy(storedFields, query);
         const blendableSchema = await this.blendableSchemaService.computeBlendableSchema(
-          currentDataMart.id,
-          currentDataMart.projectId,
-          accessor
+          storedDataMart.id,
+          storedDataMart.projectId,
+          accessor,
+          { showHiddenFields: namedHiddenFields }
         );
+        // A joined column may carry the same name as a hidden one of the Data Mart's own
+        // (`orders__amount`). The blended SQL binds that name to the joined column, so showing
+        // the own column would let validation accept a name the query reads from elsewhere. Such
+        // a name stays bound to the joined column alone, exactly as before it was named.
+        // `isSelectable` below keeps the own column out of `native`; the joined Data Marts do not
+        // depend on which main fields are shown, so the schema above needs no second load.
+        const joinedNames = new Set(blendableSchema.blendedFields.map(field => field.name));
+        const shownHiddenFields = namedHiddenFields.filter(name => !joinedNames.has(name));
+        const currentDataMart = withHiddenFieldsShownOn(storedDataMart, shownHiddenFields);
+        // Only what was shown by name becomes selectable. A shown RECORD stops hiding its subtree
+        // in the schema above, but a field under it is still a nested hidden path, which no read
+        // shows: it comes back inside the RECORD, not on its own.
+        const shownNames = new Set(shownHiddenFields);
+        const hiddenPaths = new Set(collectHiddenForReportingPaths(storedFields));
+        const isSelectable = (name: string) => !hiddenPaths.has(name) || shownNames.has(name);
         const reportingColumns: ReportingColumns = {
-          native: nativeColumnNames(blendableSchema),
-          implicitAllNative: implicitAllNativeColumnNames(blendableSchema),
+          native: nativeColumnNames(blendableSchema).filter(isSelectable),
+          implicitAllNative: implicitAllNativeColumnNames(blendableSchema).filter(
+            name => !hiddenPaths.has(name)
+          ),
           blended: visibleBlendedColumnNames(blendableSchema),
           implicitAllBlended: implicitAllBlendedColumnNames(blendableSchema),
           reportableSources: reportableSourcePaths(blendableSchema),
@@ -293,6 +332,19 @@ export class StreamHttpDataService {
           },
           reportingColumns
         );
+        // After the check above, so an unknown column is reported as unknown.
+        const ambiguous = columnsAmbiguousWithShownFields(
+          columns,
+          shownNames,
+          query.aggregation ?? []
+        );
+        if (ambiguous.length > 0) {
+          throw new InvalidQueryColumnsException(
+            `Columns ${ambiguous.join(', ')} cannot be read in one request: their values cannot ` +
+              'be told apart in the result. Leave one of them out.',
+            { columns: ambiguous }
+          );
+        }
 
         const readPlan: ReportLikeReadPlan = {
           dataMart: currentDataMart,
@@ -304,6 +356,7 @@ export class StreamHttpDataService {
           uniqueCountConfig: query.uniqueCount,
           havingGroupBy: query.havingGroupBy,
           limitConfig: limit ?? null,
+          ...(shownHiddenFields.length > 0 ? { shownHiddenFields } : {}),
         };
 
         return { kind: 'data-mart', readPlan, columns };

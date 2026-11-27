@@ -1367,6 +1367,27 @@ describe('BlendableSchemaService', () => {
       expect(result.nativeFields.map(f => f.name)).toEqual(['clicks']);
     });
 
+    it('shows the hidden main fields a read asks for, and only those', async () => {
+      dataMartService.getByIdAndProjectId.mockResolvedValue(
+        makeDataMart({
+          id: 'dm-1',
+          schema: makeSchema([
+            { name: 'clicks', type: 'INTEGER' },
+            { name: 'internal_id', type: 'STRING', isHiddenForReporting: true },
+            { name: 'secret', type: 'STRING', isHiddenForReporting: true },
+          ]),
+        })
+      );
+      relationshipService.findByStorageId.mockResolvedValue([]);
+
+      const result = await service.computeBlendableSchema('dm-1', 'project-1', defaultAccessor, {
+        showHiddenFields: ['internal_id'],
+      });
+
+      expect(result.nativeFields.map(f => f.name)).toEqual(['clicks', 'internal_id']);
+      expect(result.hiddenFieldNames).toEqual(['secret']);
+    });
+
     it('names a joined field hidden on its own Data Mart, by the name a report would have stored', async () => {
       // It never becomes a BlendedFieldDto — the filter below drops it — so without this list the
       // run path sees a name nothing resolves and calls the column lost.

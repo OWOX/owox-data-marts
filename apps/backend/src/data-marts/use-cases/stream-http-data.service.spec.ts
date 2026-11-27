@@ -1,3 +1,4 @@
+import type { ReportLikeReadPlan } from '../dto/domain/report-like-read-plan';
 import {
   BadRequestException,
   ForbiddenException,
@@ -419,6 +420,331 @@ describe('StreamHttpDataService', () => {
     const plan = readPlan as { aggregationConfig?: unknown[]; distinct?: boolean };
     expect(plan.aggregationConfig ?? []).toEqual([]);
     expect(plan.distinct).toBeUndefined();
+  });
+
+  describe('a field hidden for reporting', () => {
+    const storedFields = [
+      { name: 'obligation_id', type: 'INTEGER', status: 'CONNECTED', isHiddenForReporting: true },
+      { name: 'date', type: 'DATE', status: 'CONNECTED' },
+      {
+        name: 'margin',
+        type: 'FLOAT',
+        status: 'CONNECTED',
+        isHiddenForReporting: true,
+        calculated: { formula: '{{ref field="date"}}', level: 'metric' },
+      },
+    ];
+
+    beforeEach(() => {
+      dataMartService.getByIdAndProjectId.mockResolvedValueOnce(
+        fakeDataMart({ schema: { fields: storedFields } } as unknown as Partial<DataMart>)
+      );
+    });
+
+    it('is read when the caller names it, on a copy that leaves the stored Data Mart hidden', async () => {
+      await service.stream(
+        fakeCommand({ rawQuery: { column: ['obligation_id', 'date'] } }),
+        mockResponse()
+      );
+
+      expect(blendableSchema.computeBlendableSchema).toHaveBeenCalledWith(
+        'dm-1',
+        'proj-1',
+        expect.anything(),
+        { showHiddenFields: ['obligation_id'] }
+      );
+      const [readPlan] = blended.resolveBlendingDecision.mock.calls.at(-1)!;
+      const plan = readPlan as ReportLikeReadPlan;
+      expect(plan.shownHiddenFields).toEqual(['obligation_id']);
+      const fields = plan.dataMart.schema!.fields as Array<{
+        name: string;
+        isHiddenForReporting?: boolean;
+      }>;
+      expect(fields.find(f => f.name === 'obligation_id')?.isHiddenForReporting).toBe(false);
+      expect(fields.find(f => f.name === 'margin')?.isHiddenForReporting).toBe(true);
+      expect(storedFields[0].isHiddenForReporting).toBe(true);
+    });
+
+    it('is shown when only a filter names it, and a wildcard selection still leaves it out', async () => {
+      requestValidator.validate.mockReturnValueOnce({
+        columnSelector: { mode: 'allNative', explicit: [] },
+        filter: [{ column: 'obligation_id', operator: 'eq', value: 42 }],
+        sort: undefined,
+        limit: undefined,
+      } as never);
+      blendableSchema.computeBlendableSchema.mockResolvedValueOnce({
+        nativeFields: [{ name: 'obligation_id' }, { name: 'date' }],
+        blendedFields: [],
+        availableSources: [],
+      } as never);
+
+      await service.stream(fakeCommand(), mockResponse());
+
+      const [, columns] = columnResolver.resolve.mock.calls.at(-1)!;
+      expect(columns.native).toEqual(['obligation_id', 'date']);
+      expect(columns.implicitAllNative).toEqual(['date']);
+    });
+
+    it('stays hidden for a wildcard selection that names nothing', async () => {
+      requestValidator.validate.mockReturnValueOnce({
+        columnSelector: { mode: 'allNative', explicit: [] },
+        filter: undefined,
+        sort: undefined,
+        limit: undefined,
+      } as never);
+
+      await service.stream(fakeCommand(), mockResponse());
+
+      expect(blendableSchema.computeBlendableSchema).toHaveBeenCalledWith(
+        'dm-1',
+        'proj-1',
+        expect.anything(),
+        { showHiddenFields: [] }
+      );
+      const [readPlan] = blended.resolveBlendingDecision.mock.calls.at(-1)!;
+      expect((readPlan as ReportLikeReadPlan).shownHiddenFields).toBeUndefined();
+    });
+
+    it('stays hidden when it is a calculated field, named or not', async () => {
+      await service.stream(
+        fakeCommand({ rawQuery: { column: ['margin', 'date'] } }),
+        mockResponse()
+      );
+
+      expect(blendableSchema.computeBlendableSchema).toHaveBeenCalledWith(
+        'dm-1',
+        'proj-1',
+        expect.anything(),
+        { showHiddenFields: [] }
+      );
+    });
+  });
+
+  describe('a hidden field that is not shown on its own', () => {
+    const storedRecord = (extra: object = {}) => ({
+      name: 'profile',
+      type: 'RECORD',
+      status: 'CONNECTED',
+      isHiddenForReporting: true,
+      fields: [{ name: 'user_id', type: 'STRING', status: 'CONNECTED', ...extra }],
+    });
+    const withStoredFields = (fields: object[]) =>
+      dataMartService.getByIdAndProjectId.mockResolvedValueOnce(
+        fakeDataMart({ schema: { fields } } as unknown as Partial<DataMart>)
+      );
+
+    it('does not show a field of a hidden RECORD named on its own', async () => {
+      withStoredFields([{ name: 'date', type: 'DATE', status: 'CONNECTED' }, storedRecord()]);
+
+      await service.stream(
+        fakeCommand({ rawQuery: { column: ['date', 'profile.user_id'] } }),
+        mockResponse()
+      );
+
+      expect(blendableSchema.computeBlendableSchema).toHaveBeenCalledWith(
+        'dm-1',
+        'proj-1',
+        expect.anything(),
+        { showHiddenFields: [] }
+      );
+      const [readPlan] = blended.resolveBlendingDecision.mock.calls.at(-1)!;
+      expect((readPlan as ReportLikeReadPlan).shownHiddenFields).toBeUndefined();
+    });
+
+    it('shows a hidden RECORD named as a whole, and keeps its fields unselectable on their own', async () => {
+      withStoredFields([{ name: 'date', type: 'DATE', status: 'CONNECTED' }, storedRecord()]);
+      // The schema with `profile` shown: its field is no longer pruned with it.
+      blendableSchema.computeBlendableSchema.mockResolvedValueOnce({
+        nativeFields: [{ name: 'date' }, { name: 'profile', fields: [{ name: 'user_id' }] }],
+        blendedFields: [],
+        availableSources: [],
+      } as never);
+
+      await service.stream(fakeCommand({ rawQuery: { column: ['profile'] } }), mockResponse());
+
+      expect(blendableSchema.computeBlendableSchema).toHaveBeenCalledWith(
+        'dm-1',
+        'proj-1',
+        expect.anything(),
+        { showHiddenFields: ['profile'] }
+      );
+      const [, columns] = columnResolver.resolve.mock.calls.at(-1)!;
+      expect(columns.native).toEqual(['date', 'profile']);
+      expect(columns.implicitAllNative).toEqual(['date']);
+    });
+
+    it('does not show a hidden RECORD that has a field hidden on its own', async () => {
+      withStoredFields([
+        { name: 'date', type: 'DATE', status: 'CONNECTED' },
+        storedRecord({ isHiddenForReporting: true }),
+      ]);
+
+      await service.stream(fakeCommand({ rawQuery: { column: ['profile'] } }), mockResponse());
+
+      expect(blendableSchema.computeBlendableSchema).toHaveBeenCalledWith(
+        'dm-1',
+        'proj-1',
+        expect.anything(),
+        { showHiddenFields: [] }
+      );
+    });
+
+    it('is not shown when a joined column carries the same name', async () => {
+      dataMartService.getByIdAndProjectId.mockResolvedValueOnce(
+        fakeDataMart({
+          schema: {
+            fields: [
+              { name: 'date', type: 'DATE', status: 'CONNECTED' },
+              {
+                name: 'orders__amount',
+                type: 'FLOAT',
+                status: 'CONNECTED',
+                isHiddenForReporting: true,
+              },
+            ],
+          },
+        } as unknown as Partial<DataMart>)
+      );
+      // The schema shows whatever it is asked to; the joined column is visible, its source is not
+      // included, so nothing but the own column could have made the name known.
+      blendableSchema.computeBlendableSchema.mockResolvedValueOnce({
+        nativeFields: [{ name: 'date' }, { name: 'orders__amount' }],
+        blendedFields: [{ name: 'orders__amount', aliasPath: 'orders', isHidden: false }],
+        availableSources: [
+          { aliasPath: 'orders', isIncluded: false, isAccessibleForReporting: true },
+        ],
+      } as never);
+
+      await service.stream(
+        fakeCommand({ rawQuery: { column: ['date', 'orders__amount'] } }),
+        mockResponse()
+      );
+
+      const [, columns] = columnResolver.resolve.mock.calls.at(-1)!;
+      expect(columns.native).toEqual(['date']);
+      expect(columns.blended).toEqual([]);
+      const [readPlan] = blended.resolveBlendingDecision.mock.calls.at(-1)!;
+      expect((readPlan as ReportLikeReadPlan).shownHiddenFields).toBeUndefined();
+    });
+
+    describe('a projection the result row cannot tell apart', () => {
+      const connected = (name: string, extra: object = {}) => ({
+        name,
+        type: 'STRING',
+        status: 'CONNECTED',
+        ...extra,
+      });
+      const record = (name: string, fields: object[]) => ({
+        name,
+        type: 'RECORD',
+        status: 'CONNECTED',
+        fields,
+      });
+      const named = (name: string, fields?: object[]) => ({ name, ...(fields ? { fields } : {}) });
+
+      beforeEach(() => {
+        // `user_id` is the hidden key every case shows; the rest is visible.
+        dataMartService.getByIdAndProjectId.mockResolvedValueOnce(
+          fakeDataMart({
+            schema: {
+              fields: [
+                connected('user_id', { isHiddenForReporting: true }),
+                connected('date'),
+                record('profile', [connected('USER_ID'), connected('name')]),
+                record('meta', [record('user_id', [connected('source')])]),
+              ],
+            },
+          } as unknown as Partial<DataMart>)
+        );
+        // The schema as the read sees it: the named hidden key shown.
+        blendableSchema.computeBlendableSchema.mockResolvedValueOnce({
+          nativeFields: [
+            named('user_id'),
+            named('date'),
+            named('profile', [named('USER_ID'), named('name')]),
+            named('meta', [named('user_id', [named('source')])]),
+          ],
+          blendedFields: [],
+          availableSources: [],
+        } as never);
+      });
+
+      it.each([
+        [
+          'is the last segment of another column, in any letter case',
+          ['user_id', 'profile.USER_ID'],
+        ],
+        ['is an inner segment of another column path', ['user_id', 'meta.user_id.source']],
+      ])('refuses a shown hidden field whose name %s', async (_case, column) => {
+        await expect(
+          service.stream(fakeCommand({ rawQuery: { column } }), mockResponse())
+        ).rejects.toThrow(/cannot be read in one request/);
+        expect(blended.resolveBlendingDecision).not.toHaveBeenCalled();
+      });
+
+      it('reads a shown hidden field beside RECORDs and paths that do not carry its name', async () => {
+        await service.stream(
+          fakeCommand({ rawQuery: { column: ['user_id', 'date', 'profile', 'profile.name'] } }),
+          mockResponse()
+        );
+
+        const [readPlan] = blended.resolveBlendingDecision.mock.calls.at(-1)!;
+        expect((readPlan as ReportLikeReadPlan).columnConfig).toEqual([
+          'user_id',
+          'date',
+          'profile',
+          'profile.name',
+        ]);
+        expect((readPlan as ReportLikeReadPlan).shownHiddenFields).toEqual(['user_id']);
+      });
+
+      it('lets a filter use the hidden field while clashing visible columns are read as before', async () => {
+        requestValidator.validate.mockReturnValueOnce({
+          columnSelector: { mode: 'explicit', explicit: ['profile.USER_ID', 'date'] },
+          filter: [{ column: 'user_id', operator: 'eq', value: 'u-1' }],
+          sort: undefined,
+          limit: undefined,
+        } as never);
+
+        await service.stream(fakeCommand(), mockResponse());
+
+        const [readPlan] = blended.resolveBlendingDecision.mock.calls.at(-1)!;
+        expect((readPlan as ReportLikeReadPlan).shownHiddenFields).toEqual(['user_id']);
+      });
+
+      it('reports an unknown column as unknown, not as a clash', async () => {
+        columnValidator.validate.mockImplementationOnce(() => {
+          throw new InvalidQueryColumnsException('Unknown column: typo.user_id', {
+            columns: ['typo.user_id'],
+          });
+        });
+
+        await expect(
+          service.stream(
+            fakeCommand({ rawQuery: { column: ['user_id', 'typo.user_id'] } }),
+            mockResponse()
+          )
+        ).rejects.toThrow('Unknown column: typo.user_id');
+      });
+    });
+
+    it('keeps reading two visible columns that share a result name, as before', async () => {
+      blendableSchema.computeBlendableSchema.mockResolvedValueOnce({
+        nativeFields: [
+          { name: 'profile', fields: [{ name: 'user_id' }] },
+          { name: 'billing', fields: [{ name: 'user_id' }] },
+        ],
+        blendedFields: [],
+        availableSources: [],
+      } as never);
+
+      await service.stream(
+        fakeCommand({ rawQuery: { column: ['profile.user_id', 'billing.user_id'] } }),
+        mockResponse()
+      );
+
+      expect(blended.resolveBlendingDecision).toHaveBeenCalled();
+    });
   });
 
   it('happy path streams two NDJSON rows, records a SUCCESS run, registers consumption', async () => {

@@ -111,6 +111,63 @@ export function collectHiddenForReportingPaths(
   return result;
 }
 
+/**
+ * The hidden-for-reporting columns a read may show when a caller names them: stored TOP-LEVEL
+ * columns of the Data Mart, by name.
+ *
+ * - A calculated field stays hidden even when named — its formula may read other hidden columns,
+ *   and showing a metric is a reporting decision, not a lookup of a stored value.
+ * - A RECORD (or an array of RECORDs) stays hidden when a field under it carries the flag in its
+ *   own right: the RECORD is read whole, which would hand out that field too. The flag is
+ *   counted whatever the field's status, so a child that reappears in the source before the
+ *   schema catches up is not handed out either.
+ * - A nested path is never offered, hidden by its own flag or by its RECORD's. The BigQuery
+ *   reader finds a nested value by walking the result row, and a row read straight from the
+ *   table sends that walk to a top-level column of the same name whenever the RECORD is NULL —
+ *   a value the caller did not name. A field of a hidden RECORD is read with the RECORD.
+ */
+export function collectRevealableHiddenFieldNames(
+  fields: readonly DataMartSchemaField[]
+): string[] {
+  return fields
+    .filter(
+      field =>
+        field.isHiddenForReporting === true &&
+        isConnected(field) &&
+        !isCalculatedField(field) &&
+        !hasOwnHiddenDescendant(field)
+    )
+    .map(field => field.name);
+}
+
+function hasOwnHiddenDescendant(field: DataMartSchemaField): boolean {
+  const children =
+    'fields' in field && Array.isArray(field.fields) ? (field.fields as DataMartSchemaField[]) : [];
+  return children.some(
+    child => child.isHiddenForReporting === true || hasOwnHiddenDescendant(child)
+  );
+}
+
+/**
+ * A copy of `fields` with the TOP-LEVEL fields named in `names` shown for reporting, the rest left
+ * as stored. A name that is not a top-level field — a nested path among them — shows nothing, so
+ * a caller cannot show more than `collectRevealableHiddenFieldNames` offers by passing a path.
+ * Fields that are not named keep their object, and with no names the input array itself comes
+ * back.
+ */
+export function withHiddenFieldsShown(
+  fields: readonly DataMartSchemaField[],
+  names: readonly string[]
+): DataMartSchemaField[] {
+  if (names.length === 0) return fields as DataMartSchemaField[];
+  const shown = new Set(names);
+  return fields.map(field =>
+    shown.has(field.name) && field.isHiddenForReporting === true
+      ? ({ ...field, isHiddenForReporting: false } as DataMartSchemaField)
+      : field
+  );
+}
+
 // A calculated-field formula may legally reference a HIDDEN field: isHiddenForReporting takes a
 // column off the reporting menu, it does not remove it from the source, and computing is not
 // projecting. Deliberately NOT built on collectSchemaFieldPathDescriptors, whose callers

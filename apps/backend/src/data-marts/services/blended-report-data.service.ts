@@ -8,7 +8,11 @@ import {
 } from './data-mart-table-reference.service';
 import { OutputControlsValidatorService } from './output-controls-validator.service';
 import { BlendedQueryBuilderFacade } from '../data-storage-types/facades/blended-query-builder.facade';
-import { ReportLike, usesSuffixedJoinedFieldNames } from '../dto/domain/report-like-read-plan';
+import {
+  ReportLike,
+  shownHiddenFieldsOf,
+  usesSuffixedJoinedFieldNames,
+} from '../dto/domain/report-like-read-plan';
 import { AggregationRule } from '../dto/schemas/aggregation-config.schema';
 import { tryAliasPathToCteName } from '../dto/schemas/filter-config.schema';
 import { SortRule } from '../dto/schemas/sort-config.schema';
@@ -115,6 +119,7 @@ export class BlendedReportDataService {
     options?: BlendingDecisionOptions
   ): Promise<BlendingDecision> {
     const { columnConfig, dataMart } = report;
+    const showHiddenFields = shownHiddenFieldsOf(report);
     // Travels on EVERY decision, blended or not: the reader gates the `Unique Count` header on the
     // same non-empty key the SQL gates the column on, so a key dropped since save takes both (F4).
     const primaryKeyColumns = getMainUniqueCountKeyFields(dataMart.schema?.fields ?? []).map(
@@ -147,7 +152,8 @@ export class BlendedReportDataService {
       blendableSchema ??= await this.blendableSchemaService.computeBlendableSchema(
         dataMart.id,
         dataMart.projectId,
-        accessor
+        accessor,
+        { showHiddenFields }
       );
       const hasActualizedSchema =
         blendableSchema.nativeFields.length > 0 || blendableSchema.blendedFields.length > 0;
@@ -184,6 +190,7 @@ export class BlendedReportDataService {
       accessor,
       dataMartSchemaFields: dataMart.schema?.fields,
       precomputedBlendableSchema: blendableSchema,
+      showHiddenFields,
       rejectUnavailableUniqueCountSources: options?.rejectUnavailableUniqueCountSources,
       havingGroupBy: 'havingGroupBy' in report ? report.havingGroupBy : undefined,
     });
@@ -228,7 +235,8 @@ export class BlendedReportDataService {
       blendableSchema ??= await this.blendableSchemaService.computeBlendableSchema(
         dataMart.id,
         dataMart.projectId,
-        accessor
+        accessor,
+        { showHiddenFields }
       );
       const blendedFieldsByName = new Map(blendableSchema.blendedFields.map(f => [f.name, f]));
       const blendedRefs = [...postJoinFilterColumns, ...sortColumns, ...restrictionColumns].filter(
@@ -251,7 +259,8 @@ export class BlendedReportDataService {
     blendableSchema ??= await this.blendableSchemaService.computeBlendableSchema(
       dataMart.id,
       dataMart.projectId,
-      accessor
+      accessor,
+      { showHiddenFields }
     );
 
     const fieldIndex = buildBlendedFieldIndex(blendableSchema);

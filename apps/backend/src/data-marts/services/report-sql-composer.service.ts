@@ -7,6 +7,7 @@ import {
   ReportLikeReadPlan,
   hasOutputControls,
   isMetricsOnlyProjection,
+  shownHiddenFieldsOf,
 } from '../dto/domain/report-like-read-plan';
 import { hasMainUniqueCount } from '../dto/schemas/unique-count-sources';
 import { BlendableSchemaAccessor, BlendableSchemaService } from './blendable-schema.service';
@@ -31,10 +32,7 @@ import { buildCalculatedFieldPlans } from '../calculated-fields/calculated-field
 import { routeFilterClauses } from '../calculated-fields/filter-clause-routing';
 import { isHavingFilterRule, isWhereFilterRule } from '../dto/domain/filter-clause';
 import { filtersAndRestrictionOf } from './having-group-by.util';
-import type {
-  DataMartSchema,
-  DataMartSchemaField,
-} from '../data-storage-types/data-mart-schema.type';
+import type { DataMartSchemaField } from '../data-storage-types/data-mart-schema.type';
 import { OutputControlsCapabilityService } from './output-controls-capability.service';
 import { OutputControlsValidatorService } from './output-controls-validator.service';
 import { DataMartSqlReferenceResolver } from './data-mart-sql-reference-resolver.service';
@@ -62,6 +60,8 @@ import { ReportDataHeader } from '../dto/domain/report-data-header.dto';
 import { StorageFieldType } from '../dto/domain/storage-field-type';
 import { JoinedUniqueCountSource } from '../data-storage-types/interfaces/blended-query-builder.interface';
 
+import { dataMartWithSchemaFields } from '../utils/data-mart-with-schema-fields';
+
 type SchemaFieldDescriptor = ReturnType<typeof collectSchemaFieldPathDescriptors>[number];
 
 // The joined report path drops hidden columns, yet a hidden metric's formula must still be dry-run.
@@ -73,18 +73,9 @@ function withMetricsShownForDryRun(dataMart: DataMart, metricNames: readonly str
     metricNames.includes(field.name);
   if (!fields.some(isHiddenMetric)) return dataMart;
 
-  // Keeps the prototype: `DataMart` exposes its owner ids as accessors, which a spread would drop.
-  return Object.assign(
-    Object.create(Object.getPrototypeOf(dataMart) as object) as DataMart,
+  return dataMartWithSchemaFields(
     dataMart,
-    {
-      schema: {
-        ...dataMart.schema,
-        fields: fields.map(field =>
-          isHiddenMetric(field) ? { ...field, isHiddenForReporting: false } : field
-        ),
-      } as DataMartSchema,
-    }
+    fields.map(field => (isHiddenMetric(field) ? { ...field, isHiddenForReporting: false } : field))
   );
 }
 
@@ -460,6 +451,7 @@ export class ReportSqlComposerService {
         accessor,
         dataMartSchemaFields: report.dataMart.schema?.fields,
         precomputedBlendableSchema: blendableSchema,
+        showHiddenFields: shownHiddenFieldsOf(report),
         havingGroupBy,
       });
     }
@@ -509,6 +501,7 @@ export class ReportSqlComposerService {
 
     const totalsPlan: ReportLikeReadPlan = {
       dataMart: report.dataMart,
+      shownHiddenFields: shownHiddenFieldsOf(report),
       columnConfig: columns,
       filterConfig: whereFilters.length > 0 ? whereFilters : null,
       aggregationConfig: aggregations,
@@ -630,7 +623,8 @@ export class ReportSqlComposerService {
       ? await this.blendableSchemaService.computeBlendableSchema(
           report.dataMart.id,
           report.dataMart.projectId,
-          accessor
+          accessor,
+          { showHiddenFields: shownHiddenFieldsOf(report) }
         )
       : undefined;
     const blendedByName = blendableSchema
