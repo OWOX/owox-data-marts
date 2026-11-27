@@ -33,7 +33,7 @@ Project Admins bypass all of the above and have full access to every resource.
 
 ## Ownership
 
-Every resource — [Storage](../storages/manage-storages.md), Data Mart, [Destination](../destinations/manage-destinations.md), Report — has owners. Any project member can be assigned as an owner. The member who creates a resource is automatically assigned as its first owner. Additional owners can be assigned from the resource settings page. An owner who has left the project stays listed and is marked with a yellow warning icon; select the pencil next to the owners to remove them or assign someone else.
+Every resource — [Storage](../storages/manage-storages.md), Data Mart, [Destination](../destinations/manage-destinations.md), Report — has owners. Any project member can be assigned as an owner. The member who creates a resource is automatically assigned as its first owner. Additional owners can be assigned from the resource settings page. An owner who has left the project stays listed, and a yellow warning icon next to the owners points it out. To remove that owner or assign someone else, click the pencil icon next to the owners; who can do it depends on the resource, see [Who can manage owners](#actions).
 
 Most resources have a single **Owner** role. Data Marts are the exception — they support two distinct owner types:
 

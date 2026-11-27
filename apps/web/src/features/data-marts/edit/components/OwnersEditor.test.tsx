@@ -69,6 +69,19 @@ describe('OwnersEditor removed-owner warning', () => {
     expect(removedOwnerWarningCount([owner('ann'), owner('bob')])).toBe(0);
   });
 
+  it('treats an empty member list as a failed load: the viewer is always a member', async () => {
+    // The server answers an identity provider failure with 200 and no members.
+    mocks.members = { members: [], isLoading: false, error: null };
+
+    expect(removedOwnerWarningCount([owner('ann')])).toBe(0);
+    expect(removedOwnerWarningCount([owner('ann'), owner('bob')])).toBe(0);
+
+    render(<OwnersEditor ownerUsers={[owner('ann')]} onSave={vi.fn()} projectId='project-1' />);
+    fireEvent.click(screen.getByRole('button', { name: 'Edit owners' }));
+    expect(await screen.findByText("Couldn't load the project members.")).toBeInTheDocument();
+    expect(document.querySelectorAll('svg.text-yellow-500')).toHaveLength(0);
+  });
+
   it('does not flag owners who are project members', () => {
     mocks.members = { members: [member('ann'), member('bob')], isLoading: false, error: null };
 
