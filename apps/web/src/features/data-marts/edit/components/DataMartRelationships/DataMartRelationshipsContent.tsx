@@ -238,8 +238,9 @@ export function DataMartRelationshipsContent({
     useTransientRelationships(relationshipGraph);
 
   // The cards' facts (input source, counts, quality, freshness, sharing) cost
-  // extra requests — only worth it while the diagram is on screen (the list
-  // view shows none of them).
+  // extra requests — only worth it while the diagram is on screen with cards
+  // to draw (the list view shows none of them, and without relationships the
+  // diagram is not drawn at all).
   const cardRoot = useMemo<RelationshipCardRoot>(
     () => ({
       id: dataMartId,
@@ -256,12 +257,13 @@ export function DataMartRelationshipsContent({
       dataMart?.availableForMaintenance,
     ]
   );
-  const { definitionTypes, cardDetails, refetchQuality } = useRelationshipCardDetails({
-    root: cardRoot,
-    relationshipGraph,
-    relationships,
-    enabled: viewMode === 'graph',
-  });
+  const { definitionTypes, cardDetails, refetchQuality, invalidateModel } =
+    useRelationshipCardDetails({
+      root: cardRoot,
+      relationshipGraph,
+      relationships,
+      enabled: viewMode === 'graph' && relationships.length > 0,
+    });
   const handleRunQuality = useCallback(
     async (targetId: string) => {
       try {
@@ -405,12 +407,19 @@ export function DataMartRelationshipsContent({
         toast.success('Relationship deleted');
         void loadRelationships();
         invalidateBlendableSchema();
+        invalidateModel();
         onRelationshipsChanged?.();
       } catch {
         toast.error('Failed to delete relationship');
       }
     },
-    [dataMartId, loadRelationships, invalidateBlendableSchema, onRelationshipsChanged]
+    [
+      dataMartId,
+      loadRelationships,
+      invalidateBlendableSchema,
+      invalidateModel,
+      onRelationshipsChanged,
+    ]
   );
 
   const handleRelationshipUpdated = useCallback(
@@ -425,6 +434,7 @@ export function DataMartRelationshipsContent({
       // skeleton and fold every other open row.
       void loadRelationships({ keepList: context?.afterUnmount });
       invalidateBlendableSchema();
+      invalidateModel();
       onRelationshipsChanged?.();
     },
     [
@@ -433,6 +443,7 @@ export function DataMartRelationshipsContent({
       loadRelationships,
       refreshDataMart,
       invalidateBlendableSchema,
+      invalidateModel,
       onRelationshipsChanged,
     ]
   );
@@ -462,9 +473,10 @@ export function DataMartRelationshipsContent({
       setIsAddingNew(false);
       void loadRelationships();
       invalidateBlendableSchema();
+      invalidateModel();
       onRelationshipsChanged?.();
     },
-    [loadRelationships, invalidateBlendableSchema, onRelationshipsChanged]
+    [loadRelationships, invalidateBlendableSchema, invalidateModel, onRelationshipsChanged]
   );
 
   if (!dataMart) return null;

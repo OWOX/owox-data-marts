@@ -2,6 +2,7 @@ import type { ReactNode } from 'react';
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { NOTHING_HIDDEN } from '../../../shared/canvas/object-labels';
+import { DataMartDefinitionType } from '../../../shared/enums/data-mart-definition-type.enum';
 import type { ErdCardField } from '../../../shared/canvas/erd-fields';
 import type { DataMartRelationship } from '../../../shared/types/relationship.types';
 import { RelationshipCanvas } from './RelationshipCanvas';
@@ -30,8 +31,11 @@ interface ReactFlowStubProps {
     height?: number;
     data: {
       isSource: boolean;
+      isCycleStub?: boolean;
+      definitionType?: string | null;
       fields?: { name: string }[];
       onOpenExternal: () => void;
+      onOpenQuality: () => void;
     };
   }[];
   edges?: {
@@ -851,6 +855,57 @@ describe('RelationshipCanvas view settings', () => {
     await waitFor(() => {
       expect(reactFlowHarness.latestProps?.edges?.[0]?.data?.joinLabel).toEqual(['id = source_id']);
     });
+  });
+});
+
+describe('RelationshipCanvas cards', () => {
+  beforeEach(() => {
+    localStorage.clear();
+    reactFlowHarness.fitView.mockReset().mockResolvedValue(true);
+    reactFlowHarness.setViewport.mockReset().mockResolvedValue(true);
+    reactFlowHarness.latestProps = null;
+    reactFlowHarness.store.width = 800;
+    reactFlowHarness.store.height = 600;
+  });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  it('gives a loop stub back to the root the root input source', async () => {
+    render(
+      <RelationshipCanvas
+        {...buildCanvasProps([
+          buildRelationship('rel-1', 'target-1'),
+          buildRelationship('rel-loop', 'source-1'),
+        ])}
+        dataMartDefinitionType={DataMartDefinitionType.SQL}
+        showLooped
+      />
+    );
+
+    await waitFor(() => {
+      expect(reactFlowHarness.latestProps?.nodes).toHaveLength(3);
+    });
+    const loop = reactFlowHarness.latestProps?.nodes?.find(node => node.data.isCycleStub);
+    expect(loop?.data.definitionType).toBe(DataMartDefinitionType.SQL);
+  });
+
+  it("opens a Data Mart's Data Quality tab in a new tab, never leaving Data Setup", async () => {
+    const open = vi.spyOn(window, 'open').mockReturnValue(null);
+    render(<RelationshipCanvas {...buildCanvasProps([buildRelationship('rel-1', 'target-1')])} />);
+
+    await waitFor(() => {
+      expect(reactFlowHarness.latestProps?.nodes).toHaveLength(2);
+    });
+    const target = reactFlowHarness.latestProps?.nodes?.find(node => !node.data.isSource);
+    target?.data.onOpenQuality();
+
+    expect(open).toHaveBeenCalledWith(
+      '/data-marts/target-1/quality',
+      '_blank',
+      'noopener,noreferrer'
+    );
   });
 });
 

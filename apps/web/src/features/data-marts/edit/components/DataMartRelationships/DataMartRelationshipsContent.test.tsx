@@ -131,11 +131,14 @@ vi.mock('../../../shared/services/data-mart-relationship.service', () => ({
   },
 }));
 
+const cardDetailsMocks = vi.hoisted(() => ({ invalidateModel: vi.fn() }));
+
 vi.mock('./useRelationshipCardDetails', () => ({
   useRelationshipCardDetails: () => ({
     definitionTypes: new Map<string, null>(),
     cardDetails: new Map(),
     refetchQuality: () => Promise.resolve(),
+    invalidateModel: cardDetailsMocks.invalidateModel,
   }),
 }));
 
@@ -639,6 +642,7 @@ describe('DataMartRelationshipsContent relationship saves', () => {
   it('still reloads the list after a Join Settings save', async () => {
     await renderRows();
     const alpha = harness.accordionPropsByRowKey.get('alpha')!;
+    cardDetailsMocks.invalidateModel.mockClear();
 
     act(() => {
       alpha.onRelationshipUpdated(
@@ -651,6 +655,8 @@ describe('DataMartRelationshipsContent relationship saves', () => {
       expect(service.getRelationshipGraph).toHaveBeenCalledTimes(2);
     });
     expect(harness.toast.success).toHaveBeenCalledWith('Relationship updated');
+    // The graph cards count relationships from the storage model: it is reread too.
+    expect(cardDetailsMocks.invalidateModel).toHaveBeenCalledOnce();
   });
 
   it('reloads behind the rows after a Join Settings save sent as its row closed', async () => {

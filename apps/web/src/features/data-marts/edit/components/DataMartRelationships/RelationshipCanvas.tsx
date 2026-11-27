@@ -742,9 +742,11 @@ function buildRelationshipFlow({
       info.isSource || info.aliasPath === undefined
         ? []
         : (fieldsByAliasPath?.get(info.aliasPath) ?? []);
-    const definitionType = info.isSource
-      ? rootDefinitionType
-      : (definitionTypes?.get(info.dmId) ?? null);
+    // A loop stub back to the root is the root: its type comes from the edit page too.
+    const definitionType =
+      info.isSource || info.dmId === dataMartId
+        ? rootDefinitionType
+        : (definitionTypes?.get(info.dmId) ?? null);
     // A Data Mart the user cannot open has no facts to show, even when the storage lists it.
     const details = info.userHasAccess ? cardDetails?.get(info.dmId) : undefined;
     const badgeLines = relationshipCardBadgeLines(
@@ -1391,18 +1393,20 @@ export function RelationshipCanvas({
   className,
   style,
 }: RelationshipCanvasProps) {
-  const { scope, navigate } = useProjectRoute();
+  const { scope } = useProjectRoute();
   const handleOpenExternal = useCallback(
     (targetId: string) => {
       window.open(scope(`/data-marts/${targetId}/data-setup`), '_blank', 'noopener,noreferrer');
     },
     [scope]
   );
+  // A new tab, like every other way out of this diagram: it sits on the Data
+  // Setup page, where leaving the tab would drop an unsaved definition.
   const handleOpenQuality = useCallback(
     (targetId: string) => {
-      navigate(`/data-marts/${targetId}/quality`);
+      window.open(scope(`/data-marts/${targetId}/quality`), '_blank', 'noopener,noreferrer');
     },
-    [navigate]
+    [scope]
   );
   // Behind a ref so a new handler from the parent never rebuilds the graph.
   const onRunQualityRef = useRef(onRunQuality);
