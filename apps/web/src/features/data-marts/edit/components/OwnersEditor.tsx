@@ -24,7 +24,11 @@ interface OwnersEditorProps {
 }
 
 export function OwnersEditor({ ownerUsers, onSave, projectId }: OwnersEditorProps) {
-  const { members, isLoading: isMembersLoading } = useProjectMembers(projectId);
+  const {
+    members,
+    isLoading: isMembersLoading,
+    error: membersError,
+  } = useProjectMembers(projectId);
   const { flags } = useFlags();
   const [isOpen, setIsOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
@@ -90,9 +94,12 @@ export function OwnersEditor({ ownerUsers, onSave, projectId }: OwnersEditorProp
     () => new Set(members.filter(m => m.isOutbound).map(m => m.userId)),
     [members]
   );
-  const hasOutboundOwner = ownerUsers.some(
-    u => outboundIds.has(u.userId) || !memberIds.has(u.userId)
-  );
+  // The member list is empty until it loads (or when loading fails), so every
+  // owner would look removed. Flag an owner only once the list is known.
+  const isMemberListKnown = !isMembersLoading && membersError === null;
+  const isRemovedOwner = (userId: string) =>
+    isMemberListKnown && (outboundIds.has(userId) || !memberIds.has(userId));
+  const hasOutboundOwner = ownerUsers.some(u => isRemovedOwner(u.userId));
 
   // Reset search when popover closes
   const handleOpenChange = useCallback((open: boolean) => {
@@ -105,7 +112,7 @@ export function OwnersEditor({ ownerUsers, onSave, projectId }: OwnersEditorProp
       {ownerUsers.length === 1 ? (
         <div className='flex items-center gap-1'>
           <UserReference userProjection={ownerUsers[0]} variant='full' />
-          {(outboundIds.has(ownerUsers[0].userId) || !memberIds.has(ownerUsers[0].userId)) && (
+          {isRemovedOwner(ownerUsers[0].userId) && (
             <Tooltip>
               <TooltipTrigger asChild>
                 <AlertTriangle className='h-4 w-4 text-yellow-500' />
