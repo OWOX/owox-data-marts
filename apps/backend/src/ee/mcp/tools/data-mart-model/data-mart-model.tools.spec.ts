@@ -2,11 +2,17 @@ import { Client } from '@modelcontextprotocol/client';
 import { InMemoryTransport } from '@modelcontextprotocol/server';
 import { ConfigService } from '@nestjs/config';
 import { adminMcpContext } from '../../../../../test/fixtures/mcp-auth-context';
+import {
+  BlendedFieldOverrideSchema,
+  BlendedFieldsConfigSchema,
+  BlendedSourceSchema,
+} from '../../../../data-marts/dto/schemas/blended-fields-config.schema';
 import type { McpDataMartModelFacade } from '../../../../data-marts/facades/mcp-data-mart-model.facade';
 import type { McpAuthContext } from '../../auth/mcp-auth-context';
 import { McpConfigService } from '../../config/mcp.config';
 import { McpCallInstrumentation } from '../../observability/mcp-call-instrumentation';
 import { McpSdkServerFactory } from '../../sdk/mcp-sdk-server.factory';
+import { dataMartSetupOutputSchema } from '../data-mart/data-mart.schemas';
 import { McpToolRegistry } from '../mcp-tool.registry';
 import { ListDataMartRelationshipsTool } from './list-data-mart-relationships.tool';
 import { CreateDataMartRelationshipTool } from './create-data-mart-relationship.tool';
@@ -88,6 +94,37 @@ describe('Data Mart model tools through MCP SDK', () => {
       'update_data_mart_blended_fields_config',
     ]);
     expect(tools.every(tool => tool.inputSchema.additionalProperties === false)).toBe(true);
+  });
+
+  it('exposes all domain keys for blended field settings in the Data Mart setup', () => {
+    const config = dataMartSetupOutputSchema.shape.blended_fields_config.unwrap();
+    const source = config.shape.sources.element;
+    const field = source.shape.fields.unwrap().valueType;
+    for (const [toolSchema, domainSchema] of [
+      [config, BlendedFieldsConfigSchema],
+      [source, BlendedSourceSchema],
+      [field, BlendedFieldOverrideSchema],
+    ]) {
+      expect(Object.keys(toolSchema.shape).sort()).toEqual(Object.keys(domainSchema.shape).sort());
+    }
+  });
+
+  it('reads saved duplicate join paths and rejects them before an MCP write', async () => {
+    const config = {
+      sources: [
+        { path: 'orders.region', alias: 'Previous label' },
+        { path: 'orders.region', alias: 'New label' },
+      ],
+    };
+    expect(dataMartSetupOutputSchema.shape.blended_fields_config.parse(config)).toEqual(config);
+
+    const client = await open();
+    const result = await client.callTool({
+      name: 'update_data_mart_blended_fields_config',
+      arguments: { data_mart_id: 'source', blended_fields_config: config },
+    });
+    expect(facade.updateBlendedFieldsConfig).not.toHaveBeenCalled();
+    expect(result.isError).toBe(true);
   });
 
   it('lists the readable graph and creates a draft relationship with connected actor', async () => {

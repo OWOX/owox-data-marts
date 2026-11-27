@@ -64,9 +64,16 @@ export const updateBlendedConfigSchema = dataMartTargetSchema.extend({
   data_mart_id: dataMartTargetSchema.shape.data_mart_id.describe(
     'ID of the root Data Mart that owns the settings for these joined fields.'
   ),
-  blended_fields_config: blendedFieldsConfigSchema.describe(
-    'Complete replacement for the saved settings. Include each override you want to keep. Send null to clear all overrides.'
-  ),
+  blended_fields_config: blendedFieldsConfigSchema
+    .refine(
+      config =>
+        config === null ||
+        new Set(config.sources.map(source => source.path)).size === config.sources.length,
+      { path: ['sources'], message: 'Use each join path only once.' }
+    )
+    .describe(
+      'Complete replacement for the saved settings. Use one entry per join path. Include each override you want to keep. Send null to clear all overrides.'
+    ),
 });
 
 export const savedBlendedConfigOutputSchema = {
