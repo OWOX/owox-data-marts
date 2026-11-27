@@ -793,7 +793,7 @@ export class OutputControlsValidatorService {
     dataMartSchemaFields: DataMartSchema['fields'] | undefined;
     // Reuse an already-resolved schema (e.g. the totals path) instead of recomputing it.
     precomputedBlendableSchema?: BlendableSchemaDto;
-    /** Hidden paths the read shows — see `ReportLikeReadPlan.shownHiddenFields`. */
+    /** Hidden columns the read shows — see `ReportLikeReadPlan.shownHiddenFields`. */
     showHiddenFields?: readonly string[];
     /**
      * Set by the paths that SAVE a config (create/update report, the MCP report tools) and by the

@@ -112,64 +112,60 @@ export function collectHiddenForReportingPaths(
 }
 
 /**
- * The paths of `collectHiddenForReportingPaths` a read may show when a caller names them: stored
- * columns only. A calculated field stays hidden even when named — its formula may read other
- * hidden columns, and showing a metric is a reporting decision, not a lookup of a stored value.
- * A RECORD stays hidden when a field under it is hidden in its own right: selecting the RECORD
- * reads the whole struct, which would hand out that field too. Its other children stay readable
- * one by one.
+ * The hidden-for-reporting columns a read may show when a caller names them: stored TOP-LEVEL
+ * columns of the Data Mart, by name.
+ *
+ * - A calculated field stays hidden even when named — its formula may read other hidden columns,
+ *   and showing a metric is a reporting decision, not a lookup of a stored value.
+ * - A RECORD (or an array of RECORDs) stays hidden when a field under it carries the flag in its
+ *   own right: the RECORD is read whole, which would hand out that field too. The flag is
+ *   counted whatever the field's status, so a child that reappears in the source before the
+ *   schema catches up is not handed out either.
+ * - A nested path is never offered, hidden by its own flag or by its RECORD's. The BigQuery
+ *   reader finds a nested value by walking the result row, and a row read straight from the
+ *   table sends that walk to a top-level column of the same name whenever the RECORD is NULL —
+ *   a value the caller did not name. A field of a hidden RECORD is read with the RECORD.
  */
-export function collectRevealableHiddenPaths(fields: readonly DataMartSchemaField[]): string[] {
-  const refused = new Set<string>();
-  for (const { name, field } of collectFormulaReferenceableFields(fields)) {
-    if (isCalculatedField(field) || hasOwnHiddenDescendant(field)) refused.add(name);
-  }
-  return collectHiddenForReportingPaths(fields).filter(path => !refused.has(path));
+export function collectRevealableHiddenFieldNames(
+  fields: readonly DataMartSchemaField[]
+): string[] {
+  return fields
+    .filter(
+      field =>
+        field.isHiddenForReporting === true &&
+        isConnected(field) &&
+        !isCalculatedField(field) &&
+        !hasOwnHiddenDescendant(field)
+    )
+    .map(field => field.name);
 }
 
 function hasOwnHiddenDescendant(field: DataMartSchemaField): boolean {
   const children =
     'fields' in field && Array.isArray(field.fields) ? (field.fields as DataMartSchemaField[]) : [];
-  // A DISCONNECTED child is gone from the source, so the struct no longer carries it.
   return children.some(
-    child =>
-      isConnected(child) && (child.isHiddenForReporting === true || hasOwnHiddenDescendant(child))
+    child => child.isHiddenForReporting === true || hasOwnHiddenDescendant(child)
   );
 }
 
 /**
- * A copy of `fields` with each of `paths` shown for reporting, the rest left as stored. A nested
- * path shows its ancestors too: a hidden RECORD takes its subtree off the menu, so its child is
- * unreachable until the RECORD is shown. Fields that are not on a path keep their object, and
- * with no paths the input array itself comes back.
+ * A copy of `fields` with the TOP-LEVEL fields named in `names` shown for reporting, the rest left
+ * as stored. A name that is not a top-level field — a nested path among them — shows nothing, so
+ * a caller cannot show more than `collectRevealableHiddenFieldNames` offers by passing a path.
+ * Fields that are not named keep their object, and with no names the input array itself comes
+ * back.
  */
 export function withHiddenFieldsShown(
   fields: readonly DataMartSchemaField[],
-  paths: readonly string[]
+  names: readonly string[]
 ): DataMartSchemaField[] {
-  if (paths.length === 0) return fields as DataMartSchemaField[];
-  const shown = new Set<string>();
-  for (const path of paths) {
-    const parts = path.split('.');
-    for (let i = 1; i <= parts.length; i++) shown.add(parts.slice(0, i).join('.'));
-  }
-  return showFields(fields, shown, '');
-}
-
-function showFields(
-  fields: readonly DataMartSchemaField[],
-  shown: ReadonlySet<string>,
-  prefix: string
-): DataMartSchemaField[] {
-  return fields.map(field => {
-    const fullName = prefix ? `${prefix}.${field.name}` : field.name;
-    if (!shown.has(fullName)) return field;
-    const children =
-      'fields' in field && Array.isArray(field.fields)
-        ? { fields: showFields(field.fields as DataMartSchemaField[], shown, fullName) }
-        : {};
-    return { ...field, ...children, isHiddenForReporting: false } as DataMartSchemaField;
-  });
+  if (names.length === 0) return fields as DataMartSchemaField[];
+  const shown = new Set(names);
+  return fields.map(field =>
+    shown.has(field.name) && field.isHiddenForReporting === true
+      ? ({ ...field, isHiddenForReporting: false } as DataMartSchemaField)
+      : field
+  );
 }
 
 // A calculated-field formula may legally reference a HIDDEN field: isHiddenForReporting takes a

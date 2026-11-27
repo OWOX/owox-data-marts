@@ -68,6 +68,7 @@ import { SourceDataLastUpdatedService } from '../services/source-data-last-updat
 import { HttpDataColumnResolver } from '../services/http-data/http-data-column-resolver.service';
 import { HttpDataColumnValidator } from '../services/http-data/http-data-column-validator.service';
 import {
+  columnsAmbiguousWithShownFields,
   hiddenFieldsNamedBy,
   nativeColumnNames,
   implicitAllNativeColumnNames,
@@ -283,9 +284,9 @@ export class StreamHttpDataService {
       },
       includeTotalRowCount: query.includeTotalRowCount,
       buildPlan: async storedDataMart => {
-        // A hidden column the caller names is read like any other; the rest of the read — the
-        // wildcard below, joined Data Marts, every other consumer of the Data Mart — still sees
-        // it hidden. See `hiddenFieldsNamedBy`.
+        // A hidden top-level column the caller names is read like any other; the rest of the read
+        // — the wildcard below, joined Data Marts, every other consumer of the Data Mart — still
+        // sees it hidden. See `hiddenFieldsNamedBy`.
         const storedFields = storedDataMart.schema?.fields ?? [];
         const namedHiddenFields = hiddenFieldsNamedBy(storedFields, query);
         const blendableSchema = await this.blendableSchemaService.computeBlendableSchema(
@@ -303,12 +304,12 @@ export class StreamHttpDataService {
         const joinedNames = new Set(blendableSchema.blendedFields.map(field => field.name));
         const shownHiddenFields = namedHiddenFields.filter(name => !joinedNames.has(name));
         const currentDataMart = withHiddenFieldsShownOn(storedDataMart, shownHiddenFields);
-        // Showing a nested path shows its hidden RECORD too, so the path can be reached. The RECORD
-        // itself stays unselectable unless it was shown in its own right: selecting it reads the
-        // whole struct, children the caller did not name — and may not be shown — among them.
-        const shownPaths = new Set(shownHiddenFields);
+        // Only what was shown by name becomes selectable. A shown RECORD stops hiding its subtree
+        // in the schema above, but a field under it is still a nested hidden path, which no read
+        // shows: it comes back inside the RECORD, not on its own.
+        const shownNames = new Set(shownHiddenFields);
         const hiddenPaths = new Set(collectHiddenForReportingPaths(storedFields));
-        const isSelectable = (name: string) => !hiddenPaths.has(name) || shownPaths.has(name);
+        const isSelectable = (name: string) => !hiddenPaths.has(name) || shownNames.has(name);
         const reportingColumns: ReportingColumns = {
           native: nativeColumnNames(blendableSchema).filter(isSelectable),
           implicitAllNative: implicitAllNativeColumnNames(blendableSchema).filter(
@@ -319,7 +320,6 @@ export class StreamHttpDataService {
           reportableSources: reportableSourcePaths(blendableSchema),
         };
         const columns = this.columnResolver.resolve(query.columnSelector, reportingColumns);
-        assertNoSharedResultName(columns, shownPaths);
         this.columnValidator.validate(
           {
             selectedColumns: columns,
@@ -332,6 +332,19 @@ export class StreamHttpDataService {
           },
           reportingColumns
         );
+        // After the check above, so an unknown column is reported as unknown.
+        const ambiguous = columnsAmbiguousWithShownFields(
+          columns,
+          shownNames,
+          query.aggregation ?? []
+        );
+        if (ambiguous.length > 0) {
+          throw new InvalidQueryColumnsException(
+            `Columns ${ambiguous.join(', ')} cannot be read in one request: their values cannot ` +
+              'be told apart in the result. Leave one of them out.',
+            { columns: ambiguous }
+          );
+        }
 
         const readPlan: ReportLikeReadPlan = {
           dataMart: currentDataMart,
@@ -1255,28 +1268,4 @@ export class StreamHttpDataService {
       );
     }
   }
-}
-
-/**
- * Refuses a projection where a shown hidden field and another selected column come back under
- * the same result name. BigQuery names a selected path by its last segment (`profile.user_id` →
- * `user_id`) and renames a duplicate (`user_id_1`), so the reader would hand the first column's
- * value out under both names. The clash predates hidden fields for visible ones; a shown hidden
- * field must not widen it.
- */
-function assertNoSharedResultName(columns: readonly string[], shown: ReadonlySet<string>): void {
-  const resultNameOf = (column: string) => column.slice(column.lastIndexOf('.') + 1);
-  const clashing = columns.filter(
-    column =>
-      shown.has(column) &&
-      columns.some(other => other !== column && resultNameOf(other) === resultNameOf(column))
-  );
-  if (clashing.length === 0) return;
-  const names = [...new Set(clashing.map(resultNameOf))];
-  const involved = columns.filter(column => names.includes(resultNameOf(column)));
-  throw new InvalidQueryColumnsException(
-    `Columns ${involved.join(', ')} come back under the same name (${names.join(', ')}); ` +
-      'select one of them per request.',
-    { columns: involved }
-  );
 }

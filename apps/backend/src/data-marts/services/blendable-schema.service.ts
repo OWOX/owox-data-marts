@@ -257,8 +257,9 @@ export class BlendableSchemaService {
        */
       unsavedMainSchemaFields?: DataMartSchema['fields'];
       /**
-       * Hidden-for-reporting paths of the main Data Mart to treat as shown — the ones an HTTP Data
-       * read named (`ReportLikeReadPlan.shownHiddenFields`). Joined Data Marts are not affected.
+       * Top-level hidden-for-reporting columns of the main Data Mart to treat as shown — the ones
+       * an HTTP Data read named (`ReportLikeReadPlan.shownHiddenFields`). A nested path shows
+       * nothing (`withHiddenFieldsShown`), and joined Data Marts are not affected.
        */
       showHiddenFields?: readonly string[];
     } = {}

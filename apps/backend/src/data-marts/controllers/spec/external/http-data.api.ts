@@ -72,11 +72,17 @@ export function StreamHttpDataSpec() {
         'multiple exact column names; the order of repetition is preserved in row ' +
         'objects. Values are opaque strings. `column=*` and `column=**` refer to literal ' +
         'columns named `*` and `**`; use `columns=*` or `columns=**` for selectors. ' +
-        'Overlaps are de-duplicated. A Data Mart field hidden from reports can be selected ' +
-        'here by name, and used by name in `filter`, `sort`, `aggregation`, `dateTrunc` or ' +
-        '`havingGroupBy` — for example a hidden primary key a client selects a row by. Only ' +
-        '`column` adds it to the output. A hidden calculated field, a hidden RECORD with a ' +
-        "child hidden on its own, and a joined Data Mart's hidden field stay unavailable.",
+        'Overlaps are de-duplicated. A top-level Data Mart field hidden from reports can be ' +
+        'selected here by name, and used by name in `filter`, `sort`, `aggregation`, ' +
+        '`dateTrunc` or `havingGroupBy` — for example a hidden primary key a client selects a ' +
+        'row by. Only `column` adds it to the output. These stay unavailable by name: a hidden ' +
+        'calculated field, and a field inside a RECORD, whether the field or its RECORD is ' +
+        'hidden — select the hidden RECORD itself, which comes back whole unless a field ' +
+        'inside it is hidden on its own. Joined Data Marts are not affected: their fields are ' +
+        'available here as they are to reports. A request is refused when a hidden field it ' +
+        'selects cannot be told apart in the result from another selected column: one whose ' +
+        'name differs only in letter case, or a nested field with that name in its path, such ' +
+        'as `id` next to `customer.id`.',
       required: false,
       schema: {
         type: 'array',
@@ -241,7 +247,8 @@ export function StreamHttpDataSpec() {
       status: 400,
       description:
         'Invalid request: unknown column (including in an aggregation, dateTrunc or ' +
-        'havingGroupBy rule), ' +
+        'havingGroupBy rule), a hidden field selected next to a column it cannot be told ' +
+        'apart from in the result, ' +
         'forbidden pagination parameter (`pageToken`/`offset`), malformed ' +
         'filter/sort/aggregation/dateTrunc/havingGroupBy/uniqueCount/limit, an `includeTotalRowCount` value other than `true` or `false`, aggregation or dateTrunc without an ' +
         'explicit `column` projection, an empty uniqueCount, uniqueCount with ' +

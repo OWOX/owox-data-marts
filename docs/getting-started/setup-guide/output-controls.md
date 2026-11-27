@@ -208,7 +208,16 @@ Uncheck the column to take it out of the report, or ask whoever hid it to show i
 
 A report that carries one of each is told about both, and the advice to restore the schema stays — one of those columns really is gone.
 
-Hiding keeps a column out of reports, destinations, and MCP answers. It does not lock it away from a client that reads the Data Mart directly: the HTTP Data API returns a hidden column of the Data Mart when the request selects it by name in `column`, and a filter, sort, aggregation, or date bucket rule may use it by name too. A typical case is a hidden `id` key that an app uses to open one record. Reading all columns (`columns=*`, `columns=**`, or no `column` at all) still leaves hidden columns out, with one exception: a visible RECORD comes back whole, so a field hidden inside it comes back inside the RECORD. Hidden calculated fields, a hidden RECORD that has a child hidden on its own, and the hidden fields of a joined Data Mart stay unavailable there too.
+Hiding keeps a column out of reports, destinations, and MCP answers. It does not lock it away from a client that reads the Data Mart directly: the HTTP Data API returns a hidden top-level column of the Data Mart when the request selects it by name in `column`, and a filter, sort, aggregation, or date bucket rule may use it by name too. A typical case is a hidden `obligation_id` key that an app uses to open one record. Reading all columns (`columns=*`, `columns=**`, or no `column` at all) still leaves hidden columns out, with one exception: a visible RECORD comes back whole, so a field hidden inside it comes back inside the RECORD.
+
+Some hidden fields stay unavailable to the API even by name:
+
+- A hidden calculated field.
+- A field inside a RECORD, whether the field itself or its RECORD is hidden. Select the hidden RECORD instead: it comes back whole, unless a field inside it is hidden on its own.
+
+Joined Data Marts are not affected: their fields are available to the API as they are to reports.
+
+The API refuses a request when a hidden column it selects cannot be told apart in the result from another selected column: one whose name differs only in letter case, or a nested field with that name in its path, such as `id` next to `customer.id`. Leave one of the two out. `customer.id` still comes back inside `customer` when the request selects that RECORD.
 
 ### Validation error on save
 

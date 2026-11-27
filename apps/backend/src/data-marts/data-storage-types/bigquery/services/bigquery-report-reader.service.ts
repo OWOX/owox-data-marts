@@ -236,32 +236,18 @@ export class BigQueryReportReader implements DataStorageReportReader {
    */
   public getStructuredReportRowData(tableRow: TableRow, columnNames: string[]): unknown[] {
     const rowData: unknown[] = [];
-    for (const columnName of columnNames) {
-      rowData.push(this.getReportCellValue(this.readCell(tableRow, columnName)));
+    for (let i = 0; i < columnNames.length; i++) {
+      const fieldPathNodes = columnNames[i].split('.');
+
+      let cell = null;
+      for (let j = 0; j < fieldPathNodes.length; j++) {
+        cell = cell ? cell[fieldPathNodes[j]] : tableRow[fieldPathNodes[j]];
+      }
+
+      const cellValue = this.getReportCellValue(cell);
+      rowData.push(cellValue);
     }
     return rowData;
-  }
-
-  /**
-   * The value of a header in a result row. A header is a field path (`profile.user_id`), and a row
-   * holds it in one of two shapes: inside its RECORD when the query selected the whole RECORD
-   * (`SELECT *`), or under its last segment when the query selected the path itself — BigQuery
-   * names `SELECT profile.user_id` `user_id` (implicit alias of a path expression). Only a row
-   * without the RECORD takes the second shape; a row that has it is read inside it alone, so a
-   * key the RECORD lacks reads as missing, and a NULL RECORD makes every path under it NULL.
-   */
-  private readCell(tableRow: TableRow, columnName: string): unknown {
-    const nodes = columnName.split('.');
-    if (nodes.length > 1 && !Object.hasOwn(tableRow, nodes[0])) {
-      return tableRow[nodes[nodes.length - 1]];
-    }
-    let cell: unknown = tableRow;
-    for (const node of nodes) {
-      if (cell === null) return null;
-      if (typeof cell !== 'object' || !(node in cell)) return undefined;
-      cell = (cell as Record<string, unknown>)[node];
-    }
-    return cell;
   }
 
   private getReportCellValue(cell: unknown): unknown {
