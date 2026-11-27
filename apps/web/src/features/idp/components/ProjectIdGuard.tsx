@@ -89,7 +89,8 @@ export function ProjectIdGuard({ children }: { children: React.ReactNode }): Rea
       />
     );
   }
-  if (isLoading || hasMismatch) return <FullScreenLoader />;
+  if (hasMismatch) return <FullScreenLoader message='Switching project...' />;
+  if (isLoading) return <FullScreenLoader />;
 
   return <>{children}</>;
 }
@@ -128,7 +129,7 @@ function SwitchProjectSession({
     };
   }, [attempt, projectId, userId]);
 
-  if (!failure) return <FullScreenLoader />;
+  if (!failure) return <FullScreenLoader message='Switching project...' />;
 
   return (
     <div className='bg-background flex min-h-screen items-center justify-center p-4'>

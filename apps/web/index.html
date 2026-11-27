@@ -5,6 +5,27 @@
     <meta name="google" content="notranslate" />
     <link rel="icon" type="image/png" href="/favicon.png" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="color-scheme" content="light dark" />
+    <script>
+      // Apply the same preference as ThemeProvider before the first paint.
+      (() => {
+        let preference;
+        try {
+          preference = localStorage.getItem('theme');
+        } catch {
+          // Use the system theme if local storage is unavailable.
+        }
+
+        const theme =
+          preference === 'dark' || preference === 'light'
+            ? preference
+            : window.matchMedia('(prefers-color-scheme: dark)').matches
+              ? 'dark'
+              : 'light';
+        document.documentElement.classList.add(theme);
+        document.documentElement.style.colorScheme = theme;
+      })();
+    </script>
     <title>OWOX</title>
   </head>
   <body translate="no" class="notranslate">

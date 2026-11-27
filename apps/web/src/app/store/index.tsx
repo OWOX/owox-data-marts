@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo } from 'react';
+import React, { useEffect } from 'react';
 import { StoreProvider } from './core/store';
 import { useAppDispatch, useAppSelector } from './core/store-hooks';
 import { combineReducers } from './core/store-utils';
@@ -7,7 +7,7 @@ import { flagsReducer, fetchFlags, type FlagsState } from './reducers/flags.redu
 import { useAuth } from '../../features/idp';
 import { AuthStatus } from '../../features/idp';
 import { getConnectProjectTarget } from '../../features/idp/utils/connect-project';
-import { LoadingSpinner } from '@owox/ui/components/common/loading-spinner';
+import { FullScreenLoader } from '@owox/ui/components/common/loading-spinner';
 import { RequestStatus } from '../../shared/types/request-status.ts';
 import {
   contentPopoversReducer,
@@ -82,8 +82,6 @@ export function AppBootstrap({ children }: { children: React.ReactNode }) {
     dispatch({ type: APP_SET_READY, payload: ready });
   }, [status, user?.projectId, hasEmptyProjectRoles, flagsStatus, dispatch]);
 
-  const loader = useMemo(() => <LoadingSpinner fullScreen message='Loading application...' />, []);
-
   // Connect routes must show their auth error and retry action before app flags can load.
   if (
     status === AuthStatus.ERROR &&
@@ -96,14 +94,9 @@ export function AppBootstrap({ children }: { children: React.ReactNode }) {
 
   if (!isReady) {
     if (flagsStatus === RequestStatus.ERROR) {
-      return (
-        <LoadingSpinner
-          fullScreen
-          message={`Failed to load app flags: ${flagsState.error ?? ''}`}
-        />
-      );
+      return <FullScreenLoader message={`Failed to load app flags: ${flagsState.error ?? ''}`} />;
     }
-    return loader;
+    return <FullScreenLoader message='Loading application...' />;
   }
 
   return <>{children}</>;

@@ -76,6 +76,8 @@ describe('ProjectIdGuard', () => {
 
       try {
         renderAt('/ui/7/plugins?source=pin#report');
+        expect(screen.getByText('Switching project...')).toBeInTheDocument();
+        expect(screen.queryByText(/^at /)).not.toBeInTheDocument();
         await waitFor(() => {
           expect(reload).toHaveBeenCalledOnce();
         });
@@ -94,6 +96,7 @@ describe('ProjectIdGuard', () => {
     renderAt('/ui/7/plugins');
 
     expect(await screen.findByRole('alert')).toHaveTextContent('This project is unavailable');
+    expect(screen.queryByText('Switching project...')).not.toBeInTheDocument();
     expect(screen.getByRole('link', { name: 'Back to project' })).toHaveAttribute(
       'href',
       '/ui/42/data-marts'
