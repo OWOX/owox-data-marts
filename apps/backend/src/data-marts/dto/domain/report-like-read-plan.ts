@@ -40,9 +40,21 @@ export interface ReportLikeReadPlan {
    * projection that carries no metric — never stored on a `Report`.
    */
   distinct?: boolean;
+  /**
+   * HTTP Data reads of a Data Mart only: the main Data Mart's hidden-for-reporting paths the caller
+   * named, shown for this read. `dataMart` already carries them shown; this list is what a schema
+   * reloaded by id (`BlendableSchemaService.computeBlendableSchema`) must show again, so every
+   * check of the read agrees with the plan. Never stored on a `Report`.
+   */
+  shownHiddenFields?: readonly string[];
 }
 
 export type ReportLike = Report | ReportLikeReadPlan;
+
+/** The hidden paths a read shows (see `ReportLikeReadPlan.shownHiddenFields`); `[]` for a report. */
+export function shownHiddenFieldsOf(report: ReportLike): readonly string[] {
+  return ('shownHiddenFields' in report ? report.shownHiddenFields : undefined) ?? [];
+}
 
 /**
  * Whether a report projects METRICS ONLY — it asks for aggregates or any Unique Count, so an empty

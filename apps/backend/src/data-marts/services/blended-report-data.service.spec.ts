@@ -215,7 +215,8 @@ describe('BlendedReportDataService', () => {
       expect(blendableSchemaService.computeBlendableSchema).toHaveBeenCalledWith(
         'dm-1',
         'project-1',
-        { userId: 'user-1', roles: ['admin'] }
+        { userId: 'user-1', roles: ['admin'] },
+        { showHiddenFields: [] }
       );
     });
 

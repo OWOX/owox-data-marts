@@ -208,6 +208,8 @@ Uncheck the column to take it out of the report, or ask whoever hid it to show i
 
 A report that carries one of each is told about both, and the advice to restore the schema stays — one of those columns really is gone.
 
+Hiding keeps a column out of reports, destinations, and MCP answers. It does not lock it away from a client that reads the Data Mart directly: the HTTP Data API returns a hidden column of the Data Mart when the request names it, in `column` or in a filter, sort, aggregation, or date bucket rule. A typical case is a hidden `id` key that an app uses to open one record. Reading all columns (`columns=*`, `columns=**`, or no `column` at all) still leaves hidden columns out. Hidden calculated fields and the hidden fields of a joined Data Mart stay unavailable there too.
+
 ### Validation error on save
 
 A filter, slice, sort, aggregation, or date bucket rule may still point to a column the report can no longer be built from. Save the report, and OWOX blocks it with an error that names the columns — **Disconnected columns** for the ones the schema lost, **Hidden columns** for the ones someone hid, and both when the report carries one of each. Open the report, remove the affected rules from the Filters, Slices, Sort, or Aggregations sections, then save again.

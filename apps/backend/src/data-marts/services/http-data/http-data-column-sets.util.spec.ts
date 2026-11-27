@@ -1,6 +1,7 @@
 import { BlendableSchemaDto } from '../../dto/domain/blendable-schema.dto';
 import { DataMartSchemaFieldStatus } from '../../data-storage-types/enums/data-mart-schema-field-status.enum';
 import {
+  hiddenFieldsNamedBy,
   implicitAllBlendedColumnNames,
   implicitAllNativeColumnNames,
   nativeColumnNames,
@@ -166,5 +167,42 @@ describe('implicitAllBlendedColumnNames', () => {
 
     expect(implicitAllBlendedColumnNames(schema)).toEqual(visibleBlendedColumnNames(schema));
     expect(implicitAllBlendedColumnNames(schema)).toEqual(['orders__cost']);
+  });
+});
+
+describe('hiddenFieldsNamedBy', () => {
+  const fields = [
+    {
+      name: 'obligation_id',
+      status: DataMartSchemaFieldStatus.CONNECTED,
+      isHiddenForReporting: true,
+    },
+    { name: 'note', status: DataMartSchemaFieldStatus.CONNECTED, isHiddenForReporting: true },
+    { name: 'date', status: DataMartSchemaFieldStatus.CONNECTED },
+  ] as never;
+
+  it('returns the hidden columns the selection or any clause names, once each', () => {
+    expect(
+      hiddenFieldsNamedBy(fields, {
+        columnSelector: { mode: 'explicit', explicit: ['obligation_id', 'date'] },
+        filter: [{ column: 'obligation_id', operator: 'eq', value: 42 }] as never,
+        sort: [{ column: 'note', direction: 'asc' }] as never,
+      })
+    ).toEqual(['obligation_id', 'note']);
+  });
+
+  it('counts the explicit names beside a native wildcard', () => {
+    expect(
+      hiddenFieldsNamedBy(fields, {
+        columnSelector: { mode: 'allNative', explicit: ['note'] },
+      })
+    ).toEqual(['note']);
+  });
+
+  it('returns nothing for a wildcard that names no column', () => {
+    expect(hiddenFieldsNamedBy(fields, { columnSelector: { mode: 'allBlendable' } })).toEqual([]);
+    expect(
+      hiddenFieldsNamedBy(fields, { columnSelector: { mode: 'allNative', explicit: [] } })
+    ).toEqual([]);
   });
 });

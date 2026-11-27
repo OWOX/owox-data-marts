@@ -1643,6 +1643,101 @@ describe('HTTP Data API (e2e)', () => {
     });
   });
 
+  describe('A field hidden for reporting', () => {
+    const b64 = (v: unknown) => Buffer.from(JSON.stringify(v)).toString('base64url');
+    let hiddenDataMartId: string;
+    let restoreMocks: (() => void) | undefined;
+
+    beforeAll(async () => {
+      const prereqs = await setupPublishedDataMart(agent);
+      hiddenDataMartId = prereqs.dataMartId;
+      const fields = [
+        {
+          name: 'obligation_id',
+          type: 'INTEGER',
+          mode: 'NULLABLE',
+          status: 'CONNECTED',
+          isPrimaryKey: true,
+          isHiddenForReporting: true,
+        },
+        { name: 'date', type: 'DATE', mode: 'NULLABLE', status: 'CONNECTED' },
+      ];
+      await setDataMartSchema(agent, app, hiddenDataMartId, {
+        type: 'bigquery-data-mart-schema',
+        fields,
+      });
+
+      // Mirrors the real service: a hidden field is left out unless the read shows it.
+      const originalBlendableImpl =
+        blendableSchemaMock.computeBlendableSchema.getMockImplementation();
+      blendableSchemaMock.computeBlendableSchema.mockImplementation((async (
+        _id: string,
+        _projectId: string,
+        _accessor: unknown,
+        options?: { showHiddenFields?: readonly string[] }
+      ) => ({
+        nativeFields: [
+          ...(options?.showHiddenFields?.includes('obligation_id')
+            ? [{ name: 'obligation_id', type: 'INTEGER', isPrimaryKey: true }]
+            : []),
+          { name: 'date', type: 'DATE' },
+        ],
+        blendedFields: [],
+        availableSources: [],
+        mainUniqueCountKeyFields: ['obligation_id'],
+        hiddenFieldNames: options?.showHiddenFields?.includes('obligation_id')
+          ? []
+          : ['obligation_id'],
+      })) as never);
+      // Actualization re-merges the stored schema with the warehouse one; keep both columns.
+      const originalSchemaProviderImpl =
+        schemaProviderFacadeMock.getActualDataMartSchema.getMockImplementation();
+      schemaProviderFacadeMock.getActualDataMartSchema.mockImplementation(async () => ({
+        type: 'bigquery-data-mart-schema',
+        fields: fields.map(({ isHiddenForReporting: _hidden, ...field }) => field),
+      }));
+
+      restoreMocks = () => {
+        blendableSchemaMock.computeBlendableSchema.mockImplementation(originalBlendableImpl!);
+        schemaProviderFacadeMock.getActualDataMartSchema.mockImplementation(
+          originalSchemaProviderImpl!
+        );
+      };
+    });
+
+    afterAll(() => {
+      restoreMocks?.();
+    });
+
+    beforeEach(() => {
+      capturedPrepareOptions = null;
+    });
+
+    it('is selected and filtered on when the caller names it', async () => {
+      const filter = b64([{ column: 'obligation_id', operator: 'eq', value: 42 }]);
+
+      const res = await agent
+        .get(
+          `/api/external/http-data/data-marts/${hiddenDataMartId}.ndjson?column=obligation_id&column=date&filter=${filter}`
+        )
+        .set(AUTH_HEADER);
+
+      expect(res.status).toBe(200);
+      const sqlOverride = capturedPrepareOptions!['sqlOverride'] as string;
+      expect(sqlOverride).toContain('`obligation_id`');
+    });
+
+    it('stays out of a wildcard read', async () => {
+      const res = await agent
+        .get(`/api/external/http-data/data-marts/${hiddenDataMartId}.ndjson?columns=*`)
+        .set(AUTH_HEADER);
+
+      expect(res.status).toBe(200);
+      const [plan] = (mockReader.prepareReportData as jest.Mock).mock.calls.at(-1)!;
+      expect((plan as { columnConfig: string[] }).columnConfig).toEqual(['date']);
+    });
+  });
+
   it('leaves no run RUNNING', async () => {
     const runs = app.get<Repository<DataMartRun>>(getRepositoryToken(DataMartRun));
     expect(await runs.countBy({ status: DataMartRunStatus.RUNNING })).toBe(0);

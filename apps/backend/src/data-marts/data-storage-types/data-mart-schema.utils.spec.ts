@@ -10,6 +10,8 @@ import {
   getReportFieldType,
   getMainUniqueCountKeyFields,
   hasUsablePrimaryKey,
+  collectRevealableHiddenPaths,
+  withHiddenFieldsShown,
 } from './data-mart-schema.utils';
 import { isCalculatedField } from '../calculated-fields/calculated-field.utils';
 import { CALCULATED_FIELD_LEVELS } from '../calculated-fields/formula-level';
@@ -708,5 +710,72 @@ describe('collectHiddenForReportingPaths', () => {
     ];
 
     expect(collectHiddenForReportingPaths(fields)).toEqual(['items']);
+  });
+});
+
+describe('showing hidden fields for one read', () => {
+  const mkField = (name: string, extra: Partial<DataMartSchemaField> = {}): DataMartSchemaField =>
+    ({
+      name,
+      type: 'STRING',
+      status: DataMartSchemaFieldStatus.CONNECTED,
+      ...extra,
+    }) as unknown as DataMartSchemaField;
+
+  describe('collectRevealableHiddenPaths', () => {
+    it('offers hidden stored columns and keeps hidden calculated fields back', () => {
+      const fields = [
+        mkField('obligation_id', { isHiddenForReporting: true }),
+        mkField('margin', {
+          isHiddenForReporting: true,
+          calculated: { formula: '{{ref field="clicks"}}', level: 'metric' },
+        } as never),
+        mkField('clicks'),
+      ];
+
+      expect(collectRevealableHiddenPaths(fields)).toEqual(['obligation_id']);
+    });
+  });
+
+  describe('withHiddenFieldsShown', () => {
+    it('shows exactly the named paths and leaves the input untouched', () => {
+      const fields = [
+        mkField('obligation_id', { isHiddenForReporting: true }),
+        mkField('internal_note', { isHiddenForReporting: true }),
+        mkField('clicks'),
+      ];
+
+      const shown = withHiddenFieldsShown(fields, ['obligation_id']);
+
+      expect(shown.map(f => [f.name, f.isHiddenForReporting])).toEqual([
+        ['obligation_id', false],
+        ['internal_note', true],
+        ['clicks', undefined],
+      ]);
+      expect(shown[2]).toBe(fields[2]);
+      expect(fields[0].isHiddenForReporting).toBe(true);
+    });
+
+    it('shows the hidden RECORD a named child sits under, but not its other hidden children', () => {
+      const fields = [
+        mkField('ids', {
+          type: 'RECORD',
+          isHiddenForReporting: true,
+          fields: [mkField('order_id'), mkField('secret', { isHiddenForReporting: true })],
+        }),
+      ];
+
+      const shown = withHiddenFieldsShown(fields, ['ids.order_id']);
+
+      expect(collectSchemaFieldPathDescriptors(shown).map(d => d.name)).toEqual([
+        'ids',
+        'ids.order_id',
+      ]);
+    });
+
+    it('returns the same array when nothing is named', () => {
+      const fields = [mkField('obligation_id', { isHiddenForReporting: true })];
+      expect(withHiddenFieldsShown(fields, [])).toBe(fields);
+    });
   });
 });

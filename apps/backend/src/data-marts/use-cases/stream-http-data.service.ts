@@ -39,6 +39,11 @@ import { ReportDataHeader } from '../dto/domain/report-data-header.dto';
 import { StreamHttpDataCommand } from '../dto/domain/stream-http-data.command';
 import { StreamHttpReportDataCommand } from '../dto/domain/stream-http-report-data.command';
 import { DataMart } from '../entities/data-mart.entity';
+import type { DataMartSchema } from '../data-storage-types/data-mart-schema.type';
+import {
+  collectHiddenForReportingPaths,
+  withHiddenFieldsShown,
+} from '../data-storage-types/data-mart-schema.utils';
 import { InvalidQueryColumnsException } from '../errors/invalid-query-columns.exception';
 import { InvalidOutputControlsException } from '../errors/invalid-output-controls.exception';
 import { DataMartStatus } from '../enums/data-mart-status.enum';
@@ -63,6 +68,7 @@ import { SourceDataLastUpdatedService } from '../services/source-data-last-updat
 import { HttpDataColumnResolver } from '../services/http-data/http-data-column-resolver.service';
 import { HttpDataColumnValidator } from '../services/http-data/http-data-column-validator.service';
 import {
+  hiddenFieldsNamedBy,
   nativeColumnNames,
   implicitAllNativeColumnNames,
   implicitAllBlendedColumnNames,
@@ -204,6 +210,25 @@ export function deriveStreamPlanContext(plan: ExecuteStreamPlan): StreamPlanCont
   }
 }
 
+/**
+ * The Data Mart as an HTTP Data read sees it: `paths` shown for reporting, nothing else changed.
+ * A copy, never the entity: the read must not persist the change by accident.
+ */
+function withHiddenFieldsShownOn(dataMart: DataMart, paths: readonly string[]): DataMart {
+  if (paths.length === 0 || !dataMart.schema) return dataMart;
+  // Keeps the prototype: `DataMart` exposes its owner ids as accessors, which a spread would drop.
+  return Object.assign(
+    Object.create(Object.getPrototypeOf(dataMart) as object) as DataMart,
+    dataMart,
+    {
+      schema: {
+        ...dataMart.schema,
+        fields: withHiddenFieldsShown(dataMart.schema.fields, paths),
+      } as DataMartSchema,
+    }
+  );
+}
+
 @Injectable()
 export class StreamHttpDataService {
   private readonly logger = new Logger(StreamHttpDataService.name);
@@ -267,15 +292,25 @@ export class StreamHttpDataService {
         limit,
       },
       includeTotalRowCount: query.includeTotalRowCount,
-      buildPlan: async currentDataMart => {
+      buildPlan: async storedDataMart => {
+        // A hidden column the caller names is read like any other; the rest of the read — the
+        // wildcard below, joined Data Marts, every other consumer of the Data Mart — still sees
+        // it hidden. See `hiddenFieldsNamedBy`.
+        const storedFields = storedDataMart.schema?.fields ?? [];
+        const shownHiddenFields = hiddenFieldsNamedBy(storedFields, query);
+        const currentDataMart = withHiddenFieldsShownOn(storedDataMart, shownHiddenFields);
+        const hiddenPaths = new Set(collectHiddenForReportingPaths(storedFields));
         const blendableSchema = await this.blendableSchemaService.computeBlendableSchema(
           currentDataMart.id,
           currentDataMart.projectId,
-          accessor
+          accessor,
+          { showHiddenFields: shownHiddenFields }
         );
         const reportingColumns: ReportingColumns = {
           native: nativeColumnNames(blendableSchema),
-          implicitAllNative: implicitAllNativeColumnNames(blendableSchema),
+          implicitAllNative: implicitAllNativeColumnNames(blendableSchema).filter(
+            name => !hiddenPaths.has(name)
+          ),
           blended: visibleBlendedColumnNames(blendableSchema),
           implicitAllBlended: implicitAllBlendedColumnNames(blendableSchema),
           reportableSources: reportableSourcePaths(blendableSchema),
@@ -304,6 +339,7 @@ export class StreamHttpDataService {
           uniqueCountConfig: query.uniqueCount,
           havingGroupBy: query.havingGroupBy,
           limitConfig: limit ?? null,
+          ...(shownHiddenFields.length > 0 ? { shownHiddenFields } : {}),
         };
 
         return { kind: 'data-mart', readPlan, columns };

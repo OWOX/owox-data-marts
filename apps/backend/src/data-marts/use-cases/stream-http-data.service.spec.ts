@@ -1,3 +1,4 @@
+import type { ReportLikeReadPlan } from '../dto/domain/report-like-read-plan';
 import {
   BadRequestException,
   ForbiddenException,
@@ -419,6 +420,104 @@ describe('StreamHttpDataService', () => {
     const plan = readPlan as { aggregationConfig?: unknown[]; distinct?: boolean };
     expect(plan.aggregationConfig ?? []).toEqual([]);
     expect(plan.distinct).toBeUndefined();
+  });
+
+  describe('a field hidden for reporting', () => {
+    const storedFields = [
+      { name: 'obligation_id', type: 'INTEGER', status: 'CONNECTED', isHiddenForReporting: true },
+      { name: 'date', type: 'DATE', status: 'CONNECTED' },
+      {
+        name: 'margin',
+        type: 'FLOAT',
+        status: 'CONNECTED',
+        isHiddenForReporting: true,
+        calculated: { formula: '{{ref field="date"}}', level: 'metric' },
+      },
+    ];
+
+    beforeEach(() => {
+      dataMartService.getByIdAndProjectId.mockResolvedValueOnce(
+        fakeDataMart({ schema: { fields: storedFields } } as unknown as Partial<DataMart>)
+      );
+    });
+
+    it('is read when the caller names it, on a copy that leaves the stored Data Mart hidden', async () => {
+      await service.stream(
+        fakeCommand({ rawQuery: { column: ['obligation_id', 'date'] } }),
+        mockResponse()
+      );
+
+      expect(blendableSchema.computeBlendableSchema).toHaveBeenCalledWith(
+        'dm-1',
+        'proj-1',
+        expect.anything(),
+        { showHiddenFields: ['obligation_id'] }
+      );
+      const [readPlan] = blended.resolveBlendingDecision.mock.calls.at(-1)!;
+      const plan = readPlan as ReportLikeReadPlan;
+      expect(plan.shownHiddenFields).toEqual(['obligation_id']);
+      const fields = plan.dataMart.schema!.fields as Array<{
+        name: string;
+        isHiddenForReporting?: boolean;
+      }>;
+      expect(fields.find(f => f.name === 'obligation_id')?.isHiddenForReporting).toBe(false);
+      expect(fields.find(f => f.name === 'margin')?.isHiddenForReporting).toBe(true);
+      expect(storedFields[0].isHiddenForReporting).toBe(true);
+    });
+
+    it('is shown when only a filter names it, and a wildcard selection still leaves it out', async () => {
+      requestValidator.validate.mockReturnValueOnce({
+        columnSelector: { mode: 'allNative', explicit: [] },
+        filter: [{ column: 'obligation_id', operator: 'eq', value: 42 }],
+        sort: undefined,
+        limit: undefined,
+      } as never);
+      blendableSchema.computeBlendableSchema.mockResolvedValueOnce({
+        nativeFields: [{ name: 'obligation_id' }, { name: 'date' }],
+        blendedFields: [],
+        availableSources: [],
+      } as never);
+
+      await service.stream(fakeCommand(), mockResponse());
+
+      const [, columns] = columnResolver.resolve.mock.calls.at(-1)!;
+      expect(columns.native).toEqual(['obligation_id', 'date']);
+      expect(columns.implicitAllNative).toEqual(['date']);
+    });
+
+    it('stays hidden for a wildcard selection that names nothing', async () => {
+      requestValidator.validate.mockReturnValueOnce({
+        columnSelector: { mode: 'allNative', explicit: [] },
+        filter: undefined,
+        sort: undefined,
+        limit: undefined,
+      } as never);
+
+      await service.stream(fakeCommand(), mockResponse());
+
+      expect(blendableSchema.computeBlendableSchema).toHaveBeenCalledWith(
+        'dm-1',
+        'proj-1',
+        expect.anything(),
+        { showHiddenFields: [] }
+      );
+      const [readPlan] = blended.resolveBlendingDecision.mock.calls.at(-1)!;
+      expect((readPlan as ReportLikeReadPlan).shownHiddenFields).toBeUndefined();
+    });
+
+    it('stays hidden when it is a calculated field, named or not', async () => {
+      await service.stream(
+        fakeCommand({ rawQuery: { column: ['margin', 'date'] } }),
+        mockResponse()
+      );
+
+      expect(blendableSchema.computeBlendableSchema).toHaveBeenCalledWith(
+        'dm-1',
+        'proj-1',
+        expect.anything(),
+        { showHiddenFields: [] }
+      );
+    });
   });
 
   it('happy path streams two NDJSON rows, records a SUCCESS run, registers consumption', async () => {

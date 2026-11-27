@@ -7,6 +7,7 @@ import {
   ReportLikeReadPlan,
   hasOutputControls,
   isMetricsOnlyProjection,
+  shownHiddenFieldsOf,
 } from '../dto/domain/report-like-read-plan';
 import { hasMainUniqueCount } from '../dto/schemas/unique-count-sources';
 import { BlendableSchemaAccessor, BlendableSchemaService } from './blendable-schema.service';
@@ -460,6 +461,7 @@ export class ReportSqlComposerService {
         accessor,
         dataMartSchemaFields: report.dataMart.schema?.fields,
         precomputedBlendableSchema: blendableSchema,
+        showHiddenFields: shownHiddenFieldsOf(report),
         havingGroupBy,
       });
     }
@@ -509,6 +511,7 @@ export class ReportSqlComposerService {
 
     const totalsPlan: ReportLikeReadPlan = {
       dataMart: report.dataMart,
+      shownHiddenFields: shownHiddenFieldsOf(report),
       columnConfig: columns,
       filterConfig: whereFilters.length > 0 ? whereFilters : null,
       aggregationConfig: aggregations,
@@ -630,7 +633,8 @@ export class ReportSqlComposerService {
       ? await this.blendableSchemaService.computeBlendableSchema(
           report.dataMart.id,
           report.dataMart.projectId,
-          accessor
+          accessor,
+          { showHiddenFields: shownHiddenFieldsOf(report) }
         )
       : undefined;
     const blendedByName = blendableSchema

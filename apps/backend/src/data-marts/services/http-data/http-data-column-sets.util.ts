@@ -1,5 +1,15 @@
 import { BlendableSchemaDto } from '../../dto/domain/blendable-schema.dto';
-import { collectSchemaFieldPaths } from '../../data-storage-types/data-mart-schema.utils';
+import {
+  collectRevealableHiddenPaths,
+  collectSchemaFieldPaths,
+} from '../../data-storage-types/data-mart-schema.utils';
+import type { DataMartSchemaField } from '../../data-storage-types/data-mart-schema.type';
+import type { ColumnSelector } from '../../dto/schemas/http-data-query.schema';
+import type { FilterConfig } from '../../dto/schemas/filter-config.schema';
+import type { SortConfig } from '../../dto/schemas/sort-config.schema';
+import type { AggregationConfig } from '../../dto/schemas/aggregation-config.schema';
+import type { DateTruncConfig } from '../../dto/schemas/date-trunc-config.schema';
+import type { HavingGroupBy } from '../../dto/schemas/having-group-by.schema';
 import { calculatedFieldsOf } from '../../calculated-fields/calculated-field.utils';
 
 export interface ReportingColumns {
@@ -56,4 +66,45 @@ export function implicitAllBlendedColumnNames(schema: BlendableSchemaDto): strin
     schema.blendedFields.filter(field => field.isCalculated).map(field => field.name)
   );
   return visibleBlendedColumnNames(schema).filter(name => !calculatedNames.has(name));
+}
+
+/** The parts of an HTTP Data query that name columns. */
+export interface ColumnNamingQuery {
+  columnSelector: ColumnSelector;
+  filter?: FilterConfig;
+  sort?: SortConfig;
+  aggregation?: AggregationConfig;
+  dateTrunc?: DateTruncConfig;
+  havingGroupBy?: HavingGroupBy;
+}
+
+/**
+ * The main Data Mart's hidden-for-reporting paths this query names, which the read shows.
+ *
+ * "Hidden for reporting" keeps a column off report pickers, destinations and MCP. A caller that
+ * reads the Data Mart over HTTP and names the column — typically a hidden primary key it selects
+ * a row by — gets it. A wildcard (`columns` omitted, `*`, `**`) names nothing, so it keeps
+ * returning visible columns only. Hidden calculated fields stay hidden (see
+ * `collectRevealableHiddenPaths`), and joined Data Marts keep their own hidden columns.
+ */
+export function hiddenFieldsNamedBy(
+  schemaFields: readonly DataMartSchemaField[],
+  query: ColumnNamingQuery
+): string[] {
+  const hidden = new Set(collectRevealableHiddenPaths(schemaFields));
+  if (hidden.size === 0) return [];
+  return [...new Set(namedColumnsOf(query))].filter(name => hidden.has(name));
+}
+
+function namedColumnsOf(query: ColumnNamingQuery): string[] {
+  const selector = query.columnSelector;
+  return [
+    ...(selector.mode === 'allBlendable' ? [] : selector.explicit),
+    ...(query.filter ?? []).map(rule => rule.column),
+    ...(query.sort ?? []).map(rule => rule.column),
+    ...(query.aggregation ?? []).map(rule => rule.column),
+    ...(query.dateTrunc ?? []).map(rule => rule.column),
+    ...(query.havingGroupBy?.column ?? []),
+    ...(query.havingGroupBy?.dateTrunc ?? []).map(rule => rule.column),
+  ];
 }

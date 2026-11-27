@@ -793,6 +793,8 @@ export class OutputControlsValidatorService {
     dataMartSchemaFields: DataMartSchema['fields'] | undefined;
     // Reuse an already-resolved schema (e.g. the totals path) instead of recomputing it.
     precomputedBlendableSchema?: BlendableSchemaDto;
+    /** Hidden paths the read shows — see `ReportLikeReadPlan.shownHiddenFields`. */
+    showHiddenFields?: readonly string[];
     /**
      * Set by the paths that SAVE a config (create/update report, the MCP report tools) and by the
      * ad-hoc HTTP Data read to reject a joined Unique Count source that can never emit its column. The same method re-validates a
@@ -1036,7 +1038,8 @@ export class OutputControlsValidatorService {
         (await this.blendableSchemaService.computeBlendableSchema(
           args.dataMartId,
           args.projectId,
-          args.accessor
+          args.accessor,
+          { showHiddenFields: args.showHiddenFields }
         ));
 
       const hasActualizedSchema =

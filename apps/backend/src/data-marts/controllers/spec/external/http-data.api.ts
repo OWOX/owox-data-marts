@@ -58,7 +58,8 @@ export function StreamHttpDataSpec() {
         '`columns=*` may be combined with repeated `column` values. `columns=**` cannot ' +
         'be combined with `column` or another `columns` value. Omit `columns` and ' +
         '`column` to select all current Data Mart output columns, unless `uniqueCount` is ' +
-        'given: then the read returns a single total row.',
+        'given: then the read returns a single total row. Selectors never include a field ' +
+        'hidden from reports; name it with `column` to read it.',
       required: false,
       enum: ['*', '**'],
       example: '*',
@@ -70,7 +71,10 @@ export function StreamHttpDataSpec() {
         'multiple exact column names; the order of repetition is preserved in row ' +
         'objects. Values are opaque strings. `column=*` and `column=**` refer to literal ' +
         'columns named `*` and `**`; use `columns=*` or `columns=**` for selectors. ' +
-        'Overlaps are de-duplicated.',
+        'Overlaps are de-duplicated. A Data Mart field hidden from reports is returned when ' +
+        'named here or in `filter`, `sort`, `aggregation`, `dateTrunc` or `havingGroupBy` — for ' +
+        'example a hidden primary key a client selects a row by. A hidden calculated field and ' +
+        "a joined Data Mart's hidden field stay unavailable.",
       required: false,
       schema: {
         type: 'array',
