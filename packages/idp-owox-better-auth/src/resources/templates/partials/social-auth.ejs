@@ -44,7 +44,10 @@
       urlParams.get('redirect-to') ||
       urlParams.get('redirectTo') ||
       urlParams.get('app-redirect-to');
-    const callbackURL = redirect || '/';
+    const state = urlParams.get('state');
+    const callbackURL = /^app-[A-Za-z0-9_-]{43}$/.test(state ?? '')
+      ? `/auth/sign-in?state=${encodeURIComponent(state)}`
+      : redirect || '/';
     let navigating = false;
 
     // Save last used provider (if available)

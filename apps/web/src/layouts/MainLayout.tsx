@@ -17,7 +17,6 @@ import {
   useSidebar,
 } from '@owox/ui/components/sidebar';
 import { AppSidebar } from '../components/AppSidebar';
-import { ThemeProvider } from '../app/providers/theme-provider.tsx';
 import { storageService } from '../services';
 import { GlobalLoader, LoadingProvider, useLoading } from '../shared/components/GlobalLoader';
 import { Toaster as SonnerToaster } from '@owox/ui/components/sonner';
@@ -154,13 +153,11 @@ function MainLayout({ accountOnly = false }: { accountOnly?: boolean }) {
   };
 
   return (
-    <ThemeProvider>
-      <LoadingProvider>
-        <SidebarProvider open={sidebarOpen} onOpenChange={handleSidebarChange}>
-          <MainLayoutContent accountOnly={accountOnly} />
-        </SidebarProvider>
-      </LoadingProvider>
-    </ThemeProvider>
+    <LoadingProvider>
+      <SidebarProvider open={sidebarOpen} onOpenChange={handleSidebarChange}>
+        <MainLayoutContent accountOnly={accountOnly} />
+      </SidebarProvider>
+    </LoadingProvider>
   );
 }
 

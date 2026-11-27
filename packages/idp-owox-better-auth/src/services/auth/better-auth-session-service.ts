@@ -1,7 +1,7 @@
 import { type Request } from 'express';
 import { createBetterAuthConfig } from '../../config/idp-better-auth-config.js';
 import { BETTER_AUTH_SESSION_COOKIE, SESSION_ERROR_MESSAGES } from '../../core/constants.js';
-import { SessionException } from '../../core/exceptions.js';
+import { SessionException, UnverifiedEmailException } from '../../core/exceptions.js';
 import { createServiceLogger } from '../../core/logger.js';
 import { buildUserInfoPayload } from '../../mappers/user-info-payload-builder.js';
 import type { DatabaseStore } from '../../store/database-store.js';
@@ -69,6 +69,37 @@ export class BetterAuthSessionService {
     state: string,
     callbackProviderId?: string
   ): Promise<{ code: string; payload: UserInfoPayload }> {
+    const { payload } = await this.resolveIdentityFromSessionToken(
+      sessionToken,
+      state,
+      callbackProviderId
+    );
+    const result = await this.platformAuthFlowClient.completeAuthFlow(payload);
+    return { code: result.code, payload };
+  }
+
+  async resolveVerifiedIdentity(
+    sessionToken: string,
+    state: string,
+    provider: string
+  ): Promise<UserInfoPayload> {
+    const { payload, emailVerified } = await this.resolveIdentityFromSessionToken(
+      sessionToken,
+      state,
+      provider
+    );
+    if (payload.userInfo.signinProvider !== provider) {
+      throw new SessionException('The signed-in account does not match the sign-in method');
+    }
+    if (!emailVerified) throw new UnverifiedEmailException();
+    return payload;
+  }
+
+  private async resolveIdentityFromSessionToken(
+    sessionToken: string,
+    state: string,
+    callbackProviderId?: string
+  ): Promise<{ payload: UserInfoPayload; emailVerified: boolean }> {
     const encodedToken = encodeURIComponent(sessionToken);
     let session: Awaited<ReturnType<typeof this.auth.api.getSession>> | null = null;
 
@@ -108,16 +139,7 @@ export class BetterAuthSessionService {
       account,
     });
 
-    this.logger.info('OWOX client sending auth flow payload with session token', {
-      state: payload.state,
-      userId: user.id,
-      provider: account.providerId,
-    });
-    const result = await this.platformAuthFlowClient.completeAuthFlow(payload);
-    this.logger.info('OWOX client completed auth flow with session token', {
-      hasCode: Boolean(result.code),
-    });
-    return { code: result.code, payload };
+    return { payload, emailVerified: session.user.emailVerified };
   }
 
   private resolveSessionCookieNames(): string[] {

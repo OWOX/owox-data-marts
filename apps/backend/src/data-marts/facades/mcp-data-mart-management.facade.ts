@@ -1,4 +1,5 @@
 import type { AuthorizationContext } from '../../idp';
+import type { BlendedFieldsConfig } from '../dto/schemas/blended-fields-config.schema';
 import type { DataMartDefinition } from '../dto/schemas/data-mart-table-definitions/data-mart-definition';
 import type { DataMartDefinitionType } from '../enums/data-mart-definition-type.enum';
 import type { DataMartStatus } from '../enums/data-mart-status.enum';
@@ -24,6 +25,7 @@ export interface McpDataMartSetupDto extends McpDataMartSummaryDto {
   definition: DataMartDefinition | null;
   definitionReadError: string | null;
   schema: DataMartSchema | null;
+  blendedFieldsConfig: BlendedFieldsConfig | null;
   businessOwnerIds: string[];
   technicalOwnerIds: string[];
   contexts: { id: string; name: string }[];

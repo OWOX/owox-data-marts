@@ -164,42 +164,45 @@ describe('AuthProvider connect project', () => {
     expect(getTokenProvider()).toBeNull();
   });
 
-  it('blocks the setup when a refreshed session belongs to another account', async () => {
-    render(
-      <AuthProvider>
-        <AppStoreProvider>
-          <AppBootstrap>
-            <MemoryRouter initialEntries={[target]}>
-              <Routes>
-                <Route path='/ui/:projectId/connect' element={<ConnectFlowLayout />}>
-                  <Route path='credentials/:setupId' element={<button>Save Credential</button>} />
-                </Route>
-              </Routes>
-            </MemoryRouter>
-          </AppBootstrap>
-        </AppStoreProvider>
-      </AuthProvider>
-    );
-    await screen.findByRole('button', { name: 'Save Credential' });
-    const provider = getTokenProvider();
-    if (!provider) throw new Error('The authenticated token provider is missing');
-    api.getUserApi.mockResolvedValue({ id: 'user-2', projectId: 'project-a', roles: ['editor'] });
-    api.refreshAccessToken.mockResolvedValue({ accessToken: 'token-b' });
+  it.each(['project-a', 'project-b'])(
+    'blocks the setup when another account refreshes into %s',
+    async projectId => {
+      render(
+        <AuthProvider>
+          <AppStoreProvider>
+            <AppBootstrap>
+              <MemoryRouter initialEntries={[target]}>
+                <Routes>
+                  <Route path='/ui/:projectId/connect' element={<ConnectFlowLayout />}>
+                    <Route path='credentials/:setupId' element={<button>Save Credential</button>} />
+                  </Route>
+                </Routes>
+              </MemoryRouter>
+            </AppBootstrap>
+          </AppStoreProvider>
+        </AuthProvider>
+      );
+      await screen.findByRole('button', { name: 'Save Credential' });
+      const provider = getTokenProvider();
+      if (!provider) throw new Error('The authenticated token provider is missing');
+      api.getUserApi.mockResolvedValue({ id: 'user-2', projectId, roles: ['editor'] });
+      api.refreshAccessToken.mockResolvedValue({ accessToken: 'token-b' });
 
-    await act(async () => {
-      await expect(provider.refreshToken()).rejects.toThrow('The signed-in account changed');
-    });
+      await act(async () => {
+        await expect(provider.refreshToken()).rejects.toThrow('The signed-in account changed');
+      });
 
-    const switchAccount = await screen.findByRole('button', {
-      name: 'Sign out and switch account',
-    });
-    expect(screen.queryByRole('button', { name: 'Save Credential' })).not.toBeInTheDocument();
-    expect(getTokenProvider()).toBeNull();
-    expect(api.signIn).not.toHaveBeenCalled();
-    expect(RedirectStorageService.retrieve()).toBe(target);
-    fireEvent.click(switchAccount);
-    expect(api.signOut).toHaveBeenCalledTimes(1);
-  });
+      const switchAccount = await screen.findByRole('button', {
+        name: 'Sign out and switch account',
+      });
+      expect(screen.queryByRole('button', { name: 'Save Credential' })).not.toBeInTheDocument();
+      expect(getTokenProvider()).toBeNull();
+      expect(api.signIn).not.toHaveBeenCalled();
+      expect(RedirectStorageService.retrieve()).toBe(target);
+      fireEvent.click(switchAccount);
+      expect(api.signOut).toHaveBeenCalledTimes(1);
+    }
+  );
 
   it('blocks a connect route with an encoded slash in the project ID', async () => {
     const invalidTarget = '/ui/project%2Fa/connect/credentials/setup-1';

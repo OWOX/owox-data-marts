@@ -248,6 +248,21 @@ the Integrated Backend version with the Pricing and Checkout APIs. Verify that i
 the token and allows the App origin for catalog reads, checkout creation, and checkout
 status. Stripe returns customers to the App origin after checkout.
 
+## OWOX Cloud sign-in
+
+For `IDP_PROVIDER=owox-better-auth`, new sign-in and sign-up attempts start in App. App
+uses its existing server-to-server credentials to request a PKCE code from Integrated Backend.
+Deploy the ROI identity response with `viewOnly` first, then the Integrated Backend version
+with `POST /internal-api/idp/app-session/authorize`, then the App version.
+
+Keep `IDP_OWOX_PLATFORM_SIGN_IN_URL` and `IDP_OWOX_PLATFORM_SIGN_UP_URL` configured while
+Platform uses the shared sign-in forms for its own sessions. Verify direct sign-in, project
+access and session refresh in production App before deploying Platform's standalone Google
+sign-in. Legacy links that start an App sign-in through Platform then open the App sign-in
+page directly.
+Set `IDP_OWOX_SIGN_OUT_REDIRECT_URL` to `https://app.owox.com/auth/sign-in` in production
+with the App update to keep sign-out on the App domain.
+
 ## Reverse proxy
 
 - **TRUST_PROXY_HOPS**: Number of reverse proxies in front of the application that append to `X-Forwarded-For`.

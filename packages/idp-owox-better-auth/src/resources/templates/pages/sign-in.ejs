@@ -128,34 +128,11 @@
 
 <%- include('../partials/social-auth') %>
 <script>
-  const hasAuthState = <%= typeof hasState !== 'undefined' && hasState ? 'true' : 'false' %>;
   const autoSubmitProvider = <%- JSON.stringify(typeof autoSubmitProvider !== 'undefined' ? autoSubmitProvider : null) %>;
 
   /**
-   * Ensures a PKCE state exists before running a sign-in action, falling
-   * back to a full-page bounce (`pendingAction` round trip through Platform)
-   * if one isn't already there. In practice `hasAuthState` is true by the
-   * time this page ever renders - the server always mints one before
-   * showing the form, specifically so the email/password fields have a
-   * ready state to submit against without a client-side priming step of
-   * their own - so this fallback exists mainly as a defensive path, not the
-   * common case.
-   */
-  function ensureStateThenRun(pendingAction, run) {
-    if (hasAuthState) {
-      run();
-      return;
-    }
-    setSocialButtonsDisabled(true);
-    if (submitBtn) submitBtn.disabled = true;
-    const params = new URLSearchParams(window.location.search);
-    params.set('pendingAction', pendingAction);
-    window.location.href = `${window.location.pathname}?${params.toString()}`;
-  }
-
-  /**
    * Obtain a short-lived token at click time, then POST the chosen provider
-   * to start a fresh Platform state round trip.
+   * to start a fresh sign-in attempt.
    */
   async function alwaysGetFreshStateThenRun(provider) {
     setSocialButtonsDisabled(true);
@@ -316,11 +293,10 @@
       setStatus('Enter your email and password.');
       return;
     }
-    ensureStateThenRun('email', () => submitEmailSignIn(event));
+    submitEmailSignIn(event);
   });
 
-  // Resume the action the user originally clicked, now that a fresh PKCE
-  // state has come back from the Platform round trip.
+  // Resume the social action once its verified intent and PKCE state are ready.
   if (autoSubmitProvider) {
     submitSocial(autoSubmitProvider);
   }

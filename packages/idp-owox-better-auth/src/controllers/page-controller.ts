@@ -13,11 +13,7 @@ import {
   TemplateService,
 } from '../services/rendering/template-service.js';
 import type { UiAuthProviders } from '../types/index.js';
-import {
-  consumeAuthFlowError,
-  extractAuthFlowParams,
-  persistAuthFlowContext,
-} from '../utils/request-utils.js';
+import { extractAuthFlowParams, persistAuthFlowContext } from '../utils/request-utils.js';
 import { consumeVerifiedSocialIntent, type SocialProvider } from '../utils/social-intent.js';
 
 function resolveAutoSubmitProvider(
@@ -47,15 +43,8 @@ export class PageController {
   }
 
   /**
-   * Whether *this exact request* is a genuine return leg from the Platform
-   * round trip (state literally present in its own query), never merely
-   * "some state cookie happens to still be around". Deliberately not
-   * cookie-inclusive: a stale leftover cookie (abandoned attempt, an error
-   * path that didn't clear it, etc.) must not be trusted as fresh, and -
-   * more importantly - this value gates auto-submitting a sign-in action
-   * with no further click, so it must not be satisfiable by a query
-   * parameter alone (a crafted `?state=x&pendingAction=google` link). The
-   * short-lived action cookie also needs proof from the one-time button POST.
+   * Auto-submit requires a return leg with state in the URL and a verified
+   * social intent from the one-time button POST.
    */
   private hasQueryState(req: ExpressRequest): boolean {
     return typeof req.query?.state === 'string' && req.query.state.length > 0;
@@ -65,16 +54,19 @@ export class PageController {
     return Boolean(this.providers[provider]);
   }
 
-  async signInPage(req: ExpressRequest, res: ExpressResponse): Promise<void> {
-    const hasState = this.hasQueryState(req);
+  async signInPage(
+    req: ExpressRequest,
+    res: ExpressResponse,
+    appStatePrepared = false
+  ): Promise<void> {
+    const hasQueryState = !appStatePrepared && this.hasQueryState(req);
     const autoSubmitProvider = resolveAutoSubmitProvider(
-      hasState,
+      hasQueryState,
       consumeVerifiedSocialIntent(req, res),
       this.providers
     );
-    this.persistAuthFlowContext(req, res);
-    const savedError = consumeAuthFlowError(req, res);
-    const errorMessage = typeof req.query?.error === 'string' ? req.query.error : savedError;
+    if (!appStatePrepared) this.persistAuthFlowContext(req, res);
+    const errorMessage = typeof req.query?.error === 'string' ? req.query.error : undefined;
     const infoMessage = typeof req.query?.info === 'string' ? req.query.info : undefined;
     sendSecureHtml(
       res,
@@ -83,7 +75,6 @@ export class PageController {
         infoMessage,
         providers: this.providers,
         gtmContainerId: this.gtmContainerId,
-        hasState,
         autoSubmitProvider,
       })
     );
@@ -91,16 +82,19 @@ export class PageController {
     if (!autoSubmitProvider) this.serverEvents?.pageView(req, SIGN_IN_PAGE_TITLE);
   }
 
-  async signUpPage(req: ExpressRequest, res: ExpressResponse): Promise<void> {
-    const hasState = this.hasQueryState(req);
+  async signUpPage(
+    req: ExpressRequest,
+    res: ExpressResponse,
+    appStatePrepared = false
+  ): Promise<void> {
+    const hasState = !appStatePrepared && this.hasQueryState(req);
     const autoSubmitProvider = resolveAutoSubmitProvider(
       hasState,
       consumeVerifiedSocialIntent(req, res),
       this.providers
     );
-    this.persistAuthFlowContext(req, res);
-    const savedError = consumeAuthFlowError(req, res);
-    const errorMessage = typeof req.query?.error === 'string' ? req.query.error : savedError;
+    if (!appStatePrepared) this.persistAuthFlowContext(req, res);
+    const errorMessage = typeof req.query?.error === 'string' ? req.query.error : undefined;
     const infoMessage = typeof req.query?.info === 'string' ? req.query.info : undefined;
     sendSecureHtml(
       res,

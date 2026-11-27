@@ -80,8 +80,8 @@ export class DataMartResponseApiDto {
   @ApiProperty({ type: [UserProjectionDto] })
   technicalOwnerUsers: UserProjection[];
 
-  @ApiProperty({ required: false })
-  blendedFieldsConfig?: BlendedFieldsConfig;
+  @ApiProperty({ required: false, nullable: true })
+  blendedFieldsConfig?: BlendedFieldsConfig | null;
 
   @ApiProperty({ example: '2024-01-01T12:00:00.000Z' })
   createdAt: Date;

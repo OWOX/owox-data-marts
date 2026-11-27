@@ -11,8 +11,13 @@ import {
   BETTER_AUTH_SESSION_COOKIE,
 } from '../../core/constants.js';
 import { createServiceLogger } from '../../core/logger.js';
+import { isAppSignInState } from '../../core/pkce.js';
 import { convertExpressToFetchRequest } from '../../utils/express-compat.js';
-import { extractAuthFlowParams, readQueryString } from '../../utils/request-utils.js';
+import {
+  extractAuthFlowParams,
+  extractStateFromCookie,
+  readQueryString,
+} from '../../utils/request-utils.js';
 import { PkceFlowOrchestrator } from '../auth/pkce-flow-orchestrator.js';
 
 /**
@@ -25,7 +30,14 @@ export class BetterAuthProxyHandler {
 
   constructor(
     private readonly auth: Awaited<ReturnType<typeof createBetterAuthConfig>>,
-    private readonly pkceFlowOrchestrator: PkceFlowOrchestrator
+    private readonly pkceFlowOrchestrator: PkceFlowOrchestrator,
+    private readonly completeAppSignIn?: (
+      req: ExpressRequest,
+      res: ExpressResponse,
+      sessionToken: string,
+      provider: string,
+      state: string
+    ) => Promise<URL>
   ) {}
 
   setupBetterAuthHandler(expressApp: Express): void {
@@ -134,16 +146,24 @@ export class BetterAuthProxyHandler {
     res: ExpressResponse
   ): Promise<boolean> {
     const sessionToken = this.getSessionTokenFromResponse(response);
-    if (!sessionToken) return false;
+    if (!sessionToken || response.status >= 400) return false;
     const callbackProviderId = this.resolveCallbackProviderId(req.path);
-
-    const redirectUrl = await this.pkceFlowOrchestrator.completeWithSocialSessionToken(
-      sessionToken,
-      extractAuthFlowParams(req),
-      req,
-      res,
-      callbackProviderId
-    );
+    const cookieState = extractStateFromCookie(req);
+    const callbackState =
+      callbackProviderId === 'credential'
+        ? cookieState
+        : this.readAppCallbackState(response.headers.get('location'));
+    const isAppSignIn = isAppSignInState(cookieState) || isAppSignInState(callbackState);
+    const redirectUrl =
+      isAppSignIn && callbackProviderId && this.completeAppSignIn
+        ? await this.completeAppSignIn(req, res, sessionToken, callbackProviderId, callbackState)
+        : await this.pkceFlowOrchestrator.completeWithSocialSessionToken(
+            sessionToken,
+            extractAuthFlowParams(req),
+            req,
+            res,
+            callbackProviderId
+          );
     if (redirectUrl) {
       if (this.isJsonRequest(req)) {
         res.json({ url: redirectUrl.toString() });
@@ -153,6 +173,18 @@ export class BetterAuthProxyHandler {
       return true;
     }
     return false;
+  }
+
+  private readAppCallbackState(location: string | null): string {
+    if (!location) return '';
+    try {
+      const callback = new URL(location, 'https://app.invalid');
+      return callback.pathname === `${AUTH_BASE_PATH}/sign-in`
+        ? (callback.searchParams.get('state') ?? '')
+        : '';
+    } catch {
+      return '';
+    }
   }
 
   private isJsonRequest(req: ExpressRequest): boolean {

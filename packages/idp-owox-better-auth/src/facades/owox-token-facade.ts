@@ -65,18 +65,22 @@ export class OwoxTokenFacade {
       throw new IdpFailedException(`Code verifier is not available: ${res.reason ?? 'unknown'}`);
     }
 
-    const request: TokenRequest = {
-      grantType: 'authorization_code',
-      authCode: code,
-      codeVerifier: res.code,
-      clientId: this.config.idpConfig.clientId,
-    };
-
-    const tokenResponse = await this.identityClient.getToken(request);
+    const tokenResponse = await this.exchangeAuthCode(code, res.code);
     return {
       ...tokenResponse,
       authFlowParams: res.authFlowParams,
     };
+  }
+
+  async exchangeAuthCode(code: string, codeVerifier: string): Promise<TokenResponse> {
+    const request: TokenRequest = {
+      grantType: 'authorization_code',
+      authCode: code,
+      codeVerifier,
+      clientId: this.config.idpConfig.clientId,
+    };
+
+    return this.identityClient.getToken(request);
   }
 
   async introspectToken(token: string): Promise<Payload | null> {
@@ -162,6 +166,19 @@ export class OwoxTokenFacade {
     return response.success;
   }
 
+  async switchProject(
+    refreshToken: string,
+    projectId: string,
+    expectedUserId: string
+  ): Promise<TokenResponse> {
+    return this.identityClient.switchProject(
+      refreshToken,
+      this.config.idpConfig.clientId,
+      projectId,
+      expectedUserId
+    );
+  }
+
   async switchProjectMiddleware(req: Request, res: Response): Promise<void> {
     res.set('Cache-Control', 'no-store');
     const host = req.get('host');
@@ -181,9 +198,8 @@ export class OwoxTokenFacade {
     }
 
     try {
-      const tokens = await this.identityClient.switchProject(
+      const tokens = await this.switchProject(
         refreshToken,
-        this.config.idpConfig.clientId,
         input.data.projectId,
         input.data.expectedUserId
       );

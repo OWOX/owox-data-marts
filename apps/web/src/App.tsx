@@ -7,6 +7,7 @@ import { AuthProvider } from './features/idp';
 import { GoogleTagManager as GTM } from '../src/app/gtm/GoogleTagManager.tsx';
 import { IntercomChat } from './app/intercom/IntercomChat';
 import { AppStoreProvider, AppBootstrap } from './app/store';
+import { ThemeProvider } from './app/providers/theme-provider';
 import { ContentPopovers } from './components/ContentPopovers';
 import { isAccountLinkPath } from './features/my-account/account-link-paths';
 import { CloudProjectCreationProvider } from './features/project-settings/management/CloudProjectCreationProvider';
@@ -46,20 +47,22 @@ function App() {
   }
 
   return (
-    <QueryClientProvider client={queryClient}>
-      <AuthProvider>
-        <AppStoreProvider>
-          <AppBootstrap>
-            <GTM />
-            <IntercomChat />
-            <ContentPopovers />
-            <CloudProjectCreationProvider>
-              <RouterProvider router={router} />
-            </CloudProjectCreationProvider>
-          </AppBootstrap>
-        </AppStoreProvider>
-      </AuthProvider>
-    </QueryClientProvider>
+    <ThemeProvider>
+      <QueryClientProvider client={queryClient}>
+        <AuthProvider>
+          <AppStoreProvider>
+            <AppBootstrap>
+              <GTM />
+              <IntercomChat />
+              <ContentPopovers />
+              <CloudProjectCreationProvider>
+                <RouterProvider router={router} />
+              </CloudProjectCreationProvider>
+            </AppBootstrap>
+          </AppStoreProvider>
+        </AuthProvider>
+      </QueryClientProvider>
+    </ThemeProvider>
   );
 }
 

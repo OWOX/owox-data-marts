@@ -184,7 +184,7 @@ describe('PkceFlowOrchestrator', () => {
     expect(userContextService.resolveFromToken).not.toHaveBeenCalled();
   });
 
-  it('completes with social session token and builds redirect', async () => {
+  it('returns a Platform sign-in with the original state and its own source', async () => {
     const req = createReq({
       cookies: { 'idp-owox-state': 'state-2' },
     });
@@ -205,8 +205,12 @@ describe('PkceFlowOrchestrator', () => {
       res
     );
 
-    expect(url?.toString()).toContain('code=code-social');
-    expect(url?.toString()).toContain('state=state-2');
+    expect(url?.origin).toBe('https://platform.test');
+    expect(url?.pathname).toBe('/auth/sign-in');
+    expect(url?.searchParams.get('code')).toBe('code-social');
+    expect(url?.searchParams.get('state')).toBe('state-2');
+    expect(url?.searchParams.get('source')).toBe(SOURCE.PLATFORM);
+    expect(res.cookie).not.toHaveBeenCalled();
   });
 
   it('redirects to sign-in when state expired', async () => {

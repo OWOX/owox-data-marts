@@ -7,7 +7,7 @@ import type { OnboardingService } from '../services/onboarding/onboarding-servic
 import { TemplateService } from '../services/rendering/template-service.js';
 import type { SaveOnboardingAnswersRequest } from '../types/index.js';
 import type { OwoxTokenFacade } from '../facades/owox-token-facade.js';
-import { isRelativePath } from '../utils/platform-redirect-builder.js';
+import { sanitizeAppRedirect } from '../utils/platform-redirect-builder.js';
 
 /**
  * Handles onboarding questionnaire pages and submissions.
@@ -94,7 +94,7 @@ export class OnboardingController {
       });
 
       const redirect = this.withInviteTeammatesStep(
-        this.sanitizeRedirect(body.redirect),
+        sanitizeAppRedirect(typeof body.redirect === 'string' ? body.redirect : undefined) ?? '/',
         projectId,
         userRole
       );
@@ -171,15 +171,6 @@ export class OnboardingController {
     }
     return { userId: '', projectId: '', biUserId: '', userRole: 'viewer', viewOnly: false };
   }
-  /**
-   * Validates redirect is a safe relative path. Returns '/' for any suspicious value.
-   */
-  private sanitizeRedirect(value: unknown): string {
-    if (typeof value !== 'string') return '/';
-    const trimmed = value.trim();
-    return isRelativePath(trimmed) ? trimmed : '/';
-  }
-
   /**
    * Sends the project admin through the web app's invite-teammates step before `redirect`.
    * Only app destinations (`/` and `/ui/...`) get the step: other targets continue a flow

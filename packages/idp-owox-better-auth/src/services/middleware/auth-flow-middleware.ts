@@ -1,14 +1,7 @@
 import type { NextFunction, Request, Response } from 'express';
-import ms from 'ms';
-import { IdpOwoxConfig } from '../../config/index.js';
 import { PageController } from '../../controllers/page-controller.js';
-import { SOURCE } from '../../core/constants.js';
 import { createServiceLogger } from '../../core/logger.js';
-import { generatePkce, generateState } from '../../core/pkce.js';
-import type { DatabaseStore } from '../../store/database-store.js';
 import { buildAuthRequestContext } from '../../types/auth-request-context.js';
-import { buildPlatformEntryUrl } from '../../utils/platform-redirect-builder.js';
-import { extractAuthFlowParams, persistAuthFlowParams } from '../../utils/request-utils.js';
 import { readVerifiedSocialIntent } from '../../utils/social-intent.js';
 import { PkceFlowOrchestrator } from '../auth/pkce-flow-orchestrator.js';
 
@@ -20,51 +13,8 @@ export class AuthFlowMiddleware {
 
   constructor(
     private readonly pageController: PageController,
-    private readonly idpOwoxConfig: IdpOwoxConfig,
-    private readonly store: DatabaseStore,
     private readonly pkceFlowOrchestrator: PkceFlowOrchestrator
   ) {}
-
-  async idpStartMiddleware(req: Request, res: Response): Promise<void> {
-    try {
-      await this.store.initialize();
-      const { codeVerifier, codeChallenge } = await generatePkce();
-      const state = generateState();
-      const expiresAt = new Date(Date.now() + ms('1m'));
-      const authFlowParams = extractAuthFlowParams(req);
-      await this.store.saveAuthState(state, codeVerifier, expiresAt, authFlowParams);
-
-      const { redirectTo, appRedirectTo, integration, projectId, extraParams } = authFlowParams;
-      persistAuthFlowParams(req, res, authFlowParams);
-
-      const platformUrl = buildPlatformEntryUrl({
-        authUrl: this.idpOwoxConfig.idpConfig.platformSignInUrl,
-        defaultSource: SOURCE.APP,
-        params: { redirectTo, appRedirectTo, integration, projectId, extraParams },
-        allowedRedirectOrigins: this.idpOwoxConfig.idpConfig.allowedRedirectOrigins,
-      });
-      platformUrl.searchParams.set('state', state);
-      platformUrl.searchParams.set('codeChallenge', codeChallenge);
-      platformUrl.searchParams.set('clientId', this.idpOwoxConfig.idpConfig.clientId);
-      this.logger.info('Starting IDP auth flow', {
-        path: req.path,
-        redirectTo,
-        appRedirectTo,
-        projectId,
-        extraParamKeys: extraParams ? Object.keys(extraParams) : [],
-        platformUrl: platformUrl.toString(),
-      });
-
-      return res.redirect(platformUrl.toString());
-    } catch (error) {
-      this.logger.error(
-        'Failed to start IDP flow',
-        { path: req.path },
-        error instanceof Error ? error : undefined
-      );
-      res.status(500).end('Failed to start IDP flow');
-    }
-  }
 
   async signInMiddleware(
     req: Request,

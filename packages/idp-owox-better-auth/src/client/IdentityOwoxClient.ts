@@ -10,8 +10,11 @@ import {
   IdentityApiException,
   IdpFailedException,
   IdpNotFoundException,
+  NoSignInProjectException,
 } from '../core/exceptions.js';
 import {
+  AppSignInNoProjectResponseSchema,
+  AppSignInRequest,
   AuthFlowRequest,
   AuthFlowResponse,
   AuthFlowResponseSchema,
@@ -109,7 +112,7 @@ export class IdentityOwoxClient {
       const { data } = await this.http.post<TokenResponse>('/api/idp/token', req);
       return TokenResponseSchema.parse(data);
     } catch (err) {
-      this.handleAxiosError(err, { req }, 'Failed to get token');
+      this.handleAxiosError(err, { grantType: req.grantType }, 'Failed to get token');
     }
   }
 
@@ -377,6 +380,39 @@ export class IdentityOwoxClient {
       return AuthFlowResponseSchema.parse(data);
     } catch (err) {
       this.handleAxiosError(err, { request }, 'Failed to complete auth flow');
+    }
+  }
+
+  async authorizeAppSignIn(request: AppSignInRequest): Promise<AuthFlowResponse> {
+    const headers = await this.getC2cAuthHeader('authorize App sign-in', {});
+    try {
+      const { data } = await this.http.post<unknown>(
+        `${this.clientBackchannelPrefix}/idp/app-session/authorize`,
+        request,
+        { headers }
+      );
+      return AuthFlowResponseSchema.parse(data);
+    } catch (error) {
+      if (!axios.isAxiosError(error)) throw error;
+      const response = error.response;
+      if (response?.status === 400) {
+        const missingProject = AppSignInNoProjectResponseSchema.safeParse(response.data);
+        if (missingProject.success) {
+          throw new NoSignInProjectException(missingProject.data.viewOnly);
+        }
+      }
+      if (response?.status === 403) {
+        throw new ForbiddenException('The selected project is unavailable');
+      }
+      if (
+        response?.status === 401 &&
+        IdpAuthenticationErrorResponseSchema.safeParse(response.data).success
+      ) {
+        throw new AuthenticationException('The OWOX account or project is unavailable');
+      }
+      throw new IdpFailedException('Could not authorize App sign-in', {
+        status: response?.status,
+      });
     }
   }
 

@@ -45,6 +45,33 @@ export function sanitizeRedirectParam(
   return allowedRedirectOrigins.includes(origin) ? trimmed : undefined;
 }
 
+/** Discards or unwraps a saved continuation through the retired App login route. */
+export function sanitizeAppRedirect(
+  value: string | undefined,
+  allowedRedirectOrigins?: string[]
+): string | undefined {
+  const target = sanitizeRedirectParam(value, allowedRedirectOrigins);
+  if (!target) return undefined;
+
+  const url = new URL(target, 'https://app.invalid');
+  const isRetiredRoute = (path: string) => /^\/auth\/idp-start\/?$/i.test(path);
+  if (!isRetiredRoute(url.pathname)) return target;
+
+  const continuation = sanitizeRedirectParam(
+    url.searchParams.get('app-redirect-to') ?? undefined,
+    undefined
+  );
+  // The old handoff could wrap an App page or an MCP authorization continuation.
+  if (!continuation || /^\/auth(?:\/|$)/i.test(new URL(continuation, url).pathname)) {
+    return undefined;
+  }
+  return continuation;
+}
+
+export function projectHomePath(projectId: string): string {
+  return `/ui/${encodeURIComponent(projectId)}/data-marts`;
+}
+
 function applyAuthFlowParams(
   url: URL,
   params: AuthFlowParams | undefined,

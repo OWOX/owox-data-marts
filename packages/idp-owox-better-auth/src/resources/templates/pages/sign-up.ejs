@@ -99,7 +99,7 @@
 
   /**
    * Obtain a short-lived token at click time, then submit the selected
-   * provider so the server can request a new state from Platform.
+   * provider so the server can request a new state for this sign-in attempt.
    */
   async function alwaysGetFreshStateThenRun(provider) {
     setSocialButtonsDisabled(true);
@@ -247,7 +247,7 @@
   signupForm?.addEventListener('submit', handleSignUp);
 
   // Resume the action the user originally clicked, now that a fresh PKCE
-  // state has come back from the Platform round trip.
+  // state has come back for this sign-in attempt.
   if (autoSubmitProvider) {
     submitSocial(autoSubmitProvider);
   }

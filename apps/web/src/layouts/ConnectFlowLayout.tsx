@@ -1,5 +1,4 @@
 import { Outlet, useLocation, useParams } from 'react-router';
-import { ThemeProvider } from '../app/providers/theme-provider.tsx';
 import { ProjectAuthGuards } from './ProjectAuthGuards';
 import { Button } from '@owox/ui/components/button';
 import { Toaster as SonnerToaster } from '@owox/ui/components/sonner';
@@ -34,7 +33,7 @@ export function ConnectFlowLayout({ flow = 'connect' }: { flow?: 'connect' | 'on
     );
   }
   return (
-    <ThemeProvider>
+    <>
       <SonnerToaster position='bottom-right' closeButton />
       <HotToaster />
       <ProjectAuthGuards authFallback={flow === 'connect' ? <ConnectProjectError /> : undefined}>
@@ -50,7 +49,7 @@ export function ConnectFlowLayout({ flow = 'connect' }: { flow?: 'connect' | 'on
           <Outlet key={`${user?.id}:${user?.projectId}`} />
         </div>
       </ProjectAuthGuards>
-    </ThemeProvider>
+    </>
   );
 }
 

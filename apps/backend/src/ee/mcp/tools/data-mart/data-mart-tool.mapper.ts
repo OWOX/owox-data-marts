@@ -34,6 +34,7 @@ export class DataMartToolMapper {
       definition: dto.definition,
       definition_read_error: dto.definitionReadError,
       schema: dto.schema,
+      blended_fields_config: dto.blendedFieldsConfig,
       business_owner_ids: dto.businessOwnerIds,
       technical_owner_ids: dto.technicalOwnerIds,
       contexts: dto.contexts.map(context => ({ context_id: context.id, name: context.name })),

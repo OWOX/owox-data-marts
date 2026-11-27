@@ -10,6 +10,9 @@ import {
   PreviewDataMartService,
 } from '../use-cases/preview-data-mart.service';
 import { McpDataMartModelMapper } from '../mappers/mcp-data-mart-model.mapper';
+import { UpdateBlendedFieldsConfigService } from '../use-cases/update-blended-fields-config.service';
+import { UpdateBlendedFieldsConfigCommand } from '../dto/domain/update-blended-fields-config.command';
+import type { BlendedFieldsConfig } from '../dto/schemas/blended-fields-config.schema';
 import { safeMcpDataMartErrorMessage } from './mcp-data-mart-diagnostics';
 import {
   MCP_MODEL_PREVIEW_DEFAULT_LIMIT,
@@ -28,8 +31,28 @@ export class McpDataMartModelFacadeImpl implements McpDataMartModelFacade {
     private readonly update: UpdateDataMartRelationshipService,
     private readonly remove: DeleteDataMartRelationshipService,
     private readonly previewDataMart: PreviewDataMartService,
-    private readonly mapper: McpDataMartModelMapper
+    private readonly mapper: McpDataMartModelMapper,
+    private readonly saveBlendedFieldsConfig: UpdateBlendedFieldsConfigService
   ) {}
+
+  async updateBlendedFieldsConfig(
+    actor: AuthorizationContext,
+    dataMartId: string,
+    config: BlendedFieldsConfig | null
+  ) {
+    return this.safely('Unable to update settings for joined fields', async () => {
+      const mart = await this.saveBlendedFieldsConfig.run(
+        new UpdateBlendedFieldsConfigCommand(
+          dataMartId,
+          actor.projectId,
+          config,
+          actor.userId,
+          actor.roles ?? []
+        )
+      );
+      return mart.blendedFieldsConfig ?? null;
+    });
+  }
 
   async listRelationships(actor: AuthorizationContext, dataMartId: string) {
     return this.safely('Unable to list Data Mart relationships', async () =>

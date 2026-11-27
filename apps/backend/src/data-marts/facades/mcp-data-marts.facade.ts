@@ -67,6 +67,7 @@ export interface McpJoinedFieldDto {
   type: string;
   description: string;
   sourceDataMart: string;
+  aliasPath: string;
   /**
    * Pre-join RAW type, present only when this field's dedup changes its type (e.g. STRING deduped
    * by COUNT → effective INTEGER). A slice runs before the join on the raw value, so slice operators
@@ -96,7 +97,7 @@ export interface McpUniqueCountSourceDto {
  * per-join override when set, otherwise the relationship-level description.
  */
 export interface McpJoinDto {
-  /** Dotted alias path of the joined source — matches the `<alias>__` prefix of joinedFields. */
+  /** Full join path shared by all fields from this source in `joinedFields`. */
   aliasPath: string;
   sourceDataMart: string;
   targetDataMart: string;

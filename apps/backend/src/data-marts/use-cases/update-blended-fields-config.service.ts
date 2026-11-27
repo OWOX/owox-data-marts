@@ -37,7 +37,7 @@ export class UpdateBlendedFieldsConfigService {
       throw new ForbiddenException('You do not have permission to edit this DataMart');
     }
 
-    const nextConfig = command.blendedFieldsConfig ?? undefined;
+    const nextConfig = command.blendedFieldsConfig;
     const changed = !deepEqual(dataMart.blendedFieldsConfig ?? null, nextConfig ?? null);
 
     if (changed) {
