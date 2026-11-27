@@ -85,6 +85,74 @@ describe('_isAuthError', () => {
   });
 });
 
+describe('_buildInsightsUrl with Action Attribution Windows', () => {
+  const buildUrl = windows => {
+    const parameters = {
+      Limit: { value: 100 },
+      AccessToken: { value: 'token' },
+      ActionAttributionWindows: { value: windows },
+    };
+    const source = Object.assign(Object.create(proto), {
+      context: { getParameter: name => parameters[name] },
+    });
+    return source._buildInsightsUrl({
+      accountId: '123',
+      fields: ['conversions'],
+      breakdowns: ['country'],
+      timeRange: 'DAY',
+      level: 'ad',
+      url: 'https://graph.facebook.com/v26.0/',
+    });
+  };
+
+  // Without the parameter Meta returns only `value`, which is what every existing Data Mart gets.
+  it.each([[undefined], [''], [' , ; ']])('leaves the request unchanged for %j', windows => {
+    expect(buildUrl(windows)).toBe(
+      'https://graph.facebook.com/v26.0/act_123/insights?level=ad&period=day&time_range=DAY&fields=conversions&limit=100&breakdowns=country&access_token=token'
+    );
+  });
+
+  it('asks Meta for each listed window', () => {
+    const url = new URL(buildUrl('1d_click, 7d_click;1d_view'));
+
+    expect(url.searchParams.get('action_attribution_windows')).toBe(
+      '["1d_click","7d_click","1d_view"]'
+    );
+    expect(url.searchParams.get('breakdowns')).toBe('country');
+    expect(url.searchParams.get('access_token')).toBe('token');
+  });
+});
+
+describe('Action Attribution Windows input', () => {
+  const parse = value =>
+    proto._getActionAttributionWindows.call({ context: { getParameter: () => ({ value }) } });
+
+  // Meta's reference writes the list as ['1d_click','7d_click'], and users paste it as is.
+  it.each([
+    ["['1d_click','7d_click']", ['1d_click', '7d_click']],
+    ['"1D_Click", "7d_click"', ['1d_click', '7d_click']],
+    ['1d_click 7d_click', ['1d_click', '7d_click']],
+    ['1d_click,7d_click,1d_click', ['1d_click', '7d_click']],
+  ])('reads %j as %j', (value, expected) => {
+    expect(parse(value)).toEqual(expected);
+  });
+
+  it('names the setting when a window is malformed', () => {
+    expect(() => parse('1d_click,7d-click')).toThrow(
+      /Action Attribution Windows has an invalid value: 7d-click/
+    );
+  });
+
+  // Meta answers a well-formed but unknown window with an OAuthException. Flagging it as a
+  // credential failure would send the user to reconnect Facebook instead of fixing the setting.
+  it('does not treat a window Meta rejects as a credential failure', () => {
+    const error = fbError(100, {
+      message: '(#100) action_attribution_windows[0] must be one of the following values',
+    });
+    expect(proto._isAuthError.call(stub, error)).toBe(false);
+  });
+});
+
 describe('_fetchPaginatedData with onBatch', () => {
   // main saved a catalog page by page (#1130), so a failure on page N keeps pages 1..N-1.
   it('hands each page to onBatch and keeps none', async () => {

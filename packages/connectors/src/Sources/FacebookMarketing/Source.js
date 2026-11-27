@@ -125,6 +125,14 @@ export class FacebookMarketingSource extends AbstractSource {
           'Resolve short links to the address their short link service points to: link_url_asset.parsed_url on the Ad Insights by Link URL Asset endpoint, and link_url_parsed / object_url_parsed on Ad Creatives',
         attributes: [CONFIG_ATTRIBUTES.ADVANCED],
       },
+      ActionAttributionWindows: {
+        requiredType: 'string',
+        label: 'Action Attribution Windows',
+        description:
+          'Meta attribution windows to split conversions by, separated by commas, such as 1d_click,7d_click,1d_view',
+        placeholder: '1d_click,7d_click,1d_view',
+        attributes: [CONFIG_ATTRIBUTES.ADVANCED],
+      },
       CreateEmptyTables: {
         requiredType: 'boolean',
         default: true,
@@ -381,6 +389,11 @@ export class FacebookMarketingSource extends AbstractSource {
     if (this._evaluateRetry(error).retry) {
       return false;
     }
+    // Meta rejects an unknown attribution window as an OAuthException too. That is a
+    // setting to fix, so it must fail the run as an error, not as a credential warning.
+    if (error.payload?.error?.message?.includes('action_attribution_windows')) {
+      return false;
+    }
     return error.payload?.error?.type === 'OAuthException' || super._isAuthError(error);
   }
 
@@ -566,8 +579,37 @@ export class FacebookMarketingSource extends AbstractSource {
       insightsUrl += `&breakdowns=${breakdowns.join(',')}`;
     }
 
+    const attributionWindows = this._getActionAttributionWindows();
+    if (attributionWindows.length > 0) {
+      insightsUrl += `&action_attribution_windows=${encodeURIComponent(JSON.stringify(attributionWindows))}`;
+    }
+
     insightsUrl += `&access_token=${this._getAccessToken()}`;
     return insightsUrl;
+  }
+
+  /**
+   * Parse ActionAttributionWindows into ['1d_click', ...]. Meta's reference writes the list
+   * as ['1d_click','7d_click'], so a pasted value may carry quotes, brackets and spaces.
+   * Only the shape is checked: Meta owns the list of windows and changes it without a
+   * version bump (7d_view and 28d_view stopped returning data on 2026-01-12), so a copy
+   * of that list here would go stale.
+   * @private
+   */
+  _getActionAttributionWindows() {
+    const value = this.context.getParameter('ActionAttributionWindows')?.value;
+    if (!value) return [];
+    const windows = String(value)
+      .toLowerCase()
+      .split(/[\s,;'"[\]]+/)
+      .filter(Boolean);
+    const invalid = windows.filter(window => !/^[a-z0-9_]+$/.test(window));
+    if (invalid.length > 0) {
+      throw new Error(
+        `Action Attribution Windows has an invalid value: ${invalid.join(', ')}. List Meta attribution windows separated by commas, such as 1d_click,7d_click,1d_view`
+      );
+    }
+    return [...new Set(windows)];
   }
 
   /**
