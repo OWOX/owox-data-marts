@@ -1,5 +1,5 @@
 // @vitest-environment happy-dom
-import { cleanup, render } from '@testing-library/react';
+import { cleanup, fireEvent, render, screen } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { ProjectMember } from '../../../project-settings/notifications/types';
 import type { UserProjectionDto } from '../../../../shared/types/api';
@@ -13,10 +13,11 @@ interface MembersState {
 
 const mocks = vi.hoisted(() => ({
   members: { members: [], isLoading: false, error: null } as MembersState,
+  refetch: vi.fn(),
 }));
 
 vi.mock('../../../project-settings/notifications/hooks/useNotificationSettings', () => ({
-  useProjectMembers: () => ({ ...mocks.members, refetch: vi.fn() }),
+  useProjectMembers: () => ({ ...mocks.members, refetch: mocks.refetch }),
 }));
 vi.mock('../../../../app/store/hooks/useFlags', () => ({
   useFlags: () => ({ flags: null, callState: 'loaded' }),
@@ -50,6 +51,7 @@ function removedOwnerWarningCount(owners: UserProjectionDto[]): number {
 afterEach(() => {
   cleanup();
   mocks.members = { members: [], isLoading: false, error: null };
+  mocks.refetch.mockReset();
 });
 
 describe('OwnersEditor removed-owner warning', () => {
@@ -84,5 +86,19 @@ describe('OwnersEditor removed-owner warning', () => {
     mocks.members = { members: [member('ann')], isLoading: false, error: null };
 
     expect(removedOwnerWarningCount([owner('ann'), owner('gone')])).toBe(1);
+  });
+
+  it('says in the owner picker that the members could not load, instead of marking owners removed', async () => {
+    mocks.members = { members: [], isLoading: false, error: 'Failed to load project members' };
+    render(<OwnersEditor ownerUsers={[owner('ann')]} onSave={vi.fn()} projectId='project-1' />);
+
+    fireEvent.click(screen.getByRole('button', { name: 'Edit owners' }));
+
+    expect(await screen.findByText("Couldn't load the project members.")).toBeInTheDocument();
+    expect(document.querySelectorAll('svg.text-yellow-500')).toHaveLength(0);
+    expect(screen.queryByText('This user is no longer a member of the project')).toBeNull();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Try again' }));
+    expect(mocks.refetch).toHaveBeenCalledOnce();
   });
 });

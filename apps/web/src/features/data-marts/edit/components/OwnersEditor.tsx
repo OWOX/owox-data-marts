@@ -28,7 +28,11 @@ export function OwnersEditor({ ownerUsers, onSave, projectId }: OwnersEditorProp
     members,
     isLoading: isMembersLoading,
     error: membersError,
+    refetch: refetchMembers,
   } = useProjectMembers(projectId);
+  // The member list is empty until it loads (or when loading fails), so every
+  // owner would look removed. Judge membership only once the list is known.
+  const isMemberListKnown = !isMembersLoading && membersError === null;
   const { flags } = useFlags();
   const [isOpen, setIsOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
@@ -76,8 +80,8 @@ export function OwnersEditor({ ownerUsers, onSave, projectId }: OwnersEditorProp
   // Owners whose userId is not found in members at all (edge case: user projection only)
   const memberIds = useMemo(() => new Set(members.map(m => m.userId)), [members]);
   const unknownOwners = useMemo(
-    () => ownerUsers.filter(u => !memberIds.has(u.userId)),
-    [ownerUsers, memberIds]
+    () => (isMemberListKnown ? ownerUsers.filter(u => !memberIds.has(u.userId)) : []),
+    [isMemberListKnown, ownerUsers, memberIds]
   );
 
   // Filter active members by search query
@@ -94,9 +98,6 @@ export function OwnersEditor({ ownerUsers, onSave, projectId }: OwnersEditorProp
     () => new Set(members.filter(m => m.isOutbound).map(m => m.userId)),
     [members]
   );
-  // The member list is empty until it loads (or when loading fails), so every
-  // owner would look removed. Flag an owner only once the list is known.
-  const isMemberListKnown = !isMembersLoading && membersError === null;
   const isRemovedOwner = (userId: string) =>
     isMemberListKnown && (outboundIds.has(userId) || !memberIds.has(userId));
   const hasOutboundOwner = ownerUsers.some(u => isRemovedOwner(u.userId));
@@ -150,6 +151,7 @@ export function OwnersEditor({ ownerUsers, onSave, projectId }: OwnersEditorProp
               variant='ghost'
               size='sm'
               className='text-muted-foreground hover:text-foreground rounded-full'
+              aria-label='Edit owners'
             >
               <Pencil className='size-4' />
             </Button>
@@ -171,6 +173,21 @@ export function OwnersEditor({ ownerUsers, onSave, projectId }: OwnersEditorProp
               {[1, 2, 3].map(i => (
                 <Skeleton key={i} className='h-8 w-full' />
               ))}
+            </div>
+          ) : membersError !== null ? (
+            // Without the member list nobody can be picked, and no owner can be
+            // told apart from one who left — say so instead of listing guesses.
+            <div className='flex flex-col items-center gap-2 py-2 text-center text-sm' role='alert'>
+              <span className='text-muted-foreground'>Couldn&apos;t load the project members.</span>
+              <Button
+                variant='outline'
+                size='sm'
+                onClick={() => {
+                  void refetchMembers();
+                }}
+              >
+                Try again
+              </Button>
             </div>
           ) : (
             <>
