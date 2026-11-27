@@ -112,7 +112,7 @@ export class IdentityOwoxClient {
       const { data } = await this.http.post<TokenResponse>('/api/idp/token', req);
       return TokenResponseSchema.parse(data);
     } catch (err) {
-      this.handleAxiosError(err, { req }, 'Failed to get token');
+      this.handleAxiosError(err, { grantType: req.grantType }, 'Failed to get token');
     }
   }
 
@@ -393,7 +393,8 @@ export class IdentityOwoxClient {
       );
       return AuthFlowResponseSchema.parse(data);
     } catch (error) {
-      const response = axios.isAxiosError(error) ? error.response : undefined;
+      if (!axios.isAxiosError(error)) throw error;
+      const response = error.response;
       if (response?.status === 400) {
         const missingProject = AppSignInNoProjectResponseSchema.safeParse(response.data);
         if (missingProject.success) {
@@ -409,7 +410,9 @@ export class IdentityOwoxClient {
       ) {
         throw new AuthenticationException('The OWOX account or project is unavailable');
       }
-      throw new IdpFailedException('Could not authorize App sign-in');
+      throw new IdpFailedException('Could not authorize App sign-in', {
+        status: response?.status,
+      });
     }
   }
 

@@ -13,11 +13,7 @@ import {
   TemplateService,
 } from '../services/rendering/template-service.js';
 import type { UiAuthProviders } from '../types/index.js';
-import {
-  consumeAuthFlowError,
-  extractAuthFlowParams,
-  persistAuthFlowContext,
-} from '../utils/request-utils.js';
+import { extractAuthFlowParams, persistAuthFlowContext } from '../utils/request-utils.js';
 import { consumeVerifiedSocialIntent, type SocialProvider } from '../utils/social-intent.js';
 
 function resolveAutoSubmitProvider(
@@ -70,8 +66,7 @@ export class PageController {
       this.providers
     );
     if (!appStatePrepared) this.persistAuthFlowContext(req, res);
-    const savedError = consumeAuthFlowError(req, res);
-    const errorMessage = typeof req.query?.error === 'string' ? req.query.error : savedError;
+    const errorMessage = typeof req.query?.error === 'string' ? req.query.error : undefined;
     const infoMessage = typeof req.query?.info === 'string' ? req.query.info : undefined;
     sendSecureHtml(
       res,
@@ -80,7 +75,6 @@ export class PageController {
         infoMessage,
         providers: this.providers,
         gtmContainerId: this.gtmContainerId,
-        hasState: hasQueryState || appStatePrepared,
         autoSubmitProvider,
       })
     );
@@ -100,8 +94,7 @@ export class PageController {
       this.providers
     );
     if (!appStatePrepared) this.persistAuthFlowContext(req, res);
-    const savedError = consumeAuthFlowError(req, res);
-    const errorMessage = typeof req.query?.error === 'string' ? req.query.error : savedError;
+    const errorMessage = typeof req.query?.error === 'string' ? req.query.error : undefined;
     const infoMessage = typeof req.query?.info === 'string' ? req.query.info : undefined;
     sendSecureHtml(
       res,

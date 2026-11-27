@@ -118,6 +118,21 @@ describe('BetterAuthProxyHandler', () => {
     }
   );
 
+  it('completes an email sign-in against the App state from the browser', async () => {
+    const state = 'app-' + 'a'.repeat(43);
+    const destination = 'https://app.test/ui/project/data-marts';
+    const completeAppSignIn = jest.fn<() => Promise<URL>>().mockResolvedValue(new URL(destination));
+    const handler = new BetterAuthProxyHandler(auth, mockPkceFlowOrchestrator, completeAppSignIn);
+    const req = buildReq('application/json');
+    req.headers.cookie = `idp-owox-state=${state}`;
+    const res = buildRes();
+
+    expect(await handler['tryCompleteAuthFlow'](req, buildResponseWithSession(), res)).toBe(true);
+    expect(completeAppSignIn).toHaveBeenCalledWith(req, res, 'session-token', 'credential', state);
+    expect(mockPkceFlowOrchestrator.completeWithSocialSessionToken).not.toHaveBeenCalled();
+    expect(res.json).toHaveBeenCalledWith({ url: destination });
+  });
+
   it('returns false when no session token present', async () => {
     const handler = new BetterAuthProxyHandler(auth, mockPkceFlowOrchestrator);
     const req = buildReq('application/json');

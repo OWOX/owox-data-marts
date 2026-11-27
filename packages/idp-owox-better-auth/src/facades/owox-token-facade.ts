@@ -166,6 +166,19 @@ export class OwoxTokenFacade {
     return response.success;
   }
 
+  async switchProject(
+    refreshToken: string,
+    projectId: string,
+    expectedUserId: string
+  ): Promise<TokenResponse> {
+    return this.identityClient.switchProject(
+      refreshToken,
+      this.config.idpConfig.clientId,
+      projectId,
+      expectedUserId
+    );
+  }
+
   async switchProjectMiddleware(req: Request, res: Response): Promise<void> {
     res.set('Cache-Control', 'no-store');
     const host = req.get('host');
@@ -185,9 +198,8 @@ export class OwoxTokenFacade {
     }
 
     try {
-      const tokens = await this.identityClient.switchProject(
+      const tokens = await this.switchProject(
         refreshToken,
-        this.config.idpConfig.clientId,
         input.data.projectId,
         input.data.expectedUserId
       );

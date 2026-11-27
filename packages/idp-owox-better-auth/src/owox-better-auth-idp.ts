@@ -28,7 +28,7 @@ import type {
   UserProvisioningSettings,
   UserProvisioningSettingsUpdate,
 } from '@owox/idp-protocol';
-import { createMailingProvider } from '@owox/internal-helpers';
+import { castError, createMailingProvider } from '@owox/internal-helpers';
 import { getMigrations } from 'better-auth/db/migration';
 import cookieParser from 'cookie-parser';
 import e, { Express, NextFunction } from 'express';
@@ -43,9 +43,11 @@ import { ExtensionAuthController } from './controllers/extension-auth.controller
 import { AUTH_BASE_PATH, CORE_REFRESH_TOKEN_COOKIE, SOURCE } from './core/constants.js';
 import {
   AuthenticationException,
+  BaseException,
+  ForbiddenException,
   IdpFailedException,
   NoSignInProjectException,
-  SessionException,
+  UnverifiedEmailException,
 } from './core/exceptions.js';
 import { isPersonalEmailDomain } from './core/personal-email-domains.js';
 import { createServiceLogger } from './core/logger.js';
@@ -77,7 +79,11 @@ import { OnboardingController } from './controllers/onboarding-controller.js';
 import { createDatabaseStore } from './store/database-store-factory.js';
 import type { DatabaseStore } from './store/database-store.js';
 import { clearCookie } from './utils/cookie-policy.js';
-import { buildPlatformEntryUrl, sanitizeRedirectParam } from './utils/platform-redirect-builder.js';
+import {
+  buildPlatformEntryUrl,
+  projectHomePath,
+  sanitizeAppRedirect,
+} from './utils/platform-redirect-builder.js';
 import {
   clearBetterAuthCookies,
   clearAuthFlowCookies,
@@ -432,6 +438,8 @@ export class OwoxBetterAuthIdp implements IdpProvider {
     this.googleSheetsAuthController.registerRoutes(app);
     this.extensionAuthController?.registerRoutes(app);
 
+    // Keep completing legacy Platform handoffs already started before the App rollout.
+    // Remove this callback after the Platform handoff stops and its issued states expire.
     app.get(`${AUTH_BASE_PATH}/callback`, async (req, res) => {
       const code = typeof req.query.code === 'string' ? req.query.code : undefined;
       const state = typeof req.query.state === 'string' ? req.query.state : undefined;
@@ -502,7 +510,12 @@ export class OwoxBetterAuthIdp implements IdpProvider {
       const tokens = await this.appSignInService.complete(state, sessionToken, provider);
       return new URL(await this.finishAppSignIn(req, res, tokens), this.config.idpOwox.baseUrl);
     } catch (error) {
-      this.logger.warn('App sign-in could not complete', { path: req.path, provider });
+      this.logger.warn('App sign-in could not complete', {
+        path: req.path,
+        provider,
+        errorName: castError(error).name,
+        status: error instanceof BaseException ? error.status : undefined,
+      });
       resetAuthFlowForRetry(req, res);
       clearVerifiedSocialIntent(req, res);
       clearBetterAuthCookies(res, req);
@@ -512,8 +525,11 @@ export class OwoxBetterAuthIdp implements IdpProvider {
           ? ' OWOX cannot create a project automatically in view-only mode.'
           : '';
         message = `This account has no OWOX project.${explanation} Sign in with a different account or ask a project admin for access.`;
-      } else if (error instanceof SessionException) {
+      } else if (error instanceof UnverifiedEmailException) {
         message = 'Verify your email address, then try signing in again.';
+      } else if (error instanceof ForbiddenException) {
+        message =
+          'This account cannot access the selected project. Ask your admin for access or sign in with a different account.';
       } else if (error instanceof AuthenticationException) {
         message = 'Your sign-in session expired or your project is unavailable. Please try again.';
       }
@@ -545,7 +561,7 @@ export class OwoxBetterAuthIdp implements IdpProvider {
       callbackAuthFlowParams,
       payload.userId
     );
-    const redirectTarget = this.resolveExistingRefreshRedirect(resolvedAuthFlowParams);
+    const redirectTarget = this.resolveAppRedirect(resolvedAuthFlowParams, payload.projectId);
     this.logger.info('Completed IDP callback', {
       path: req.path,
       redirectTarget,
@@ -598,6 +614,7 @@ export class OwoxBetterAuthIdp implements IdpProvider {
   ): Promise<void | e.Response> {
     const stateManager = getStateManager(req);
     const queryState = typeof req.query?.state === 'string' ? req.query.state : '';
+    if (req.query?.prompt === 'login') return this.handleNoState(req, res);
     if (!queryState || isAppSignInState(queryState)) {
       if (queryState && queryState === stateManager.extractFromCookie()) {
         return this.pageController.signInPage(req, res);
@@ -617,8 +634,11 @@ export class OwoxBetterAuthIdp implements IdpProvider {
 
   private async startAppSignIn(req: e.Request, res: e.Response): Promise<string> {
     const explicitlyReauthenticate = req.query?.prompt === 'login';
-    const params = explicitlyReauthenticate
-      ? extractAuthFlowParams(req, { includeCookie: false })
+    const params: AuthFlowParams = explicitlyReauthenticate
+      ? {
+          ...extractAuthFlowParams(req, { includeCookie: false }),
+          forceReauthentication: true,
+        }
       : await this.resolveAppSignInParams(req);
     const state = await this.appSignInService.start(params);
     if (explicitlyReauthenticate) clearAuthFlowCookies(res, req);
@@ -629,7 +649,14 @@ export class OwoxBetterAuthIdp implements IdpProvider {
 
   private async resolveAppSignInParams(req: e.Request): Promise<AuthFlowParams> {
     const params = extractAuthFlowParams(req);
-    if (!params.projectId || params.appRedirectTo || params.redirectTo) return params;
+    if (
+      params.forceReauthentication ||
+      !params.projectId ||
+      params.appRedirectTo ||
+      params.redirectTo
+    ) {
+      return params;
+    }
     const refreshToken = extractRefreshToken(req);
     if (!refreshToken) return params;
 
@@ -637,8 +664,9 @@ export class OwoxBetterAuthIdp implements IdpProvider {
     if (!session) return { ...params, projectId: undefined, projectRedirectUserId: undefined };
     return {
       ...params,
-      appRedirectTo: `/ui/${encodeURIComponent(params.projectId)}/data-marts`,
+      appRedirectTo: projectHomePath(params.projectId),
       projectRedirectUserId: session.userId,
+      generatedProjectRedirect: true,
     };
   }
 
@@ -647,9 +675,9 @@ export class OwoxBetterAuthIdp implements IdpProvider {
     if (
       refreshToken &&
       req.query?.prompt !== 'login' &&
+      !extractAuthFlowParams(req).forceReauthentication &&
       !req.query?.error &&
-      !readVerifiedSocialIntent(req) &&
-      req.query?.pendingAction !== 'email'
+      !readVerifiedSocialIntent(req)
     ) {
       const handled = await this.handleExistingRefreshToken(req, res, refreshToken);
       if (handled) return;
@@ -675,7 +703,12 @@ export class OwoxBetterAuthIdp implements IdpProvider {
 
     persistVerifiedSocialIntent(req, res, provider);
     const state = extractStateFromCookie(req);
-    if (state && !isAppSignInState(state) && req.query?.prompt !== 'login') {
+    if (
+      state &&
+      !isAppSignInState(state) &&
+      req.query?.prompt !== 'login' &&
+      !extractAuthFlowParams(req).forceReauthentication
+    ) {
       clearAuthFlowStateCookie(res, req);
       const { platformSignInUrl, platformSignUpUrl } = this.config.idpOwox.idpConfig;
       return this.redirectToPlatform(
@@ -699,11 +732,25 @@ export class OwoxBetterAuthIdp implements IdpProvider {
     refreshToken: string
   ): Promise<boolean> {
     try {
-      const auth = await this.tokenFacade.refreshToken(refreshToken);
+      const isProjectNavigation = typeof req.query?.projectId === 'string';
+      const requestParams = extractAuthFlowParams(req, { includeCookie: !isProjectNavigation });
+      const switchTo = isProjectNavigation ? requestParams.projectId : undefined;
+      const session =
+        switchTo || requestParams.projectRedirectUserId
+          ? await this.tokenFacade.parseToken(refreshToken)
+          : undefined;
+      if (switchTo && !session) return false;
+
+      const params = this.resolveUserBoundProjectRedirect(requestParams, session?.userId);
+      const auth =
+        session && switchTo && switchTo !== session.projectId
+          ? await this.tokenFacade.switchProject(refreshToken, switchTo, session.userId)
+          : await this.tokenFacade.refreshToken(refreshToken);
       if (auth.refreshToken && auth.refreshTokenExpiresIn !== undefined) {
         this.tokenFacade.setTokenToCookie(res, req, auth.refreshToken, auth.refreshTokenExpiresIn);
       }
-      const redirectTarget = this.resolveExistingRefreshRedirect(extractAuthFlowParams(req));
+      // The App root restores the originating tab's saved deep link using the new session.
+      const redirectTarget = this.resolveAppRedirect(params);
       this.logger.info('Completed silent sign-in refresh', {
         path: req.path,
         redirectTarget,
@@ -741,12 +788,12 @@ export class OwoxBetterAuthIdp implements IdpProvider {
     return `${AUTH_BASE_PATH}${ProtocolRoute.SIGN_IN}?${params.toString()}`;
   }
 
-  private resolveExistingRefreshRedirect(params: AuthFlowParams): string {
+  private resolveAppRedirect(params: AuthFlowParams, projectId?: string): string {
     const allowedRedirectOrigins = this.config.idpOwox.idpConfig.allowedRedirectOrigins;
     return (
-      sanitizeRedirectParam(params.redirectTo, allowedRedirectOrigins) ??
-      sanitizeRedirectParam(params.appRedirectTo, allowedRedirectOrigins) ??
-      (params.projectId ? `/ui/${encodeURIComponent(params.projectId)}/data-marts` : '/')
+      sanitizeAppRedirect(params.redirectTo, allowedRedirectOrigins) ??
+      sanitizeAppRedirect(params.appRedirectTo, allowedRedirectOrigins) ??
+      (projectId && params.projectId === projectId ? projectHomePath(projectId) : '/')
     );
   }
 
@@ -769,6 +816,7 @@ export class OwoxBetterAuthIdp implements IdpProvider {
       appRedirectTo: undefined,
       projectId: undefined,
       projectRedirectUserId: undefined,
+      generatedProjectRedirect: undefined,
     };
   }
 
@@ -779,6 +827,10 @@ export class OwoxBetterAuthIdp implements IdpProvider {
   ): Promise<void | e.Response> {
     const stateManager = getStateManager(req);
     const queryState = typeof req.query?.state === 'string' ? req.query.state : '';
+    if (req.query?.prompt === 'login') {
+      await this.startAppSignIn(req, res);
+      return this.pageController.signUpPage(req, res, true);
+    }
     if (queryState && !isAppSignInState(queryState) && stateManager.hasMismatch()) {
       this.logger.warn('State mismatch detected during sign-up', { path: req.path });
       clearAuthFlowCookies(res, req);
@@ -1054,14 +1106,18 @@ export class OwoxBetterAuthIdp implements IdpProvider {
         );
       }
     }
-    const enhancedParams = {
+    const enhancedParams: AuthFlowParams = {
       ...params,
       projectId:
         generatedProjectId && !preserveGeneratedProjectRedirect ? undefined : params.projectId,
       appRedirectTo:
         generatedProjectId && preserveGeneratedProjectRedirect
-          ? `/ui/${encodeURIComponent(generatedProjectId)}/data-marts`
+          ? projectHomePath(generatedProjectId)
           : params.appRedirectTo,
+      generatedProjectRedirect:
+        generatedProjectId && preserveGeneratedProjectRedirect
+          ? true
+          : params.generatedProjectRedirect,
       projectRedirectUserId,
     };
     persistAuthFlowParams(req, res, enhancedParams);

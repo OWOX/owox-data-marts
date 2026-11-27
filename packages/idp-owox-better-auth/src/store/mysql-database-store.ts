@@ -309,7 +309,8 @@ export class MysqlDatabaseStore implements DatabaseStore {
     const pool = await this.getPool();
     await this.ensureAuthStatesTable(pool);
     const [result] = await pool.execute(
-      `DELETE FROM auth_states WHERE expires_at IS NOT NULL AND expires_at <= CURRENT_TIMESTAMP`
+      'DELETE FROM auth_states WHERE expires_at IS NOT NULL AND expires_at <= ?',
+      [new Date()]
     );
     return (result as MysqlExecResult).affectedRows ?? 0;
   }

@@ -1,7 +1,7 @@
 import { type Request } from 'express';
 import { createBetterAuthConfig } from '../../config/idp-better-auth-config.js';
 import { BETTER_AUTH_SESSION_COOKIE, SESSION_ERROR_MESSAGES } from '../../core/constants.js';
-import { SessionException } from '../../core/exceptions.js';
+import { SessionException, UnverifiedEmailException } from '../../core/exceptions.js';
 import { createServiceLogger } from '../../core/logger.js';
 import { buildUserInfoPayload } from '../../mappers/user-info-payload-builder.js';
 import type { DatabaseStore } from '../../store/database-store.js';
@@ -88,9 +88,10 @@ export class BetterAuthSessionService {
       state,
       provider
     );
-    if (!emailVerified || payload.userInfo.signinProvider !== provider) {
-      throw new SessionException('Your email address must be verified to sign in.');
+    if (payload.userInfo.signinProvider !== provider) {
+      throw new SessionException('The signed-in account does not match the sign-in method');
     }
+    if (!emailVerified) throw new UnverifiedEmailException();
     return payload;
   }
 

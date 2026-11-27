@@ -117,6 +117,12 @@ describe('OnboardingController invite-teammates step', () => {
     });
   });
 
+  it('drops a retired App login target when saving onboarding answers', async () => {
+    await expect(submit('/auth/idp-start?projectId=project-1', ['editor'])).resolves.toEqual({
+      redirect: '/',
+    });
+  });
+
   it('keeps the redirect that continues MCP client authorization', async () => {
     const redirect = '/oauth/authorize?client_id=c1&state=s1';
     await expect(submit(redirect)).resolves.toEqual({ redirect });

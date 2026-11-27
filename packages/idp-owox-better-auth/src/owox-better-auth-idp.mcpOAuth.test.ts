@@ -254,7 +254,6 @@ describe('OwoxBetterAuthIdp MCP OAuth methods', () => {
       pageController: { registerRoutes: jest.fn() },
       passwordFlowController: { registerRoutes: jest.fn() },
       googleSheetsAuthController: { registerRoutes: jest.fn() },
-      authFlowMiddleware: { idpStartMiddleware: jest.fn() },
       tokenFacade,
       userAuthInfoPersistenceService: {
         persistAuthInfo: jest.fn().mockResolvedValue(undefined),
@@ -339,7 +338,6 @@ describe('OwoxBetterAuthIdp MCP OAuth methods', () => {
       pageController: { registerRoutes: jest.fn() },
       passwordFlowController: { registerRoutes: jest.fn() },
       googleSheetsAuthController: { registerRoutes: jest.fn() },
-      authFlowMiddleware: { idpStartMiddleware: jest.fn() },
       tokenFacade,
       userAuthInfoPersistenceService: {
         persistAuthInfo: jest.fn().mockResolvedValue(undefined),

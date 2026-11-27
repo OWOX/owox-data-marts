@@ -4,7 +4,8 @@
 
 **Sign in directly to OWOX Cloud**
 
-Sign in or create an account on app.owox.com with your existing Google, Microsoft, or email
-sign-in method. App takes you back to the page you were opening after sign-in.
+Sign in or create an account directly on app.owox.com and return to the page you were
+opening. This removes the redirect through platform.owox.com for Google, Microsoft,
+and email sign-in.
 
 <!-- markdownlint-disable-file MD041 MD036 -->

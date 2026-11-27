@@ -92,14 +92,13 @@ describe('PageController.signInPage / signUpPage', () => {
     }
   );
 
-  it('renders with hasState=false and no auto-submit on a plain, state-less page load', async () => {
+  it('renders without auto-submit on a plain, state-less page load', async () => {
     const controller = new PageController(providers);
     const req = createRequest({});
     const res = createResponse();
 
     await controller.signInPage(req, res);
 
-    expect(res.body).toContain('const hasAuthState = false;');
     expect(res.body).toContain('const autoSubmitProvider = null;');
     expect(res.body).toContain('requestSocialIntentNonce()');
     expect(res.cookie).not.toHaveBeenCalledWith(
@@ -109,21 +108,15 @@ describe('PageController.signInPage / signUpPage', () => {
     );
   });
 
-  it('shows a saved error once after the new state returns', async () => {
+  it('shows the error carried back to sign-in after a failed attempt', async () => {
     const controller = new PageController(providers);
-    const req = createRequest(
-      { state: 'fresh-state' },
-      `idp-owox-auth-error=${encodeURIComponent('Your sign-in session expired. Please try again.')}`
-    );
+    const message = 'Your sign-in session expired. Please try again.';
+    const req = createRequest({ error: message });
     const res = createResponse();
 
     await controller.signInPage(req, res);
 
-    expect(res.body).toContain('Your sign-in session expired. Please try again.');
-    expect(res.clearCookie).toHaveBeenCalledWith(
-      'idp-owox-auth-error',
-      expect.objectContaining({ path: '/' })
-    );
+    expect(res.body).toContain(message);
   });
 
   it('auto-submits the verified Google action once state has come back, and consumes the short-lived cookie', async () => {
@@ -136,7 +129,6 @@ describe('PageController.signInPage / signUpPage', () => {
 
     await controller.signInPage(req, res);
 
-    expect(res.body).toContain('const hasAuthState = true;');
     expect(res.body).toContain('const autoSubmitProvider = "google";');
 
     const persisted = lastParamsCookieValue(res);
@@ -157,7 +149,6 @@ describe('PageController.signInPage / signUpPage', () => {
 
     await controller.signInPage(req, res);
 
-    expect(res.body).toContain('const hasAuthState = true;');
     expect(res.body).toContain('const autoSubmitProvider = null;');
   });
 
@@ -171,7 +162,6 @@ describe('PageController.signInPage / signUpPage', () => {
 
     await controller.signInPage(req, res);
 
-    expect(res.body).toContain('const hasAuthState = false;');
     expect(res.body).toContain('const autoSubmitProvider = null;');
     expect(res.clearCookie).toHaveBeenCalledWith(
       'idp-owox-verified-social-intent',
@@ -187,7 +177,6 @@ describe('PageController.signInPage / signUpPage', () => {
     await controller.signInPage(req, res);
 
     // A bare link cannot supply the short-lived cookie written by the button POST.
-    expect(res.body).toContain('const hasAuthState = true;');
     expect(res.body).toContain('const autoSubmitProvider = null;');
   });
 

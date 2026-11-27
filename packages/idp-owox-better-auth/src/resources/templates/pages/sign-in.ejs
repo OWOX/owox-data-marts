@@ -128,24 +128,7 @@
 
 <%- include('../partials/social-auth') %>
 <script>
-  const hasAuthState = <%= typeof hasState !== 'undefined' && hasState ? 'true' : 'false' %>;
   const autoSubmitProvider = <%- JSON.stringify(typeof autoSubmitProvider !== 'undefined' ? autoSubmitProvider : null) %>;
-
-  /**
-   * Ensures a PKCE state exists before running a sign-in action, falling
-   * back to a full-page reload if one isn't already there.
-   */
-  function ensureStateThenRun(pendingAction, run) {
-    if (hasAuthState) {
-      run();
-      return;
-    }
-    setSocialButtonsDisabled(true);
-    if (submitBtn) submitBtn.disabled = true;
-    const params = new URLSearchParams(window.location.search);
-    params.set('pendingAction', pendingAction);
-    window.location.href = `${window.location.pathname}?${params.toString()}`;
-  }
 
   /**
    * Obtain a short-lived token at click time, then POST the chosen provider
@@ -310,11 +293,10 @@
       setStatus('Enter your email and password.');
       return;
     }
-    ensureStateThenRun('email', () => submitEmailSignIn(event));
+    submitEmailSignIn(event);
   });
 
-  // Resume the action the user originally clicked, now that a fresh PKCE
-  // state has come back from the Platform round trip.
+  // Resume the social action once its verified intent and PKCE state are ready.
   if (autoSubmitProvider) {
     submitSocial(autoSubmitProvider);
   }

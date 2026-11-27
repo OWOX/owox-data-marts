@@ -324,10 +324,8 @@ export class SqliteDatabaseStore implements DatabaseStore {
     await this.connect();
     this.ensureAuthStatesTable();
     const res = this.getDb()
-      .prepare(
-        'DELETE FROM auth_states WHERE expires_at IS NOT NULL AND expires_at <= CURRENT_TIMESTAMP'
-      )
-      .run();
+      .prepare('DELETE FROM auth_states WHERE expires_at IS NOT NULL AND expires_at <= ?')
+      .run(new Date().toISOString());
     return Number(res.changes ?? 0);
   }
 

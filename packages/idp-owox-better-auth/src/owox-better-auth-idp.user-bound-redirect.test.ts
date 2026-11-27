@@ -46,7 +46,6 @@ function createCallbackProvider(params: {
     pageController: { registerRoutes: jest.fn() },
     passwordFlowController: { registerRoutes: jest.fn() },
     googleSheetsAuthController: { registerRoutes: jest.fn() },
-    authFlowMiddleware: { idpStartMiddleware: jest.fn() },
     tokenFacade,
     userAuthInfoPersistenceService: {
       persistAuthInfo: jest.fn().mockResolvedValue(undefined),

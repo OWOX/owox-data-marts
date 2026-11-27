@@ -109,6 +109,13 @@ export class SessionException extends BaseException {
   }
 }
 
+/** Better Auth resolved the session, but its email address is unverified. */
+export class UnverifiedEmailException extends BaseException {
+  constructor() {
+    super('UnverifiedEmailException', 'Email address must be verified', { status: 401 });
+  }
+}
+
 /** The signed-in OWOX account has no project to open. */
 export class NoSignInProjectException extends BaseException {
   constructor(readonly viewOnly: boolean) {
