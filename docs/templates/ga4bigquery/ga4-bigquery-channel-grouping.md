@@ -34,7 +34,7 @@ This Data Mart assigns each session into a clear channel bucket, such as:
 
 - **AI** (ChatGPT, Perplexity, Claude, etc.)
 - **Organic**
-- **Paid Media**
+- **Paid**
 - **Email**
 - **Social** (LinkedIn, YouTube, Facebook, Other)
 - **Direct**

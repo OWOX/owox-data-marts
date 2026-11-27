@@ -8,7 +8,6 @@ If you build reports without defining your visitors logic centrally, every dashb
 This script standardizes visitor definition logic into a **single, reusable Data Mart**:
 
 - One row = one visitor
-- Includes visito identifiers
 - Visitor identifiers
 - First date seen
 - Last date seen
