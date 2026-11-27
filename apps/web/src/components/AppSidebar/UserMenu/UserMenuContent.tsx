@@ -49,6 +49,21 @@ export function UserMenuContent({ items }: UserMenuContentProps) {
           );
         }
 
+        if (item.type === 'link') {
+          return (
+            <DropdownMenuItem
+              key={item.title}
+              asChild
+              className='flex items-center gap-2 px-2 py-1.5'
+            >
+              <a href={item.href} target='_blank' rel='noopener noreferrer'>
+                <item.icon className='size-4' />
+                {item.title}
+              </a>
+            </DropdownMenuItem>
+          );
+        }
+
         return (
           <DropdownMenuItem
             key={item.title}

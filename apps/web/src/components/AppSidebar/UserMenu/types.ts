@@ -9,6 +9,12 @@ export type UserMenuItem =
       className?: string;
     }
   | {
+      type: 'link';
+      title: string;
+      icon: LucideIcon;
+      href: string;
+    }
+  | {
       type: 'separator';
     }
   | {

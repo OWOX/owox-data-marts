@@ -53,6 +53,7 @@ import {
 } from '../../features/project-settings/management/project-status';
 import { getCloudProjectApiOrigin } from '../../features/project-settings/management/project-management.service';
 import { StatusLabel, StatusTypeEnum } from '../../shared/components/StatusLabel';
+import { appHelpLinks } from '../../shared/constants/app-help-links';
 
 interface Stats {
   dataMarts: number | null;
@@ -291,7 +292,18 @@ export function OverviewTab() {
             />
           </div>
         </CollapsibleCardContent>
-        <CollapsibleCardFooter></CollapsibleCardFooter>
+        <CollapsibleCardFooter
+          left={
+            <a
+              href={appHelpLinks.projectSettings}
+              target='_blank'
+              rel='noopener noreferrer'
+              className='text-primary text-sm hover:underline'
+            >
+              Learn more about project settings
+            </a>
+          }
+        />
       </CollapsibleCard>
 
       <CollapsibleCard collapsible name='project-at-a-glance'>

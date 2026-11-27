@@ -28,6 +28,7 @@ import {
   getMcpIntegration,
 } from '../../features/user-provisioning/utils/mcp-request-access';
 import { buildProjectPath } from '../../utils/path';
+import { appHelpLinks } from '../../shared/constants/app-help-links';
 
 function SummaryItem({ label, value }: { label: string; value: string }) {
   return (
@@ -259,6 +260,14 @@ export function RequestAccessPage() {
                     </Button>
                   )}
                 </div>
+                <a
+                  href={appHelpLinks.requestAccess}
+                  target='_blank'
+                  rel='noopener noreferrer'
+                  className='text-primary self-start text-sm hover:underline'
+                >
+                  Learn how project access requests work
+                </a>
               </section>
             </div>
           )}

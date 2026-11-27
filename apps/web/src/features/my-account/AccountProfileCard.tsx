@@ -11,6 +11,7 @@ import {
   SheetTitle,
   SheetTrigger,
 } from '@owox/ui/components/sheet';
+import { appHelpLinks } from '../../shared/constants/app-help-links';
 import type { AccountProfile, AccountProfileFields } from './account-profile.service';
 
 const editableFields = [
@@ -137,7 +138,7 @@ export function AccountProfileCard({
             <p className='text-muted-foreground text-sm leading-relaxed'>
               Need help?{' '}
               <a
-                href='https://support.owox.com/hc/en-us/sections/360000592314'
+                href={appHelpLinks.profileSettings}
                 target='_blank'
                 rel='noopener noreferrer'
                 className='text-primary hover:underline'

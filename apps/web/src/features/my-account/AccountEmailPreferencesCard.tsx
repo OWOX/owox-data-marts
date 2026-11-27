@@ -3,6 +3,7 @@ import { AlertCircle } from 'lucide-react';
 import { Alert, AlertDescription, AlertTitle } from '@owox/ui/components/alert';
 import { Button } from '@owox/ui/components/button';
 import { LoadingSpinner } from '@owox/ui/components/common/loading-spinner';
+import { appHelpLinks } from '../../shared/constants/app-help-links';
 import {
   getAccountEmailPreferences,
   updateAccountEmailPreference,
@@ -70,6 +71,14 @@ export function AccountEmailPreferencesCard({
           Could not update your email preference. Try again.
         </p>
       )}
+      <a
+        href={appHelpLinks.profileSettings}
+        target='_blank'
+        rel='noopener noreferrer'
+        className='text-primary self-start text-sm hover:underline'
+      >
+        Learn about email preferences
+      </a>
     </section>
   );
 }

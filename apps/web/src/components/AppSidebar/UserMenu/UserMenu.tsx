@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { DropdownMenu } from '@owox/ui/components/dropdown-menu';
 import { useTheme } from 'next-themes';
 import { useNavigate } from 'react-router';
+import { useFlags } from '../../../app/store/hooks';
 import { useAuth } from '../../../features/idp/hooks';
 import { MY_ACCOUNT_PATH } from '../../../features/idp/utils/my-account-path';
 import { useAccountApiOrigin } from '../../../features/my-account/use-account-api-origin';
@@ -15,6 +16,7 @@ export function UserMenu() {
   const { setTheme, theme } = useTheme();
   const navigate = useNavigate();
   const accountApiOrigin = useAccountApiOrigin();
+  const { flags } = useFlags();
   const [isOpen, setIsOpen] = useState(false);
 
   if (!user) return null;
@@ -42,6 +44,7 @@ export function UserMenu() {
             theme,
             setTheme,
             signOut,
+            showLegalLinks: flags?.IDP_PROVIDER === 'owox-better-auth',
             openMyAccount: accountApiOrigin
               ? () => {
                   void navigate(MY_ACCOUNT_PATH);

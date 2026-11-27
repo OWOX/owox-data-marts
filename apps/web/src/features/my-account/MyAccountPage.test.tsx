@@ -483,6 +483,10 @@ describe('My profile', () => {
     renderProfile('/ui/me/email-preferences');
 
     const offers = await screen.findByRole('switch', { name: 'Offers' });
+    expect(screen.getByRole('link', { name: 'Learn about email preferences' })).toHaveAttribute(
+      'href',
+      'https://docs.owox.com/docs/project/#my-profile-in-owox-cloud'
+    );
     expect(offers).toBeChecked();
     fireEvent.click(offers);
     await waitFor(() => {
@@ -519,6 +523,14 @@ describe('My profile', () => {
     renderProfile();
     fireEvent.click(await screen.findByRole('button', { name: 'Edit profile' }));
     expect(screen.getByLabelText('Sign-in email')).toHaveAttribute('readonly');
+    expect(screen.getByRole('link', { name: 'Learn more about profile settings' })).toHaveAttribute(
+      'href',
+      'https://docs.owox.com/docs/project/#my-profile-in-owox-cloud'
+    );
+    expect(screen.getByRole('link', { name: 'how to change profile email' })).toHaveAttribute(
+      'href',
+      'https://support.google.com/accounts/answer/19870'
+    );
     fireEvent.change(screen.getByLabelText('Full name'), { target: { value: 'Anna Nowak' } });
     fireEvent.click(screen.getByRole('button', { name: 'Save changes' }));
 

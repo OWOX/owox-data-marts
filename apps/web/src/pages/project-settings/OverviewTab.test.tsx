@@ -209,6 +209,10 @@ describe('OverviewTab project status', () => {
     renderOverview();
 
     expect(screen.getByText('MCP server')).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'Learn more about project settings' })).toHaveAttribute(
+      'href',
+      'https://docs.owox.com/docs/project/'
+    );
     expect(screen.getByText(mcpServerUrl)).toBeInTheDocument();
     expect(screen.queryByRole('link', { name: mcpServerUrl })).not.toBeInTheDocument();
     expect(
