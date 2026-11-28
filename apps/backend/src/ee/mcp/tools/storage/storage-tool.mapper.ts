@@ -22,6 +22,7 @@ export class StorageToolMapper {
       storage_type: dto.type,
       created_at: dto.createdAt,
       modified_at: dto.modifiedAt,
+      owox_storage: this.toOwoxStorage(dto.owoxStorage),
     };
   }
 
@@ -47,7 +48,14 @@ export class StorageToolMapper {
       available_for_maintenance: dto.availableForMaintenance,
       created_at: dto.createdAt,
       modified_at: dto.modifiedAt,
+      owox_storage: this.toOwoxStorage(dto.owoxStorage),
     };
+  }
+
+  private toOwoxStorage(owoxStorage: McpStorageDto['owoxStorage']) {
+    return owoxStorage
+      ? { location: owoxStorage.location, dataset_id: owoxStorage.datasetId }
+      : null;
   }
 
   toCredential(dto: StorageCredentialSummary | null) {

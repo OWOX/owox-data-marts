@@ -39,6 +39,37 @@ describe('DataMartTableReferenceService — the caller-scoped table reference me
     };
   };
 
+  // An OWOX Storage runs its jobs in another project than its datasets, so the name needs its project.
+  it('adds the storage project to the two-part table of a connector on BigQuery only', async () => {
+    const { service, dataMartService } = build();
+    const connectorOn = (type: string, config: object) => ({
+      id: 'dm-1',
+      projectId: 'proj-1',
+      storage: { type, config },
+      definition: {
+        connector: {
+          source: {
+            name: 'OpenHolidays',
+            configuration: [{}],
+            node: 'publicHolidays',
+            fields: ['id'],
+          },
+          storage: { fullyQualifiedName: 'owox_eu_0123456789ab.holidays' },
+        },
+      },
+    });
+    dataMartService.getByIdAndProjectId
+      .mockResolvedValueOnce(connectorOn('GOOGLE_BIGQUERY', { projectId: 'owox-p-storage-001' }))
+      .mockResolvedValueOnce(connectorOn('SNOWFLAKE', { account: 'acc' }));
+
+    await expect(service.resolveTableName('dm-1', 'proj-1')).resolves.toBe(
+      '`owox-p-storage-001`.owox_eu_0123456789ab.holidays'
+    );
+    await expect(service.resolveTableName('dm-1', 'proj-1')).resolves.toBe(
+      'owox_eu_0123456789ab.holidays'
+    );
+  });
+
   // The control: without a memo the behaviour is unchanged, which is what every existing caller
   // (a report run, a preview, sample data) relies on to get a freshly refreshed view.
   it('refreshes the view on every call when no memo is given', async () => {

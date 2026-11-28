@@ -18,6 +18,8 @@ import { useForm } from 'react-hook-form';
 import { Combobox } from '../../../../shared/components/Combobox/combobox';
 import { DataStorageHealthIndicator, DataStorageType } from '../../../data-storage';
 import { DataStorageTypeDialog } from '../../../data-storage/shared/components/DataStorageTypeDialog';
+import { DataStorageConfigSheet } from '../../../data-storage/edit';
+import type { DataStorage } from '../../../data-storage/shared/model/types/data-storage';
 import { useDataStorage } from '../../../data-storage/shared/model/hooks/useDataStorage';
 import type { DataStorageList } from '../../../data-storage/shared/model/types/data-storage-list.ts';
 import { DataStorageTypeModel } from '../../../data-storage/shared/types/data-storage-type.model.ts';
@@ -42,7 +44,7 @@ function StorageTypeIcon({
 }) {
   const storage = storages.find(s => s.id === storageId);
   if (!storage) return null;
-  const Icon = DataStorageTypeModel.getInfo(storage.type).icon;
+  const Icon = DataStorageTypeModel.getStorageInfo(storage).icon;
   return <Icon size={20} className='shrink-0' />;
 }
 
@@ -55,6 +57,7 @@ export function DataMartCreateForm({ initialData, onSuccess }: DataMartFormProps
     createDataStorage,
     getDataStorageById,
   } = useDataStorage();
+  const [isOwoxCreateOpen, setIsOwoxCreateOpen] = useState(false);
   const [isDataStorageTypeDialogOpen, setIsDataStorageTypeDialogOpen] = useState(false);
   const [isCreatingDataStorage, setIsCreatingDataStorage] = useState(false);
   const [storagesLoaded, setStoragesLoaded] = useState(false);
@@ -127,6 +130,15 @@ export function DataMartCreateForm({ initialData, onSuccess }: DataMartFormProps
     }
     setIsDataStorageTypeDialogOpen(false);
     setIsCreatingDataStorage(false);
+  };
+
+  const selectOwoxStorage = async (storage: DataStorage) => {
+    try {
+      await getDataStorageById(storage.id);
+      form.setValue('storageId', storage.id);
+    } catch (error) {
+      console.error('Failed to load the new storage:', error);
+    }
   };
 
   const storageOptions = useMemo(() => {
@@ -277,6 +289,23 @@ export function DataMartCreateForm({ initialData, onSuccess }: DataMartFormProps
         }}
         onSelect={type => createNewDataStorage(type)}
         isCreatingDataStorage={isCreatingDataStorage}
+        onSelectOwoxStorage={() => {
+          setIsDataStorageTypeDialogOpen(false);
+          setIsOwoxCreateOpen(true);
+        }}
+      />
+
+      <DataStorageConfigSheet
+        isOpen={isOwoxCreateOpen}
+        onClose={() => {
+          setIsOwoxCreateOpen(false);
+        }}
+        dataStorage={null}
+        newOwoxStorage
+        onSaveSuccess={dataStorage => {
+          setIsOwoxCreateOpen(false);
+          void selectOwoxStorage(dataStorage);
+        }}
       />
     </>
   );

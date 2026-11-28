@@ -14,7 +14,10 @@ import {
   DataMartQueryOptions,
   QueryBuildResult,
 } from '../../interfaces/data-mart-query-builder.interface';
-import { escapeBigQueryIdentifier } from '../utils/bigquery-identifier.utils';
+import {
+  escapeBigQueryIdentifier,
+  qualifyBigQueryTableName,
+} from '../utils/bigquery-identifier.utils';
 import { BigQueryClauseRenderer } from './bigquery-clause-renderer';
 import {
   assertNoHavingRules,
@@ -74,14 +77,14 @@ export class BigQueryQueryBuilder implements DataMartQueryBuilderAsync {
       }
       return composeSelectFromClause(
         selectList,
-        this.resolveFromClauseWithoutOutputControls(definition)
+        this.resolveFromClauseWithoutOutputControls(definition, queryOptions?.storageProjectId)
       );
     }
 
     // Alias the source so the table short name is no longer a row STRUCT range variable.
     const sourceFromClause = hasOutputControls
       ? this.resolveFromClauseWithOutputControls(definition, queryOptions)
-      : this.resolveFromClauseWithoutOutputControls(definition);
+      : this.resolveFromClauseWithoutOutputControls(definition, queryOptions?.storageProjectId);
     const fromClause = `${sourceFromClause} AS ${BigQueryQueryBuilder.FROM_ALIAS}`;
     const qualifyColumn = (column: string) =>
       `${BigQueryQueryBuilder.FROM_ALIAS}.${escapeBigQueryIdentifier(column)}`;
@@ -178,12 +181,17 @@ export class BigQueryQueryBuilder implements DataMartQueryBuilderAsync {
       : sql;
   }
 
-  private resolveFromClauseWithoutOutputControls(definition: DataMartDefinition): string {
+  private resolveFromClauseWithoutOutputControls(
+    definition: DataMartDefinition,
+    storageProjectId: string | undefined
+  ): string {
     if (isTableDefinition(definition) || isViewDefinition(definition)) {
       return escapeBigQueryIdentifier(definition.fullyQualifiedName);
     }
     if (isConnectorDefinition(definition)) {
-      return escapeBigQueryIdentifier(definition.connector.storage.fullyQualifiedName);
+      return escapeBigQueryIdentifier(
+        qualifyBigQueryTableName(definition.connector.storage.fullyQualifiedName, storageProjectId)
+      );
     }
     if (isTablePatternDefinition(definition)) {
       return escapeBigQueryIdentifier(definition.pattern + '*');
@@ -204,7 +212,12 @@ export class BigQueryQueryBuilder implements DataMartQueryBuilderAsync {
       return escapeBigQueryIdentifier(definition.fullyQualifiedName);
     }
     if (isConnectorDefinition(definition)) {
-      return escapeBigQueryIdentifier(definition.connector.storage.fullyQualifiedName);
+      return escapeBigQueryIdentifier(
+        qualifyBigQueryTableName(
+          definition.connector.storage.fullyQualifiedName,
+          options?.storageProjectId
+        )
+      );
     }
     if (isTablePatternDefinition(definition)) {
       return escapeBigQueryIdentifier(definition.pattern + '*');

@@ -132,7 +132,7 @@ export class RunDataQualityService {
           projectId: expectedProjectId,
           definition: definitionRun,
           storage: snapshot.sourceStorage,
-          liveStorage: toStorageSnapshot(dataMart),
+          liveStorage: dataMart.storage,
         });
         const targets = await this.loadRelationshipTargets(snapshot, expectedProjectId);
         const targetSourceQueries = new Map<string, Promise<DataQualityQueryResolver>>();
@@ -383,7 +383,7 @@ export class RunDataQualityService {
       projectId,
       definition: targetSnapshot.definition,
       storage: targetSnapshot.storage,
-      liveStorage: toStorageSnapshot(target),
+      liveStorage: target?.storage ?? null,
     });
   }
 
@@ -637,17 +637,6 @@ function safeProviderIdentityValue(value: unknown): string | null {
   if (typeof value !== 'string') return null;
   const trimmed = value.trim();
   return /^[A-Za-z0-9_.:-]{1,255}$/.test(trimmed) ? trimmed : null;
-}
-
-function toStorageSnapshot(
-  dataMart: DataMart | undefined
-): DataQualityRunSnapshot['sourceStorage'] | null {
-  return dataMart?.storage
-    ? {
-        id: dataMart.storage.id,
-        type: dataMart.storage.type,
-      }
-    : null;
 }
 
 function isCancellation(error: unknown, signal?: AbortSignal): boolean {

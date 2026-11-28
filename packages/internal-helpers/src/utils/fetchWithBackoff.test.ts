@@ -23,4 +23,15 @@ describe('fetchWithBackoff', () => {
     });
     expect(globalThis.fetch).toHaveBeenCalledTimes(3);
   });
+
+  it('throws the status of the last answer when every attempt answers 5xx', async () => {
+    globalThis.fetch = jest
+      .fn<typeof fetch>()
+      .mockImplementation(async () => new Response(null, { status: 503 }));
+
+    await expect(fetchWithBackoff('https://example.test', {}, 1, 3, 0)).rejects.toMatchObject({
+      status: 503,
+    });
+    expect(globalThis.fetch).toHaveBeenCalledTimes(3);
+  });
 });

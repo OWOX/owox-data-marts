@@ -9,7 +9,11 @@ import {
 import type { McpAuthContext } from '../../auth/mcp-auth-context';
 import { jsonToolResult, type McpToolDefinition, type McpToolResult } from '../mcp-tool.definition';
 import { StorageToolMapper } from './storage-tool.mapper';
-import { listStoragesSchema, storageSummaryOutputSchema } from './storage.schemas';
+import {
+  listStoragesSchema,
+  owoxStorageOfferOutputSchema,
+  storageSummaryOutputSchema,
+} from './storage.schemas';
 import { storageToolCall } from './storage-tool-error';
 
 type Input = z.infer<typeof listStoragesSchema>;
@@ -18,9 +22,12 @@ type Input = z.infer<typeof listStoragesSchema>;
 export class ListStoragesTool implements McpToolDefinition<Input> {
   readonly name = 'list_storages';
   readonly description =
-    'List Storages in the connected project. Filter by Storage type or owner. Use get_storage to inspect configuration and access settings.';
+    'List Storages in the connected project. Filter by Storage type or owner. Use get_storage to inspect configuration and access settings. When the user has no Storage to use and owox_storage_offer is set, offer OWOX Storage first.';
   readonly zodSchema = listStoragesSchema;
-  readonly outputSchema = { storages: z.array(z.object(storageSummaryOutputSchema)) };
+  readonly outputSchema = {
+    storages: z.array(z.object(storageSummaryOutputSchema)),
+    owox_storage_offer: owoxStorageOfferOutputSchema,
+  };
   readonly annotations = {
     title: 'List Storages',
     readOnlyHint: true,
@@ -38,13 +45,17 @@ export class ListStoragesTool implements McpToolDefinition<Input> {
 
   async handler(input: Input, context: McpAuthContext): Promise<McpToolResult> {
     const parsed = listStoragesSchema.parse(input);
-    const storages = await storageToolCall(
+    const actor = this.mapper.toActor(context);
+    const [storages, offer] = await storageToolCall(
       () =>
-        this.storages.list(this.mapper.toActor(context), {
-          type: parsed.storage_type,
-          ownerId: parsed.owner_id,
-          ownerFilter: parsed.owner_filter,
-        }),
+        Promise.all([
+          this.storages.list(actor, {
+            type: parsed.storage_type,
+            ownerId: parsed.owner_id,
+            ownerFilter: parsed.owner_filter,
+          }),
+          this.storages.getOwoxStorageOffer(actor),
+        ]),
       'list'
     );
     const publicOrigin = this.publicOriginService.getPublicOrigin();
@@ -52,6 +63,7 @@ export class ListStoragesTool implements McpToolDefinition<Input> {
       storages: storages.map(storage =>
         this.mapper.toSummary(storage, context.projectId, publicOrigin)
       ),
+      owox_storage_offer: offer,
     });
   }
 }

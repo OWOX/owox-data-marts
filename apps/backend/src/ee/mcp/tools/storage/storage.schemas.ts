@@ -48,6 +48,14 @@ export const createStorageSchema = z
     title: title.optional(),
   })
   .strict();
+export const createOwoxStorageSchema = z
+  .object({
+    location: z
+      .enum(['US', 'EU'])
+      .describe('Where OWOX keeps the data. Ask the user. It cannot change later.'),
+    title: title.optional().describe('Name of the Storage. Default: OWOX Storage.'),
+  })
+  .strict();
 export const updateStorageSchema = z
   .object({
     storage_id: storageId,
@@ -138,6 +146,18 @@ const credential = z.discriminatedUnion('access', [
   z.object({ access: z.literal('restricted'), state: credentialState }),
   z.object({ access: z.literal('pending'), state: z.literal('ready') }),
 ]);
+const owoxStorageOutput = z
+  .object({ location: z.enum(['US', 'EU']), dataset_id: z.string() })
+  .nullable()
+  .describe(
+    'Set only for an OWOX Storage, which OWOX creates and manages: its location and its one dataset. null for every other Storage.'
+  );
+export const owoxStorageOfferOutputSchema = z
+  .object({ locations: z.array(z.enum(['US', 'EU'])) })
+  .nullable()
+  .describe(
+    'Set when the user can create an OWOX Storage in one of these locations. OWOX hosts it, so it needs no data warehouse, Credential or cloud setup. null when the user cannot create one.'
+  );
 export const storageSummaryOutputSchema = {
   storage_id: z.string(),
   url: z.string().describe('URL of this Storage in the OWOX Data Marts web UI.'),
@@ -145,6 +165,7 @@ export const storageSummaryOutputSchema = {
   storage_type: storageTypeSchema,
   created_at: z.string(),
   modified_at: z.string(),
+  owox_storage: owoxStorageOutput,
 };
 export const storageOutputSchema = {
   storage_id: z.string(),
@@ -163,6 +184,7 @@ export const storageOutputSchema = {
   available_for_maintenance: z.boolean(),
   created_at: z.string(),
   modified_at: z.string(),
+  owox_storage: storageSummaryOutputSchema.owox_storage,
 };
 export const storageValidationOutputSchema = {
   storage_id: z.string(),

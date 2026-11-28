@@ -1,4 +1,4 @@
-import { Injectable, ForbiddenException } from '@nestjs/common';
+import { Injectable, ForbiddenException, Inject, Logger } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { Transactional } from 'typeorm-transactional';
@@ -12,6 +12,12 @@ import { AccessDecisionService, EntityType, Action } from '../services/access-de
 import { AdvancedSearchIndexSyncService } from '../services/advanced-search-index-sync.service';
 import { SearchableEntityType } from '../../common/search/search.facade';
 import { StorageCredentialBindingService } from '../data-storage-types/storage-credential-binding.service';
+import { ManagedStorageService } from '../owox-storage/managed-storage.service';
+import {
+  MANAGED_STORAGE_ENGINE,
+  ManagedStorageEngine,
+} from '../owox-storage/engine/managed-storage-engine';
+import { describeGoogleError } from '../owox-storage/engine/bigquery-managed-storage.engine';
 
 @Injectable()
 export class DeleteDataStorageService {
@@ -22,10 +28,13 @@ export class DeleteDataStorageService {
     private readonly dataMartService: DataMartService,
     private readonly accessDecisionService: AccessDecisionService,
     private readonly storageCredentials: StorageCredentialBindingService,
+    private readonly managedStorages: ManagedStorageService,
+    @Inject(MANAGED_STORAGE_ENGINE) private readonly engine: ManagedStorageEngine,
     private readonly advancedSearchIndexSync?: AdvancedSearchIndexSyncService
   ) {}
 
-  @Transactional()
+  private readonly logger = new Logger(DeleteDataStorageService.name);
+
   async run(command: DeleteDataStorageCommand): Promise<void> {
     const dataStorage = await this.dataStorageService.getByProjectIdAndId(
       command.projectId,
@@ -52,15 +61,60 @@ export class DeleteDataStorageService {
       );
     }
 
-    const dataMartsForStorage = await this.dataMartService.findByStorage(dataStorage);
+    const managed = await this.managedStorages.findByStorageId(command.id);
+    if (managed && command.fromPlugin) {
+      throw new ForbiddenException('Plugins cannot delete an OWOX Storage.');
+    }
+    if (managed && command.fromMcp) {
+      throw new BusinessViolationException(
+        'AI agents cannot delete an OWOX Storage, because its deletion also deletes its data. Delete it in the OWOX Data Marts web application.'
+      );
+    }
 
+    await this.assertNoDataMarts(dataStorage);
+
+    if (managed) {
+      // An already deleted record keeps its date.
+      await this.managedStorages.markDeleting(managed.storageId, new Date());
+      try {
+        await this.engine.deprovision(managed);
+      } catch (error) {
+        this.logger.error(
+          `OWOX Storage ${managed.datasetId} deprovision failed on delete${describeGoogleError(error)}`
+        );
+        try {
+          await this.managedStorages.setDeprovisionPending(managed.storageId, true);
+        } catch (pendingError) {
+          this.logger.warn(
+            `OWOX Storage ${managed.datasetId} could not be marked for cleanup after a failed delete${describeGoogleError(pendingError)}`
+          );
+        }
+        throw new BusinessViolationException('OWOX Storage could not be deleted. Try again later.');
+      }
+    }
+
+    await this.softDelete(command, dataStorage, managed !== null);
+  }
+
+  private async assertNoDataMarts(dataStorage: DataStorage): Promise<void> {
+    const dataMartsForStorage = await this.dataMartService.findByStorage(dataStorage);
     if (dataMartsForStorage.length > 0) {
       throw new BusinessViolationException(
         'Cannot delete the storage because it is referenced by existing data marts.',
         { referencedDataMarts: dataMartsForStorage.map(mart => mart.id) }
       );
     }
+  }
 
+  @Transactional()
+  private async softDelete(
+    command: DeleteDataStorageCommand,
+    dataStorage: DataStorage,
+    managed: boolean
+  ): Promise<void> {
+    // Again: the deprovision of an OWOX Storage can take minutes. A Data Mart created meanwhile
+    // keeps the storage deleted and restorable instead of bound to a storage without its record.
+    await this.assertNoDataMarts(dataStorage);
     await this.dataStorageRepository.softDelete({
       id: command.id,
       projectId: command.projectId,
@@ -71,5 +125,6 @@ export class DeleteDataStorageService {
       command.id,
       command.projectId
     );
+    if (managed) await this.managedStorages.remove(command.id);
   }
 }

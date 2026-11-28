@@ -1,6 +1,7 @@
 import type { AuthorizationContext } from '../../idp';
 import { Injectable } from '@nestjs/common';
 import { CreateDataStorageCommand } from '../dto/domain/create-data-storage.command';
+import { CreateOwoxStorageCommand } from '../dto/domain/create-owox-storage.command';
 import { DeleteDataStorageCommand } from '../dto/domain/delete-data-storage.command';
 import { GetDataStorageCommand } from '../dto/domain/get-data-storage.command';
 import { ListDataStoragesCommand } from '../dto/domain/list-data-storages.command';
@@ -15,9 +16,15 @@ import type {
   McpUpdateStorageInput,
   McpSetStorageAccessInput,
   McpListStorageResourcesInput,
+  McpCreateOwoxStorageInput,
 } from './mcp-storage-management.facade';
 import { McpStorageMapper } from '../mappers/mcp-storage.mapper';
+import { ManagedStorageService } from '../owox-storage/managed-storage.service';
+import { OwoxStorageConfigService } from '../owox-storage/owox-storage-config.service';
+import { OWOX_STORAGE_LOCATIONS } from '../owox-storage/owox-storage-settings';
+import { satisfiesRole } from '../../idp/utils/role-hierarchy';
 import { CreateDataStorageService } from '../use-cases/create-data-storage.service';
+import { CreateOwoxStorageService } from '../use-cases/create-owox-storage.service';
 import { DeleteDataStorageService } from '../use-cases/delete-data-storage.service';
 import { GetDataStorageService } from '../use-cases/get-data-storage.service';
 import { ListDataStoragesService } from '../use-cases/list-data-storages.service';
@@ -36,7 +43,10 @@ export class McpStorageManagementFacadeImpl implements McpStorageManagementFacad
     private readonly validateStorage: ValidateDataStorageAccessService,
     private readonly listStorageResources: ListStorageResourcesService,
     private readonly deleteStorage: DeleteDataStorageService,
-    private readonly mapper: McpStorageMapper
+    private readonly mapper: McpStorageMapper,
+    private readonly managedStorages: ManagedStorageService,
+    private readonly owoxConfig: OwoxStorageConfigService,
+    private readonly createOwox: CreateOwoxStorageService
   ) {}
 
   async list(actor: AuthorizationContext, input: McpListStoragesInput) {
@@ -48,21 +58,21 @@ export class McpStorageManagementFacadeImpl implements McpStorageManagementFacad
         input.ownerFilter
       )
     );
-    return storages
-      .filter(
-        storage =>
-          (input.type === undefined || storage.type === input.type) &&
-          (input.ownerId === undefined ||
-            storage.ownerUsers.some(owner => owner.userId === input.ownerId))
-      )
-      .map(storage => this.mapper.toSummary(storage));
+    const visible = storages.filter(
+      storage =>
+        (input.type === undefined || storage.type === input.type) &&
+        (input.ownerId === undefined ||
+          storage.ownerUsers.some(owner => owner.userId === input.ownerId))
+    );
+    const managedById = await this.managedStorages.findByStorageIds(visible.map(s => s.id));
+    return visible.map(storage => this.mapper.toSummary(storage, managedById.get(storage.id)));
   }
 
   async get(actor: AuthorizationContext, id: string) {
     const storage = await this.getStorage.run(
       new GetDataStorageCommand(id, actor.projectId, actor.userId, actor.roles)
     );
-    return this.mapper.toStorage(storage);
+    return this.mapper.toStorage(storage, await this.managedStorages.findByStorageId(storage.id));
   }
 
   async create(actor: AuthorizationContext, input: McpCreateStorageInput) {
@@ -75,12 +85,26 @@ export class McpStorageManagementFacadeImpl implements McpStorageManagementFacad
         input.title
       )
     );
-    return this.mapper.toStorage(storage);
+    // create_storage never creates an OWOX Storage.
+    return this.mapper.toStorage(storage, null);
+  }
+
+  async createOwoxStorage(actor: AuthorizationContext, input: McpCreateOwoxStorageInput) {
+    const storage = await this.createOwox.run(
+      new CreateOwoxStorageCommand(
+        actor.projectId,
+        input.title ?? 'OWOX Storage',
+        input.location,
+        actor.userId,
+        false
+      )
+    );
+    return this.mapper.toStorage(storage, await this.managedStorages.findByStorageId(storage.id));
   }
 
   async update(actor: AuthorizationContext, id: string, input: McpUpdateStorageInput) {
     const storage = await this.updateStorage.run(this.mapper.toUpdateCommand(actor, id, input));
-    return this.mapper.toStorage(storage);
+    return this.mapper.toStorage(storage, await this.managedStorages.findByStorageId(storage.id));
   }
 
   async setAccess(actor: AuthorizationContext, id: string, input: McpSetStorageAccessInput) {
@@ -119,7 +143,22 @@ export class McpStorageManagementFacadeImpl implements McpStorageManagementFacad
 
   async delete(actor: AuthorizationContext, id: string) {
     await this.deleteStorage.run(
-      new DeleteDataStorageCommand(id, actor.projectId, actor.userId, actor.roles)
+      new DeleteDataStorageCommand(id, actor.projectId, actor.userId, actor.roles, false, true)
     );
+  }
+
+  isOwoxStorageEnabled() {
+    return this.owoxConfig.isEnabled();
+  }
+
+  async getOwoxStorageOffer(actor: AuthorizationContext) {
+    if (!this.owoxConfig.isEnabled() || !satisfiesRole(actor.roles ?? [], 'editor')) return null;
+    const taken = await Promise.all(
+      OWOX_STORAGE_LOCATIONS.map(location =>
+        this.managedStorages.findByProjectAndLocation(actor.projectId, location)
+      )
+    );
+    const locations = OWOX_STORAGE_LOCATIONS.filter((_, index) => !taken[index]);
+    return locations.length > 0 ? { locations } : null;
   }
 }

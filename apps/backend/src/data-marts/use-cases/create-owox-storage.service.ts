@@ -1,0 +1,131 @@
+import { ForbiddenException, Injectable, Inject, Logger } from '@nestjs/common';
+import { InjectRepository } from '@nestjs/typeorm';
+import { Repository } from 'typeorm';
+import { Transactional } from 'typeorm-transactional';
+import { OwoxEventDispatcher } from '../../common/event-dispatcher/owox-event-dispatcher';
+import { BusinessViolationException } from '../../common/exceptions/business-violation.exception';
+import { isUniqueConstraintViolation } from '../../common/typeorm/query-error.utils';
+import { DataStorageType } from '../data-storage-types/enums/data-storage-type.enum';
+import { CreateOwoxStorageCommand } from '../dto/domain/create-owox-storage.command';
+import { DataStorageDto } from '../dto/domain/data-storage.dto';
+import { DataStorage } from '../entities/data-storage.entity';
+import { StorageConfigSetEvent } from '../events/storage-config-set.event';
+import {
+  MANAGED_STORAGE_ENGINE,
+  ManagedStorageEngine,
+  ProvisionedManagedStorage,
+} from '../owox-storage/engine/managed-storage-engine';
+import { ManagedStorageService } from '../owox-storage/managed-storage.service';
+import { OwoxStorageConfigService } from '../owox-storage/owox-storage-config.service';
+import { IdpProjectionsFacade } from '../../idp/facades/idp-projections.facade';
+import { describeGoogleError } from '../owox-storage/engine/bigquery-managed-storage.engine';
+import { assertProjectMembers } from '../utils/sync-owners';
+import { CreateDataStorageService } from './create-data-storage.service';
+
+// A storage that is not shared is invisible to the user, so the message also says whom to ask.
+const alreadyHas = (location: string) =>
+  `This project already has an OWOX Storage in ${location}. A project can have one OWOX Storage in each location. If you do not see it in Storages, ask its owner or a Project Admin to share it with you.`;
+
+@Injectable()
+export class CreateOwoxStorageService {
+  private readonly logger = new Logger(CreateOwoxStorageService.name);
+
+  constructor(
+    private readonly configService: OwoxStorageConfigService,
+    private readonly managedStorageService: ManagedStorageService,
+    @Inject(MANAGED_STORAGE_ENGINE) private readonly engine: ManagedStorageEngine,
+    private readonly createDataStorageService: CreateDataStorageService,
+    @InjectRepository(DataStorage)
+    private readonly dataStorageRepository: Repository<DataStorage>,
+    private readonly idpProjectionsFacade: IdpProjectionsFacade,
+    private readonly eventDispatcher: OwoxEventDispatcher
+  ) {}
+
+  async run(command: CreateOwoxStorageCommand): Promise<DataStorageDto> {
+    if (command.fromPlugin) {
+      throw new ForbiddenException('A plugin cannot create an OWOX Storage.');
+    }
+    this.configService.getSettings();
+
+    if (
+      await this.managedStorageService.findByProjectAndLocation(command.projectId, command.location)
+    ) {
+      throw new BusinessViolationException(alreadyHas(command.location));
+    }
+
+    // Before provisioning: a bad owner would otherwise fail the save and cost a full provision/deprovision cycle.
+    await assertProjectMembers(
+      command.projectId,
+      command.ownerIds ?? [command.userId],
+      this.idpProjectionsFacade
+    );
+
+    const provisioned = await this.engine.provision({
+      projectId: command.projectId,
+      location: command.location,
+    });
+
+    let saved: DataStorageDto;
+    try {
+      saved = await this.save(command, provisioned);
+    } catch (error) {
+      try {
+        await this.engine.deprovision(provisioned);
+      } catch (deprovisionError) {
+        // Dataset id (carries the short id) lets ops find leaked resources; no email or project ids.
+        this.logger.error(
+          `OWOX Storage ${provisioned.datasetId} deprovision failed after a failed save${describeGoogleError(deprovisionError)}`
+        );
+      }
+      if (isUniqueConstraintViolation(error)) {
+        throw new BusinessViolationException(alreadyHas(command.location));
+      }
+      throw error;
+    }
+    await this.eventDispatcher.publishExternal(
+      new StorageConfigSetEvent(saved.id, command.projectId, command.userId)
+    );
+    return saved;
+  }
+
+  @Transactional()
+  private async save(
+    command: CreateOwoxStorageCommand,
+    provisioned: ProvisionedManagedStorage
+  ): Promise<DataStorageDto> {
+    const created = await this.createDataStorageService.run({
+      type: DataStorageType.GOOGLE_BIGQUERY,
+      projectId: command.projectId,
+      userId: command.userId,
+      ownerIds: command.ownerIds,
+    });
+    // The config holds the storage's own location, 'US' or 'EU', never autodetected.
+    const config = { projectId: provisioned.gcpProjectId, location: provisioned.location };
+    await this.dataStorageRepository.update(created.id, { title: command.title, config });
+    await this.managedStorageService.create({
+      ...provisioned,
+      storageId: created.id,
+      projectId: command.projectId,
+      storageLimitBytes: null,
+      deprovisionedAt: null,
+      deprovisionPending: false,
+    });
+    return new DataStorageDto(
+      created.id,
+      command.title,
+      created.type,
+      created.projectId,
+      config as DataStorageDto['config'],
+      created.createdAt,
+      created.modifiedAt,
+      created.dataMartsCount,
+      created.draftsCount,
+      created.createdByUser,
+      created.ownerUsers,
+      created.availableForUse,
+      created.availableForMaintenance,
+      created.contexts,
+      created.reusableCredential
+    );
+  }
+}

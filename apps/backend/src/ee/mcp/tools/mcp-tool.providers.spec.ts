@@ -105,7 +105,7 @@ describe('MCP tool providers', () => {
         { provide: MCP_PROJECT_MEMBERS_FACADE, useValue: membersFacade },
         { provide: MCP_DATA_MARTS_FACADE, useValue: {} },
         { provide: MCP_DATA_DESTINATIONS_FACADE, useValue: {} },
-        { provide: MCP_STORAGE_MANAGEMENT_FACADE, useValue: {} },
+        { provide: MCP_STORAGE_MANAGEMENT_FACADE, useValue: { isOwoxStorageEnabled: () => true } },
         { provide: MCP_REPORTS_FACADE, useValue: {} },
         { provide: MCP_SCHEDULED_TRIGGERS_FACADE, useValue: {} },
         { provide: MCP_PROJECT_CONTEXT_FACADE, useValue: {} },
@@ -258,6 +258,7 @@ describe('MCP tool providers', () => {
           'list_storages',
           'get_storage',
           'create_storage',
+          'create_owox_storage',
           'update_storage',
           'set_storage_access',
           'validate_storage_access',
@@ -307,6 +308,8 @@ describe('MCP tool providers', () => {
         )
       ).toMatchObject({
         create_context: 'admin',
+        create_storage: 'editor',
+        create_owox_storage: 'editor',
         list_credential_definitions: 'viewer',
         list_credentials: 'viewer',
         get_credential: 'viewer',

@@ -11,6 +11,7 @@ import {
 } from '@owox/ui/components/common/wizard';
 import {
   GoogleBigQueryIcon,
+  OwoxStorageIcon,
   AwsAthenaIcon,
   SnowflakeIcon,
   AwsRedshiftIcon,
@@ -32,6 +33,8 @@ interface TargetSetupStepProps {
   conflict?: ConnectorTargetConflictResponseDto | null;
   // Only some connectors replace the whole table on each run; others merge rows by keys.
   replacesTable?: boolean;
+  /** An OWOX Storage has one dataset; connectors write into it. */
+  fixedDatasetName?: string;
 }
 
 export function TargetSetupStep({
@@ -42,6 +45,7 @@ export function TargetSetupStep({
   onTargetChange,
   conflict,
   replacesTable = false,
+  fixedDatasetName,
 }: TargetSetupStepProps) {
   const { scope } = useProjectRoute();
   const sameTableWarning = replacesTable
@@ -237,6 +241,8 @@ export function TargetSetupStep({
       newTableName = sanitizedDestinationName;
     }
 
+    if (fixedDatasetName) newDatasetName = fixedDatasetName;
+
     const newDatasetError =
       dataStorageType === DataStorageType.AWS_REDSHIFT ||
       dataStorageType === DataStorageType.DATABRICKS
@@ -329,7 +335,14 @@ export function TargetSetupStep({
         newCatalogError
       );
     }
-  }, [target, sanitizedDestinationName, sanitizedConnectorName, dataStorageType, updateTarget]);
+  }, [
+    target,
+    sanitizedDestinationName,
+    sanitizedConnectorName,
+    dataStorageType,
+    updateTarget,
+    fixedDatasetName,
+  ]);
 
   const handleDatasetNameChange = (name: string) => {
     editedByUser.current = true;
@@ -409,18 +422,31 @@ export function TargetSetupStep({
     <AppWizardStep>
       {dataStorageType === DataStorageType.GOOGLE_BIGQUERY && (
         <>
-          <AppWizardStepHero
-            icon={<GoogleBigQueryIcon />}
-            title='Google BigQuery'
-            docUrl='https://docs.owox.com/docs/storages/supported-storages/google-bigquery/'
-            variant='compact'
-          />
+          {fixedDatasetName ? (
+            <AppWizardStepHero
+              icon={<OwoxStorageIcon />}
+              title='OWOX Storage'
+              docUrl='https://docs.owox.com/docs/storages/supported-storages/owox-storage/'
+              variant='compact'
+            />
+          ) : (
+            <AppWizardStepHero
+              icon={<GoogleBigQueryIcon />}
+              title='Google BigQuery'
+              docUrl='https://docs.owox.com/docs/storages/supported-storages/google-bigquery/'
+              variant='compact'
+            />
+          )}
           <AppWizardStepSection title='Choose where to store your data'>
             <AppWizardStepItem>
               <AppWizardStepLabel
-                required={true}
+                required={!fixedDatasetName}
                 htmlFor='dataset-name'
-                tooltip='Enter dataset name for Google BigQuery where the connector data will be stored.'
+                tooltip={
+                  fixedDatasetName
+                    ? 'OWOX Storage writes into its own dataset.'
+                    : 'Enter dataset name for Google BigQuery where the connector data will be stored.'
+                }
               >
                 Dataset name
               </AppWizardStepLabel>
@@ -431,6 +457,7 @@ export function TargetSetupStep({
                 autoComplete='off'
                 className='box-border w-full'
                 value={datasetName}
+                disabled={Boolean(fixedDatasetName)}
                 aria-invalid={Boolean(datasetError)}
                 aria-describedby={datasetError ? 'dataset-name-error' : undefined}
                 onChange={e => {
@@ -438,9 +465,11 @@ export function TargetSetupStep({
                 }}
                 required
               />
-              <p className='text-muted-foreground text-sm'>
-                Dataset is auto-created on first run if it doesn’t exist
-              </p>
+              {!fixedDatasetName && (
+                <p className='text-muted-foreground text-sm'>
+                  Dataset is auto-created on first run if it doesn’t exist
+                </p>
+              )}
               {datasetError && (
                 <p id='dataset-name-error' className='text-destructive text-sm'>
                   {datasetError}

@@ -43,6 +43,7 @@ describe('DataMartMapper', () => {
           useValue: {
             toDomainDto: jest.fn().mockReturnValue({}),
             toApiResponse: jest.fn().mockResolvedValue({}),
+            findManagedByStorageIds: jest.fn().mockResolvedValue(new Map()),
           },
         },
         {
@@ -61,6 +62,27 @@ describe('DataMartMapper', () => {
     }).compile();
 
     mapper = module.get<DataMartMapper>(DataMartMapper);
+  });
+
+  describe('toResponseList', () => {
+    it('looks the OWOX Storage records up once for the distinct storages and passes each down', async () => {
+      const storageMapper = (mapper as never as { dataStorageMapper: Record<string, jest.Mock> })
+        .dataStorageMapper;
+      const managed = { storageId: 's1' };
+      storageMapper.findManagedByStorageIds.mockResolvedValue(new Map([['s1', managed]]));
+      const dto = (id: string, storageId: string) =>
+        ({ id, projectId: 'p', storage: { id: storageId }, definitionType: undefined }) as never;
+
+      await mapper.toResponseList([dto('m1', 's1'), dto('m2', 's2'), dto('m3', 's1')]);
+
+      expect(storageMapper.findManagedByStorageIds).toHaveBeenCalledTimes(1);
+      expect(storageMapper.findManagedByStorageIds).toHaveBeenCalledWith(['s1', 's2']);
+      expect(storageMapper.toApiResponse.mock.calls.map(c => c[1])).toEqual([
+        managed,
+        null,
+        managed,
+      ]);
+    });
   });
 
   describe('a connector Data Mart response', () => {

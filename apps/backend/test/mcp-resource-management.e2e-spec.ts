@@ -174,6 +174,8 @@ describe('Storage and Destination management through MCP', () => {
           'rotate_destination_secret_key',
         ])
       );
+      // OWOX Storage is off here, so the agent does not see a tool that can only fail.
+      expect(tools.map(tool => tool.name)).not.toContain('create_owox_storage');
     }
   );
 

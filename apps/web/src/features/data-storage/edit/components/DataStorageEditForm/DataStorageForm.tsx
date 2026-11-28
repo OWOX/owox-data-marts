@@ -57,8 +57,13 @@ import {
   DataStorageStatus,
   DataStorageType,
 } from '../../../shared';
+import { OwoxStorageUsage } from '../../../shared/components/OwoxStorageUsage';
+import type { OwoxStorageLocation } from '../../../shared/api/types';
 import type { UseFormReturn } from 'react-hook-form';
-import type { DataStorage } from '../../../shared/model/types/data-storage.ts';
+import {
+  isGoogleBigQueryStorage,
+  type DataStorage,
+} from '../../../shared/model/types/data-storage.ts';
 import { useDuckDbStorageEnabled } from '../../../shared/hooks/useDuckDbStorageEnabled.ts';
 import { DataStorageTypeModel } from '../../../shared/types/data-storage-type.model.ts';
 import { AwsAthenaFields } from './AwsAthenaFields';
@@ -78,8 +83,12 @@ import { RedshiftFields } from './RedshiftFields';
 import { SnowflakeFields } from './SnowflakeFields';
 import { ConsumerCredentialField, useCredentialFormBinding } from '../../../../credentials';
 
+const OWOX_STORAGE_LOCATIONS: OwoxStorageLocation[] = ['US', 'EU'];
+
 interface DataStorageFormProps {
   initialData?: DataStorage;
+  /** Creates an OWOX Storage: the form asks for its title and location only. */
+  newOwoxStorage?: boolean;
   onSubmit: (data: DataStorageFormData) => Promise<void>;
   onCancel: () => void;
   onDirtyChange?: (isDirty: boolean) => void;
@@ -88,11 +97,14 @@ interface DataStorageFormProps {
 
 export function DataStorageForm({
   initialData,
+  newOwoxStorage = false,
   onSubmit,
   onCancel,
   onDirtyChange,
   promo,
 }: DataStorageFormProps) {
+  const owoxStorage = initialData?.owoxStorage;
+  const owoxMode = newOwoxStorage ? 'new' : owoxStorage ? 'saved' : undefined;
   const {
     form,
     initialCredential,
@@ -103,8 +115,15 @@ export function DataStorageForm({
   } = useCredentialFormBinding<DataStorageFormData, StorageCredentialSummary>(
     initialData?.reusableCredential,
     ({ hasBinding, initialCredentialId }) => ({
-      resolver: createDataStorageFormResolver(hasBinding),
-      defaultValues: { ...initialData, reusableCredentialId: initialCredentialId ?? '' },
+      resolver: createDataStorageFormResolver(hasBinding, owoxMode),
+      defaultValues: newOwoxStorage
+        ? {
+            type: DataStorageType.GOOGLE_BIGQUERY,
+            title: 'OWOX Storage',
+            config: { location: '' },
+            reusableCredentialId: '',
+          }
+        : { ...initialData, reusableCredentialId: initialCredentialId ?? '' },
     })
   );
 
@@ -279,36 +298,40 @@ export function DataStorageForm({
                     Storage Type
                   </FormLabel>
                   <FormControl>
-                    <Select
-                      value={field.value}
-                      onValueChange={field.onChange}
-                      disabled={!!initialData}
-                    >
-                      <SelectTrigger className='w-full'>
-                        <SelectValue placeholder='Select a storage type' />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectGroup>
-                          {DataStorageTypeModel.getOfferedTypes(duckDbEnabled, field.value).map(
-                            ({ type, displayName, icon: Icon, status }) => (
-                              <SelectItem
-                                key={type}
-                                value={type}
-                                disabled={status === DataStorageStatus.COMING_SOON}
-                              >
-                                <div className='flex items-center gap-2'>
-                                  <Icon size={20} />
-                                  {displayName}
-                                </div>
-                              </SelectItem>
-                            )
-                          )}
-                        </SelectGroup>
-                      </SelectContent>
-                    </Select>
+                    {owoxMode ? (
+                      <Input value='OWOX Storage' disabled />
+                    ) : (
+                      <Select
+                        value={field.value}
+                        onValueChange={field.onChange}
+                        disabled={!!initialData}
+                      >
+                        <SelectTrigger className='w-full'>
+                          <SelectValue placeholder='Select a storage type' />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectGroup>
+                            {DataStorageTypeModel.getOfferedTypes(duckDbEnabled, field.value).map(
+                              ({ type, displayName, icon: Icon, status }) => (
+                                <SelectItem
+                                  key={type}
+                                  value={type}
+                                  disabled={status === DataStorageStatus.COMING_SOON}
+                                >
+                                  <div className='flex items-center gap-2'>
+                                    <Icon size={20} />
+                                    {displayName}
+                                  </div>
+                                </SelectItem>
+                              )
+                            )}
+                          </SelectGroup>
+                        </SelectContent>
+                      </Select>
+                    )}
                   </FormControl>
                   <FormDescription>
-                    {selectedType === DataStorageType.GOOGLE_BIGQUERY && (
+                    {selectedType === DataStorageType.GOOGLE_BIGQUERY && !owoxMode && (
                       <StorageTypeBigQueryDescription />
                     )}
                     {selectedType === DataStorageType.LEGACY_GOOGLE_BIGQUERY && (
@@ -333,7 +356,59 @@ export function DataStorageForm({
               )}
             />
           </FormSection>
-          {selectedType === DataStorageType.GOOGLE_BIGQUERY && (
+          {owoxStorage && isGoogleBigQueryStorage(initialData) && (
+            <FormSection title='Connection Settings'>
+              <FormItem>
+                <FormLabel htmlFor='owox-storage-project'>Project ID</FormLabel>
+                <Input id='owox-storage-project' value={initialData.config.projectId} disabled />
+              </FormItem>
+              <FormItem>
+                <FormLabel htmlFor='owox-storage-location'>Location</FormLabel>
+                <Input id='owox-storage-location' value={owoxStorage.location} disabled />
+              </FormItem>
+              <FormItem>
+                <FormLabel htmlFor='owox-storage-dataset'>Dataset</FormLabel>
+                <Input id='owox-storage-dataset' value={owoxStorage.datasetId} disabled />
+              </FormItem>
+            </FormSection>
+          )}
+          {newOwoxStorage && (
+            <FormSection title='Connection Settings' fields={['config.location']}>
+              <FormField
+                control={(form as UseFormReturn<GoogleBigQueryFormData>).control}
+                name='config.location'
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Location</FormLabel>
+                    <Select value={field.value} onValueChange={field.onChange}>
+                      <FormControl>
+                        <SelectTrigger className='w-full'>
+                          <SelectValue placeholder='Select location' />
+                        </SelectTrigger>
+                      </FormControl>
+                      <SelectContent>
+                        {OWOX_STORAGE_LOCATIONS.map(location => (
+                          <SelectItem key={location} value={location}>
+                            {location}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    <FormDescription>The location cannot be changed later.</FormDescription>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+            </FormSection>
+          )}
+          {owoxStorage && initialData.id && (
+            <FormSection title='Usage and Tables' name='owox-storage-usage'>
+              <FormItem>
+                <OwoxStorageUsage storageId={initialData.id} />
+              </FormItem>
+            </FormSection>
+          )}
+          {!owoxMode && selectedType === DataStorageType.GOOGLE_BIGQUERY && (
             <GoogleBigQueryFields form={form as UseFormReturn<GoogleBigQueryFormData>} />
           )}
           {selectedType === DataStorageType.LEGACY_GOOGLE_BIGQUERY && (
@@ -352,8 +427,8 @@ export function DataStorageForm({
               }
             />
           )}
-          {/* A DuckDB Storage is a local file and takes no Credential. */}
-          {selectedType !== DataStorageType.DUCKDB && (
+          {/* DuckDB is a local file and an OWOX Storage's Credential is managed: neither takes one. */}
+          {selectedType !== DataStorageType.DUCKDB && !owoxMode && (
             <FormSection title='Authentication' fields={['reusableCredentialId']}>
               <FormField
                 control={control}

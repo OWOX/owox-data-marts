@@ -269,7 +269,9 @@ describe('Storage writes that span its binding', () => {
       new DataStorageService(storages),
       { findByStorage: async () => [] } as never,
       {} as never,
-      storageCredentials
+      storageCredentials,
+      { findByStorageId: async () => null, remove: async () => undefined } as never,
+      { deprovision: async () => undefined } as never
     ).run(new DeleteDataStorageCommand(storageId, PROJECT));
   }
 

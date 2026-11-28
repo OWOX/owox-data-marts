@@ -8,6 +8,7 @@ import {
   AzureSynapseIcon,
   LegacyGoogleBigQueryIcon,
   DuckDBIcon,
+  OwoxStorageIcon,
 } from '../../../../shared';
 import type { AppIcon } from '../../../../shared';
 
@@ -72,6 +73,16 @@ export const DataStorageTypeModel = {
 
   getInfo(type: DataStorageType): DataStorageTypeInfo {
     return this.types[type];
+  },
+
+  /** An OWOX Storage is a Google BigQuery storage that OWOX hosts; it shows under its own name. */
+  getStorageInfo(storage: {
+    type: DataStorageType;
+    owoxStorage?: unknown;
+  }): Pick<DataStorageTypeInfo, 'displayName' | 'icon'> {
+    return storage.owoxStorage
+      ? { displayName: 'OWOX Storage', icon: OwoxStorageIcon }
+      : this.getInfo(storage.type);
   },
 
   getAllTypes(): DataStorageTypeInfo[] {

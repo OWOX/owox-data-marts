@@ -436,7 +436,7 @@ describe('ReportSqlComposerService', () => {
 
     expect(result.sql).toBe('SELECT a, b FROM dm');
     expect(queryBuilderFacade.buildQuery).toHaveBeenCalledWith(
-      'GOOGLE_BIGQUERY',
+      expect.objectContaining({ type: 'GOOGLE_BIGQUERY' }),
       { sqlQuery: 'SELECT 1' },
       expect.objectContaining({ columns: ['a', 'b'] })
     );
@@ -518,7 +518,7 @@ describe('ReportSqlComposerService', () => {
     } as never;
     const result = await composer.compose(report, { userId: 'user-1', roles: ['admin'] });
     expect(queryBuilderFacade.buildQuery).toHaveBeenCalledWith(
-      'GOOGLE_BIGQUERY',
+      expect.objectContaining({ type: 'GOOGLE_BIGQUERY' }),
       expect.anything(),
       expect.objectContaining({
         columns: ['a'],
@@ -2453,7 +2453,7 @@ describe('ReportSqlComposerService — Data Mart references in SQL', () => {
 
     expect(sqlReferenceResolver.resolveDefinition).toHaveBeenCalledWith(report.dataMart);
     expect(queryBuilderFacade.buildQuery).toHaveBeenCalledWith(
-      'GOOGLE_BIGQUERY',
+      expect.objectContaining({ type: 'GOOGLE_BIGQUERY' }),
       resolvedDefinition,
       expect.anything()
     );
@@ -2470,7 +2470,7 @@ describe('ReportSqlComposerService — Data Mart references in SQL', () => {
       inlineSqlReferences: true,
     });
     expect(queryBuilderFacade.buildQuery).toHaveBeenCalledWith(
-      'GOOGLE_BIGQUERY',
+      expect.objectContaining({ type: 'GOOGLE_BIGQUERY' }),
       report.dataMart.definition,
       expect.objectContaining({ mainTableReference: '(inline)' })
     );

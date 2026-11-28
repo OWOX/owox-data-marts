@@ -25,6 +25,7 @@ export const DataStorageList = ({
   onTypeDialogClose,
 }: DataStorageListProps) => {
   const [isTypeDialogOpen, setIsTypeDialogOpen] = useState(initialTypeDialogOpen);
+  const [isOwoxCreateOpen, setIsOwoxCreateOpen] = useState(false);
   const [isCreatingDataStorage, setIsCreatingDataStorage] = useState(false);
 
   const {
@@ -244,6 +245,7 @@ export const DataStorageList = ({
     availableForMaintenance: storage.availableForMaintenance,
     contexts: storage.contexts ?? [],
     reusableCredential: storage.reusableCredential,
+    owoxStorage: storage.owoxStorage,
   }));
 
   const columns = getDataStorageColumns({
@@ -275,6 +277,23 @@ export const DataStorageList = ({
         onClose={handleTypeDialogClose}
         onSelect={handleCreateNewStorage}
         isCreatingDataStorage={isCreatingDataStorage}
+        onSelectOwoxStorage={() => {
+          handleTypeDialogClose();
+          setIsOwoxCreateOpen(true);
+        }}
+      />
+
+      <DataStorageConfigSheet
+        isOpen={isOwoxCreateOpen}
+        onClose={() => {
+          setIsOwoxCreateOpen(false);
+        }}
+        dataStorage={null}
+        newOwoxStorage
+        onSaveSuccess={dataStorage => {
+          setIsOwoxCreateOpen(false);
+          void handleSave(dataStorage.id);
+        }}
       />
 
       <DataStorageConfigSheet
@@ -336,7 +355,11 @@ export const DataStorageList = ({
         open={deleteDialogOpen}
         onOpenChange={setDeleteDialogOpen}
         title='Delete Storage'
-        description='Are you sure you want to delete this storage? This action cannot be undone.'
+        description={
+          dataStorages.find(s => s.id === storageToDelete)?.owoxStorage
+            ? 'This deletes the OWOX Storage and all its tables. The data cannot be restored.'
+            : 'Are you sure you want to delete this storage? This action cannot be undone.'
+        }
         confirmLabel='Delete'
         cancelLabel='Cancel'
         onConfirm={() => {

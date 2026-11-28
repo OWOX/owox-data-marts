@@ -81,9 +81,12 @@ describe('RefreshDataMartDataLastUpdatedService', () => {
     const results = await service.run(command('dm1'));
 
     expect(results.get('dm1')).toEqual(measured);
-    expect(queryBuilderFacade.buildQuery).toHaveBeenCalledWith('GOOGLE_BIGQUERY', {
-      fullyQualifiedName: 'my-project.ds.dm1',
-    });
+    expect(queryBuilderFacade.buildQuery).toHaveBeenCalledWith(
+      expect.objectContaining({ type: 'GOOGLE_BIGQUERY' }),
+      {
+        fullyQualifiedName: 'my-project.ds.dm1',
+      }
+    );
     expect(sourceDataLastUpdatedService.resolveForSqlBatch).toHaveBeenCalledWith(
       expect.objectContaining({
         storage: storageA,

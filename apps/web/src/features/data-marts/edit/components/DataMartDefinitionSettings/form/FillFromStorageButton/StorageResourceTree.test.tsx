@@ -88,3 +88,20 @@ describe('StorageResourceTree location', () => {
     expect(onSelectResource).toHaveBeenCalledWith(RESOURCES[0]);
   });
 });
+
+describe('StorageResourceTree namespace name', () => {
+  it('shows the display name of a namespace instead of its id', () => {
+    render(
+      <StorageResourceTree
+        namespaces={[{ id: PROJECT, displayName: 'OWOX Storage' }]}
+        namespacesLoading={false}
+        namespacesError={null}
+        onRetryNamespaces={vi.fn()}
+        loadNamespaceResources={() => Promise.resolve(RESOURCES)}
+      />
+    );
+
+    expect(screen.getByRole('button', { name: 'OWOX Storage' })).toBeInTheDocument();
+    expect(screen.queryByText(PROJECT)).toBeNull();
+  });
+});

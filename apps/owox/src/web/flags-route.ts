@@ -30,6 +30,7 @@ const DEFAULT_PUBLIC_ENV_WHITELIST = [
   'GOOGLE_TAG_MANAGER_CONTAINER_ID',
   'INTERCOM_APP_ID',
   'DUCKDB_STORAGE_ENABLED',
+  'OWOX_STORAGE_ENABLED',
   'INSIGHTS_ENABLED',
   'INSIGHT_ASSISTANT_ENABLED_PROJECT_IDS',
   // The running version, so the app announces only releases it already contains.

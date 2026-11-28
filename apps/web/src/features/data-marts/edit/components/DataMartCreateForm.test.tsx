@@ -18,8 +18,31 @@ vi.mock('../../../data-storage', async importOriginal => ({
 }));
 
 vi.mock('../../../data-storage/shared/components/DataStorageTypeDialog', () => ({
-  DataStorageTypeDialog: ({ isOpen }: { isOpen: boolean }) =>
-    isOpen ? <div>Storage type dialog</div> : null,
+  DataStorageTypeDialog: ({
+    isOpen,
+    onSelectOwoxStorage,
+  }: {
+    isOpen: boolean;
+    onSelectOwoxStorage?: () => void;
+  }) =>
+    isOpen ? (
+      <div>
+        Storage type dialog
+        <button type='button' onClick={onSelectOwoxStorage}>
+          Pick OWOX Storage
+        </button>
+      </div>
+    ) : null,
+}));
+
+vi.mock('../../../data-storage/edit', () => ({
+  DataStorageConfigSheet: ({
+    isOpen,
+    newOwoxStorage,
+  }: {
+    isOpen: boolean;
+    newOwoxStorage?: boolean;
+  }) => (isOpen && newOwoxStorage ? <div>New OWOX Storage sheet</div> : null),
 }));
 
 const storageState = vi.hoisted(() => ({
@@ -73,6 +96,16 @@ describe('DataMartCreateForm storage list', () => {
     fireEvent.click(await screen.findByRole('option', { name: 'Create new storage' }));
 
     expect(await screen.findByText('Storage type dialog')).toBeInTheDocument();
+  });
+
+  it('opens the storage sheet for a new OWOX Storage', async () => {
+    await openAndSearch('zzz');
+    fireEvent.click(await screen.findByRole('option', { name: 'Create new storage' }));
+
+    fireEvent.click(await screen.findByRole('button', { name: 'Pick OWOX Storage' }));
+
+    expect(await screen.findByText('New OWOX Storage sheet')).toBeInTheDocument();
+    expect(screen.queryByText('Storage type dialog')).toBeNull();
   });
 
   it('does not match a storage by its id', async () => {

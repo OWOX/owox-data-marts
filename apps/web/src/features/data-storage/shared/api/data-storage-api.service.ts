@@ -6,6 +6,8 @@ import type {
   DataStorageListResponseDto,
   DataStorageResponseDto,
   ListStorageResourcesResponseDto,
+  OwoxStorageLocation,
+  OwoxStorageUsageResponseDto,
   PublishDataStorageDraftsResponseDto,
   StorageNamespaceNodeDto,
   StorageResourceFilter,
@@ -66,6 +68,44 @@ export class DataStorageApiService extends ApiService {
     return this.post<DataStorageResponseDto>('', data);
   }
 
+  async createOwoxStorage(data: {
+    title: string;
+    location: OwoxStorageLocation;
+    ownerIds?: string[];
+  }): Promise<DataStorageResponseDto> {
+    // Provisioning can take about 90 s; the storage form reports the error itself.
+    return this.post<DataStorageResponseDto>('/owox-storage', data, {
+      timeout: 180000,
+      skipErrorToast: true,
+    } as AxiosRequestConfig);
+  }
+
+  /** `fresh` reads the table list again instead of the list the backend caches for 60 s. */
+  async getOwoxStorageUsage(
+    storageId: string,
+    fresh = false
+  ): Promise<OwoxStorageUsageResponseDto> {
+    // The usage panel shows its own error with a retry.
+    return this.get<OwoxStorageUsageResponseDto>(
+      `/${storageId}/owox-storage`,
+      fresh ? { fresh: true } : undefined,
+      {
+        skipErrorToast: true,
+      } as AxiosRequestConfig
+    );
+  }
+
+  async deleteOwoxStorageTable(storageId: string, tableName: string): Promise<void> {
+    await this.delete(`/${storageId}/owox-storage/tables/${encodeURIComponent(tableName)}`);
+  }
+
+  async restoreOwoxStorage(storageId: string): Promise<void> {
+    // Recreating the datasets and the account takes as long as creating them.
+    await this.post(`/${storageId}/owox-storage/restore`, undefined, {
+      timeout: 180000,
+    } as AxiosRequestConfig);
+  }
+
   /**
    * Updates an existing data storage resource with the provided data.
    *
@@ -87,7 +127,8 @@ export class DataStorageApiService extends ApiService {
    * @return {Promise<void>} A promise that resolves when the data storage resource has been deleted.
    */
   async deleteDataStorage(id: string): Promise<void> {
-    return this.delete(`/${id}`);
+    // Deleting an OWOX Storage waits for Integrated Backend; the backend allows 180 s too.
+    return this.delete(`/${id}`, { timeout: 180000 } as AxiosRequestConfig);
   }
 
   /**

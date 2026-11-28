@@ -12,6 +12,8 @@ import { CreateViewService } from '../use-cases/create-view.service';
 import { DataMart } from '../entities/data-mart.entity';
 import { technicalViewNameFor } from '../utils/technical-view-name';
 import { DataMartSqlReferenceResolver } from './data-mart-sql-reference-resolver.service';
+import { bigQueryStorageProjectId } from '../data-storage-types/data-storage-config.guards';
+import { qualifyBigQueryTableName } from '../data-storage-types/bigquery/utils/bigquery-identifier.utils';
 
 /**
  * A CALLER-scoped memo for {@link DataMartTableReferenceService.resolveTableName}, for a caller
@@ -109,7 +111,10 @@ export class DataMartTableReferenceService {
     }
 
     if (isConnectorDefinition(definition)) {
-      return definition.connector.storage.fullyQualifiedName;
+      return qualifyBigQueryTableName(
+        definition.connector.storage.fullyQualifiedName,
+        dataMart.storage && bigQueryStorageProjectId(dataMart.storage)
+      );
     }
 
     if (isSqlDefinition(definition)) {

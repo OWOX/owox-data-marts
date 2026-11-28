@@ -304,27 +304,23 @@ export class ReportSqlComposerService {
         ? (storedSort ?? []).filter(rule => rule.column !== UNIQUE_COUNT_LABEL)
         : storedSort;
 
-    const queryResult = await this.queryBuilderFacade.buildQuery(
-      dataMart.storage.type,
-      definition,
-      {
-        columns: nonMetricColumns,
-        filters: routedFilters,
-        sort: sortConfig ?? undefined,
-        aggregations: report.aggregationConfig ?? undefined,
-        dateTruncs: report.dateTruncConfig ?? undefined,
-        distinct: 'distinct' in report ? report.distinct : undefined,
-        uniqueCount,
-        primaryKeyColumns: pkFields.map(f => f.name),
-        limit: report.limitConfig ?? undefined,
-        mainTableReference,
-        columnTypes,
-        // Set by Totals and by a havingGroupBy read; a plain report applies its HAVING directly.
-        groupRestriction: restriction,
-        calculatedFields: calculatedFields.length > 0 ? calculatedFields : undefined,
-        calculatedFilterMetrics: filterMetrics.length > 0 ? filterMetrics : undefined,
-      }
-    );
+    const queryResult = await this.queryBuilderFacade.buildQuery(dataMart.storage, definition, {
+      columns: nonMetricColumns,
+      filters: routedFilters,
+      sort: sortConfig ?? undefined,
+      aggregations: report.aggregationConfig ?? undefined,
+      dateTruncs: report.dateTruncConfig ?? undefined,
+      distinct: 'distinct' in report ? report.distinct : undefined,
+      uniqueCount,
+      primaryKeyColumns: pkFields.map(f => f.name),
+      limit: report.limitConfig ?? undefined,
+      mainTableReference,
+      columnTypes,
+      // Set by Totals and by a havingGroupBy read; a plain report applies its HAVING directly.
+      groupRestriction: restriction,
+      calculatedFields: calculatedFields.length > 0 ? calculatedFields : undefined,
+      calculatedFilterMetrics: filterMetrics.length > 0 ? filterMetrics : undefined,
+    });
 
     const primaryKeyColumns = pkFields.map(f => f.name);
     const calculatedFieldsResult = calculatedFields.length > 0 ? calculatedFields : undefined;

@@ -76,6 +76,16 @@ export const googleBigQuerySchema = baseSchema.extend({
   config: googleBigQueryConfigSchema,
 });
 
+// An OWOX Storage's Credential is managed by OWOX, so a save needs none.
+export const owoxStorageFormSchema = googleBigQuerySchema.extend({
+  reusableCredentialId: z.string(),
+});
+
+// A new OWOX Storage has no project yet: OWOX sets it when it creates the storage.
+export const newOwoxStorageFormSchema = owoxStorageFormSchema.extend({
+  config: googleConfigSchema.pick({ location: true }),
+});
+
 export const legacyGoogleBigQuerySchema = baseSchema.extend({
   type: z.literal(DataStorageType.LEGACY_GOOGLE_BIGQUERY),
   config: googleConfigSchema,

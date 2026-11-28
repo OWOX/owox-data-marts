@@ -1,5 +1,6 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { castError } from '@owox/internal-helpers';
+import { withoutServiceAccount } from '../../../owox-storage/without-service-account';
 import { DataStorageType } from '../../enums/data-storage-type.enum';
 import { BigQueryConfigSchema } from '../schemas/bigquery-config.schema';
 import {
@@ -13,6 +14,7 @@ import {
 } from '../../interfaces/data-storage-access-validator.interface';
 import { DataStorageConfig } from '../../data-storage-config.type';
 import { DataStorageCredentials } from '../../data-storage-credentials.type';
+import { isBigQueryManagedCredentials } from '../../data-storage-credentials.guards';
 import { BigQueryApiAdapter } from '../adapters/bigquery-api.adapter';
 
 const GOOGLE_OAUTH_REAUTH_MESSAGE =
@@ -67,6 +69,17 @@ export class BigQueryAccessValidator implements DataStorageAccessValidator {
     }
 
     const bigQueryConfig = configOpt.data;
+
+    if (isBigQueryManagedCredentials(credentials)) {
+      try {
+        await new BigQueryApiAdapter(credentials, bigQueryConfig).checkAccess();
+        return new ValidationResult(true);
+      } catch (error) {
+        const message = withoutServiceAccount(castError(error).message);
+        this.logger.warn(`Access validation failed: ${message}`);
+        return new ValidationResult(false, 'Access validation failed', { error: message });
+      }
+    }
 
     if ((credentials as BigQueryOAuthCredentials).type === BIGQUERY_OAUTH_TYPE) {
       const apiAdapter = new BigQueryApiAdapter(

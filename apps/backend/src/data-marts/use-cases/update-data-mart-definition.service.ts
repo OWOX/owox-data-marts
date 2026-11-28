@@ -5,7 +5,9 @@ import { BusinessViolationException } from '../../common/exceptions/business-vio
 import { OwoxEventDispatcher } from '../../common/event-dispatcher/owox-event-dispatcher';
 import { DataMartDefinitionValidatorFacade } from '../data-storage-types/facades/data-mart-definition-validator-facade.service';
 import { DataStorageType } from '../data-storage-types/enums/data-storage-type.enum';
+import { DataMartValidationCode } from '../data-storage-types/interfaces/data-mart-validator.interface';
 import { DataMartDto } from '../dto/domain/data-mart.dto';
+import { DataMart } from '../entities/data-mart.entity';
 import { UpdateDataMartDefinitionCommand } from '../dto/domain/update-data-mart-definition.command';
 import { ConnectorDefinition } from '../dto/schemas/data-mart-table-definitions/connector-definition.schema';
 import { SqlDefinition } from '../dto/schemas/data-mart-table-definitions/sql-definition.schema';
@@ -24,6 +26,7 @@ import { AccessDecisionService, EntityType, Action } from '../services/access-de
 import { AdvancedSearchIndexSyncService } from '../services/advanced-search-index-sync.service';
 import { SearchableEntityType } from '../../common/search/search.facade';
 import { ConnectorService } from '../services/connector/connector.service';
+import { ManagedStorageService } from '../owox-storage/managed-storage.service';
 import type { ConnectorCapabilities } from '../connector-types/connector-capabilities';
 import { DataMartSqlReferenceValidator } from '../services/data-mart-sql-reference-validator.service';
 import { selectionOf } from '../connector-types/custom-connector-credential-fit';
@@ -41,8 +44,6 @@ import {
   type SourceKeys,
 } from '../connector-types/source-key-fields';
 import { DATA_MART_ERROR_MESSAGES } from '../errors/data-mart-error-messages';
-import { DataMart } from '../entities/data-mart.entity';
-import { DataMartValidationCode } from '../data-storage-types/interfaces/data-mart-validator.interface';
 import { isValidBigQueryConnectorTableName } from '../data-storage-types/bigquery/utils/bigquery-validation.utils';
 import { isValidAthenaConnectorTableName } from '../data-storage-types/athena/utils/athena-validation.utils';
 
@@ -59,6 +60,7 @@ export class UpdateDataMartDefinitionService {
     private readonly connectorService: ConnectorService,
     private readonly sqlReferenceValidator: DataMartSqlReferenceValidator,
     private readonly sourceCredentials: SourceCredentialBindingService,
+    private readonly managedStorages: ManagedStorageService,
     private readonly advancedSearchIndexSync?: AdvancedSearchIndexSyncService
   ) {}
 
@@ -122,7 +124,7 @@ export class UpdateDataMartDefinitionService {
     if (command.definitionType === DataMartDefinitionType.CONNECTOR && command.definition) {
       dataMart.definition = await this.saveConnectorDefinition(
         command,
-        dataMart.id,
+        dataMart,
         command.definition as ConnectorDefinition,
         dataMart.definition as ConnectorDefinition | undefined
       );
@@ -139,8 +141,19 @@ export class UpdateDataMartDefinitionService {
     // SQL targets are checked here too. The editor's dry run is advisory — its result does not
     // gate Save, and API callers never run it at all — so exempting SQL would let an invalid
     // query silently replace a working table definition.
+    //
+    // On an OWOX Storage a same-type SQL save is refused only for a non-SELECT statement: any other
+    // dry-run error (such as a table the first connector run has not created yet) must not block it.
     if (definitionTypeChanged) {
       await this.definitionValidatorFacade.checkIsValid(dataMart);
+    } else if (
+      command.definitionType === DataMartDefinitionType.SQL &&
+      (await this.managedStorages.findByStorageId(dataMart.storage.id))
+    ) {
+      const result = await this.definitionValidatorFacade.validate(dataMart);
+      if (result.code === DataMartValidationCode.STATEMENT_NOT_ALLOWED) {
+        throw new BusinessViolationException(result.errorMessage!, result.details, result.code);
+      }
     }
 
     await this.dataMartService.save(dataMart);
@@ -263,10 +276,11 @@ export class UpdateDataMartDefinitionService {
   /** The definition to store: key values go to old rows or stay with the selected Credentials. */
   private async saveConnectorDefinition(
     command: UpdateDataMartDefinitionCommand,
-    dataMartId: string,
+    dataMart: DataMart,
     incoming: ConnectorDefinition,
     previous: ConnectorDefinition | undefined
   ): Promise<ConnectorDefinition> {
+    const dataMartId = dataMart.id;
     if (command.sourceDataMartId !== undefined || command.sourceConfigurationId !== undefined) {
       throw new BadRequestException(OUT_OF_DATE);
     }
@@ -306,6 +320,11 @@ export class UpdateDataMartDefinitionService {
       withLegacyKeys,
       previous
     );
+    // Runs on an OWOX Storage write only into its dataset, so every connector save is checked before any write.
+    if (await this.managedStorages.findByStorageId(dataMart.storage.id)) {
+      dataMart.definition = merged;
+      await this.definitionValidatorFacade.checkIsValid(dataMart);
+    }
     if (switchedConnector) await this.sourceCredentials.deactivateDataMart(dataMartId);
     const bound = await this.bindSourceCredentials(
       command,

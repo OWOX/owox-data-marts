@@ -91,6 +91,7 @@ import { GetCredentialSetupStatusTool } from './credential/get-credential-setup-
 import { ListStoragesTool } from './storage/list-storages.tool';
 import { GetStorageTool } from './storage/get-storage.tool';
 import { CreateStorageTool } from './storage/create-storage.tool';
+import { CreateOwoxStorageTool } from './storage/create-owox-storage.tool';
 import { UpdateStorageTool } from './storage/update-storage.tool';
 import { SetStorageAccessTool } from './storage/set-storage-access.tool';
 import { ValidateStorageAccessTool } from './storage/validate-storage-access.tool';
@@ -143,6 +144,7 @@ export const MCP_TOOL_PROVIDER_CLASSES: Array<Type<McpToolDefinition>> = [
   ListStoragesTool,
   GetStorageTool,
   CreateStorageTool,
+  CreateOwoxStorageTool,
   UpdateStorageTool,
   SetStorageAccessTool,
   ValidateStorageAccessTool,

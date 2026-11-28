@@ -106,17 +106,21 @@ vi.mock('../../../edit', async () => ({
     isOpen,
     onClose,
     promo,
+    newOwoxStorage,
   }: {
     isOpen: boolean;
     onClose: () => void;
     promo?: ReactNode;
+    newOwoxStorage?: boolean;
   }) => {
+    // Counts the edit sheet only; a new OWOX Storage opens its own sheet.
     useEffect(() => {
+      if (newOwoxStorage) return;
       mocks.mounts += 1;
       return () => {
         mocks.unmounts += 1;
       };
-    }, []);
+    }, [newOwoxStorage]);
     return isOpen ? (
       <div data-testid='sheet' data-has-promo={String(promo !== undefined)}>
         {promo}

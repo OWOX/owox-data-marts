@@ -1,0 +1,36 @@
+import { Injectable } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
+import { BusinessViolationException } from '../../common/exceptions/business-violation.exception';
+import {
+  IB_ENDPOINT_ENV_NAMES,
+  OwoxStorageSettings,
+  readOwoxStorageSettings,
+} from './owox-storage-settings';
+
+const ENV_NAMES = [
+  'OWOX_STORAGE_ENGINE',
+  ...IB_ENDPOINT_ENV_NAMES,
+  'OWOX_STORAGE_STORAGE_LIMIT_GIB',
+];
+
+@Injectable()
+export class OwoxStorageConfigService {
+  private readonly settings: OwoxStorageSettings | null;
+
+  constructor(configService: ConfigService) {
+    this.settings = readOwoxStorageSettings(
+      Object.fromEntries(ENV_NAMES.map(name => [name, configService.get(name)]))
+    );
+  }
+
+  isEnabled(): boolean {
+    return this.settings !== null;
+  }
+
+  getSettings(): OwoxStorageSettings {
+    if (!this.settings) {
+      throw new BusinessViolationException('OWOX Storage is not available on this deployment.');
+    }
+    return this.settings;
+  }
+}

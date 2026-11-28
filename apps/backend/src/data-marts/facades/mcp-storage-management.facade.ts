@@ -6,6 +6,7 @@ import type { StorageCredentialSummary } from '../data-storage-types/storage-cre
 import type { StorageResourceFilter } from '../data-storage-types/interfaces/storage-resource-browser.interface';
 import type { ListStorageResourcesDto } from '../dto/domain/list-storage-resources.dto';
 import type { ContextSummary } from '../utils/extract-context-summaries';
+import type { OwoxStorageLocation } from '../owox-storage/owox-storage-settings';
 
 export interface McpStorageDto {
   id: string;
@@ -19,6 +20,8 @@ export interface McpStorageDto {
   availableForMaintenance: boolean;
   createdAt: string;
   modifiedAt: string;
+  /** Set only for an OWOX Storage, which OWOX creates and manages. */
+  owoxStorage: { location: OwoxStorageLocation; datasetId: string } | null;
 }
 
 export interface McpListStoragesInput {
@@ -28,6 +31,10 @@ export interface McpListStoragesInput {
 }
 export interface McpCreateStorageInput {
   type: DataStorageType;
+  title?: string;
+}
+export interface McpCreateOwoxStorageInput {
+  location: OwoxStorageLocation;
   title?: string;
 }
 export interface McpUpdateStorageInput {
@@ -60,8 +67,13 @@ export interface McpStorageValidationDto {
 
 export type McpStorageSummary = Pick<
   McpStorageDto,
-  'id' | 'title' | 'type' | 'createdAt' | 'modifiedAt'
+  'id' | 'title' | 'type' | 'createdAt' | 'modifiedAt' | 'owoxStorage'
 >;
+
+/** Where an actor can create an OWOX Storage in the project. */
+export interface McpOwoxStorageOffer {
+  locations: OwoxStorageLocation[];
+}
 
 export const MCP_STORAGE_MANAGEMENT_FACADE = Symbol('MCP_STORAGE_MANAGEMENT_FACADE');
 
@@ -69,6 +81,10 @@ export interface McpStorageManagementFacade {
   list(actor: AuthorizationContext, input: McpListStoragesInput): Promise<McpStorageSummary[]>;
   get(actor: AuthorizationContext, id: string): Promise<McpStorageDto>;
   create(actor: AuthorizationContext, input: McpCreateStorageInput): Promise<McpStorageDto>;
+  createOwoxStorage(
+    actor: AuthorizationContext,
+    input: McpCreateOwoxStorageInput
+  ): Promise<McpStorageDto>;
   update(
     actor: AuthorizationContext,
     id: string,
@@ -86,4 +102,8 @@ export interface McpStorageManagementFacade {
     input: McpListStorageResourcesInput
   ): Promise<ListStorageResourcesDto>;
   delete(actor: AuthorizationContext, id: string): Promise<void>;
+  /** False on a deployment without OWOX Storage, such as a self-managed one. */
+  isOwoxStorageEnabled(): boolean;
+  /** Null when the deployment has no OWOX Storage, the actor is not an editor, or both locations are taken. */
+  getOwoxStorageOffer(actor: AuthorizationContext): Promise<McpOwoxStorageOffer | null>;
 }

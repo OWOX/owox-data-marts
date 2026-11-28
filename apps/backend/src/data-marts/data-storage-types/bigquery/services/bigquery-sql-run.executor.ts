@@ -39,7 +39,9 @@ export class BigQuerySqlRunExecutor implements SqlRunExecutor {
 
     let params: SqlParameter[] | undefined = options?.params;
     if (!sql) {
-      const built = await this.queryBuilder.buildQuery(definition);
+      const built = await this.queryBuilder.buildQuery(definition, {
+        storageProjectId: config.projectId,
+      });
       if (isQueryBuildResult(built)) {
         sql = built.sql;
         params = params ?? built.params;

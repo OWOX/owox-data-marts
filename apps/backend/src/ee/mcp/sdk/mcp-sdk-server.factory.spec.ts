@@ -216,6 +216,28 @@ describe('McpSdkServerFactory', () => {
     expect(mockRegisterTool.mock.calls.map(([name]) => name)).toEqual(names);
   });
 
+  it('leaves out a tool that is not available on this deployment', async () => {
+    const tool = (name: string, isAvailable?: () => boolean) =>
+      ({
+        name,
+        description: name,
+        zodSchema: {},
+        requiredScopes: ['mcp:read'],
+        isAvailable,
+        handler: jest.fn(),
+      }) as McpToolDefinition;
+    const McpSdkServerFactory = await loadFactory();
+    const factory = new McpSdkServerFactory(
+      new McpConfigService({ get: jest.fn() } as never),
+      new McpToolRegistry([tool('always'), tool('on', () => true), tool('off', () => false)]),
+      passthroughInstrumentation
+    );
+
+    factory.create(context);
+
+    expect(mockRegisterTool.mock.calls.map(([name]) => name)).toEqual(['always', 'on']);
+  });
+
   it('routes every tool callback through instrumentation.wrap (choke point)', async () => {
     const wrapped = jest.fn();
     const wrap = jest.fn((_name: string, _cb: unknown) => wrapped);

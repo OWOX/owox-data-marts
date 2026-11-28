@@ -1,3 +1,4 @@
+import { DataStorageType } from './enums/data-storage-type.enum';
 import { BigQueryConfig, BigQueryConfigSchema } from './bigquery/schemas/bigquery-config.schema';
 import { AthenaConfig, AthenaConfigSchema } from './athena/schemas/athena-config.schema';
 import {
@@ -12,6 +13,16 @@ import {
 
 export function isBigQueryConfig(config: unknown): config is BigQueryConfig {
   return BigQueryConfigSchema.safeParse(config).success;
+}
+
+/** The project of a BigQuery storage, where its two-part table names belong; undefined for another type. */
+export function bigQueryStorageProjectId(storage: {
+  type: DataStorageType;
+  config?: unknown;
+}): string | undefined {
+  if (storage.type !== DataStorageType.GOOGLE_BIGQUERY) return undefined;
+  const projectId = (storage.config as { projectId?: unknown } | null | undefined)?.projectId;
+  return typeof projectId === 'string' && projectId ? projectId : undefined;
 }
 
 export function isAthenaConfig(config: unknown): config is AthenaConfig {

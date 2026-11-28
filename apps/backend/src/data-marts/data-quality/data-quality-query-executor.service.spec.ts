@@ -138,7 +138,9 @@ describe('DataQualityQueryExecutorService', () => {
           {} as never,
           {} as never,
           {} as never,
-          new ConfigService({ DUCKDB_DATA_DIR: dir })
+          new ConfigService({ DUCKDB_DATA_DIR: dir }),
+          {} as never,
+          {} as never
         ),
         new SqlRunExecutorFacade({ resolve: async () => runExecutor } as never),
         { resolve: async () => ({ toStorageReadError: (error: unknown) => error }) } as never

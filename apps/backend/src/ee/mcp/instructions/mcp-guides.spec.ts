@@ -148,4 +148,30 @@ describe('MCP guides', () => {
     expect(MCP_GUIDES.custom_connectors).not.toContain('without saving');
     expect(MCP_GUIDES.custom_connectors).toContain('can change external data');
   });
+  it('keeps agents from changing or deleting an OWOX Storage', () => {
+    const guide = MCP_GUIDES.storages_destinations;
+    expect(guide).toContain('owox_storage');
+    expect(guide).toContain('delete_storage refuses an OWOX Storage');
+    expect(guide).toContain('SELECT queries only');
+  });
+
+  // Its jobs run in another project than its data, so a name without the project is not found.
+  it('tells agents to name each table of an OWOX Storage in full', () => {
+    expect(MCP_GUIDES.storages_destinations).toContain(
+      '`<project_id>.<dataset_id>.<table>`, with the projectId of its configuration'
+    );
+  });
+
+  it('tells agents not to name the warehouse behind an OWOX Storage', () => {
+    expect(MCP_GUIDES.storages_destinations).toContain(
+      'Call it an OWOX Storage, never a BigQuery Storage.'
+    );
+  });
+
+  it('offers OWOX Storage when the user has no usable Storage', () => {
+    for (const topic of ['data_mart_setup', 'storages_destinations'] as const) {
+      expect(MCP_GUIDES[topic]).toContain('owox_storage_offer');
+    }
+    expect(MCP_GUIDES.storages_destinations).toContain('call create_owox_storage');
+  });
 });

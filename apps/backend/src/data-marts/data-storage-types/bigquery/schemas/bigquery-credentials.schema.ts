@@ -23,4 +23,20 @@ export const BigQueryOAuthCredentialsSchema = z.object({
 
 export type BigQueryOAuthCredentials = z.infer<typeof BigQueryOAuthCredentialsSchema>;
 
-export type BigQueryCredentials = BigQueryServiceAccountCredentials | BigQueryOAuthCredentials;
+/** An OWOX Storage: queries run as its project's service account, impersonated from ODM's identity. */
+export const BIGQUERY_MANAGED_TYPE = 'bigquery_managed' as const;
+
+export interface BigQueryManagedCredentials {
+  type: typeof BIGQUERY_MANAGED_TYPE;
+  authClient: OAuth2Client;
+  serviceAccountEmail: string;
+  datasetId: string;
+  internalDatasetId: string;
+  /** Where the storage's jobs run; its datasets are in the storage config's projectId. */
+  processProjectId: string;
+}
+
+export type BigQueryCredentials =
+  | BigQueryServiceAccountCredentials
+  | BigQueryOAuthCredentials
+  | BigQueryManagedCredentials;

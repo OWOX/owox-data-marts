@@ -3,7 +3,6 @@ import { cn } from '@owox/ui/lib/utils';
 import { Pencil, Trash2 } from 'lucide-react';
 import { DataMartConnectorView } from '../../DataMartConnectorView';
 import type { ConnectorConfig, ConnectorDefinitionConfig } from '../../../../data-marts/edit/model';
-import { getStorageDisplayName } from './connector-definition.helpers';
 import { getSourceFlowParams, getStorageFlowParams } from './connector-flow.utils';
 import { useSheetTabUrl } from '../../../shared/model/hooks/useSheetTabUrl';
 import { DataFlowNode } from './DataFlow/DataFlowNode';
@@ -79,7 +78,8 @@ export function ConnectorConfigurationItem({
   }, [bundledTitle, connectors.length, sourceName]);
   const sourceConnector = bundledConnector ?? customConnector;
 
-  const StorageIcon = DataStorageTypeModel.getInfo(dataStorage.type).icon;
+  const { displayName: storageName, icon: StorageIcon } =
+    DataStorageTypeModel.getStorageInfo(dataStorage);
   const sheetTab = useSheetTabUrl(connectorDef, configIndex);
   const sourceParams = getSourceFlowParams(connectorDef, configIndex, sheetTab);
   const storageParams = getStorageFlowParams(
@@ -157,7 +157,7 @@ export function ConnectorConfigurationItem({
             showRole={showRoleHeadings}
             roleAddon={storageParams.hint ? <InfoHint text={storageParams.hint} /> : null}
             icon={<StorageIcon size={28} />}
-            title={getStorageDisplayName(dataStorage.type)}
+            title={storageName}
           >
             <DataFlowParams primary={storageParams.primary} secondary={storageParams.secondary} />
           </DataFlowNode>
@@ -179,6 +179,7 @@ export function ConnectorConfigurationItem({
 
       <DataMartConnectorView
         dataStorageType={dataStorage.type}
+        fixedDatasetName={dataStorage.owoxStorage?.datasetId}
         onSubmit={onUpdateConfiguration(configIndex)}
         configurationOnly={true}
         isOpen={isEditOpen}

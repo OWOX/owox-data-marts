@@ -2,7 +2,11 @@ import { BigQuery, Job, Query, Table, TableSchema } from '@google-cloud/bigquery
 import { Logger } from '@nestjs/common';
 import { JWT, OAuth2Client } from 'google-auth-library';
 import { BIGQUERY_AUTODETECT_LOCATION, BigQueryConfig } from '../schemas/bigquery-config.schema';
-import { BIGQUERY_OAUTH_TYPE, BigQueryCredentials } from '../schemas/bigquery-credentials.schema';
+import {
+  BIGQUERY_MANAGED_TYPE,
+  BIGQUERY_OAUTH_TYPE,
+  BigQueryCredentials,
+} from '../schemas/bigquery-credentials.schema';
 import type { SqlParameter } from '../../utils/sql-clause-renderer';
 import {
   isValidBigQueryDatasetId,
@@ -12,6 +16,16 @@ import {
   GBQ_SHARD_SUFFIX_MAX_DIGITS,
   GBQ_SHARD_SUFFIX_MIN_DIGITS,
 } from '../services/bigquery-sharded-tables.util';
+import {
+  OwoxStorageQueryLimitException,
+  OwoxStorageStatementException,
+} from '../../../owox-storage/owox-storage.exceptions';
+import { withoutServiceAccount } from '../../../owox-storage/without-service-account';
+
+// Google words a refusal by the per-user or the project query-usage quota this way; rate and
+// concurrency limits share the reason but not the words.
+const isDailyQuotaRefusal = (reason?: string, message?: string) =>
+  reason === 'quotaExceeded' && /custom quota exceeded/i.test(message ?? '');
 
 /** Fully-qualified BigQuery table coordinates, as returned by a dry run's `referencedTables`. */
 export interface BigQueryTableReference {
@@ -29,9 +43,12 @@ function toDateOrNull(value: unknown): Date | null {
   return Number.isNaN(parsed.getTime()) ? null : parsed;
 }
 
+/** The access check's query. */
+const ACCESS_CHECK_QUERY = 'SELECT 1';
+
 /**
  * Adapter for BigQuery API operations.
- * Accepts either Service Account credentials or pre-resolved OAuth credentials.
+ * Accepts Service Account credentials, pre-resolved OAuth credentials or OWOX Storage credentials.
  *
  * Resource-listing (namespaces / tables) is handled by the dedicated
  * {@link BigQueryStorageResourceBrowser} service; this adapter focuses on
@@ -48,25 +65,42 @@ export class BigQueryApiAdapter {
   private readonly logger = new Logger(BigQueryApiAdapter.name);
   private readonly bigQuery: BigQuery;
   private readonly authClient: JWT | OAuth2Client;
+  /** An OWOX Storage runs SELECT only; Google's quotas cap its daily queries. */
+  private readonly owoxStorage: boolean;
+  /** An OWOX Storage: the project of its jobs and the project of its datasets. */
+  private readonly owoxStorageProjects?: { process: string; datasets: string };
   private location?: string;
 
   constructor(credentials: BigQueryCredentials, config: BigQueryConfig) {
     const auth =
-      credentials.type === BIGQUERY_OAUTH_TYPE
-        ? credentials.oauth2Client
-        : new JWT({
-            email: credentials.client_email,
-            key: credentials.private_key,
-            scopes: [
-              'https://www.googleapis.com/auth/bigquery',
-              'https://www.googleapis.com/auth/drive.readonly',
-            ],
-          });
+      credentials.type === BIGQUERY_MANAGED_TYPE
+        ? credentials.authClient
+        : credentials.type === BIGQUERY_OAUTH_TYPE
+          ? credentials.oauth2Client
+          : new JWT({
+              email: credentials.client_email,
+              key: credentials.private_key,
+              scopes: [
+                'https://www.googleapis.com/auth/bigquery',
+                'https://www.googleapis.com/auth/drive.readonly',
+              ],
+            });
 
     this.authClient = auth;
+    this.owoxStorage = credentials.type === BIGQUERY_MANAGED_TYPE;
+    if (credentials.type === BIGQUERY_MANAGED_TYPE) {
+      this.owoxStorageProjects = {
+        process: credentials.processProjectId,
+        datasets: config.projectId,
+      };
+    }
     const shouldAutodetectLocation = config.location === BIGQUERY_AUTODETECT_LOCATION;
     this.bigQuery = new BigQuery({
-      projectId: config.projectId,
+      // The jobs of an OWOX Storage run in its process project; table names carry config.projectId.
+      projectId:
+        credentials.type === BIGQUERY_MANAGED_TYPE
+          ? credentials.processProjectId
+          : config.projectId,
       authClient: auth,
       ...(shouldAutodetectLocation ? {} : { location: config.location }),
     });
@@ -104,6 +138,8 @@ export class BigQueryApiAdapter {
    * `jobTimeoutMs` (already in ms) caps warehouse cost by aborting the job server-side; unset = no change.
    * `signal` (client disconnect/cancel) cancels the running job immediately — the poll loop then
    * surfaces the cancellation as a thrown error. Unset = no cancellation hook.
+   *
+   * On an OWOX Storage the query is dry-run first and refused unless it is a single SELECT.
    */
   public async executeQuery(
     query: string,
@@ -111,6 +147,11 @@ export class BigQueryApiAdapter {
     jobTimeoutMs?: number,
     signal?: AbortSignal
   ): Promise<{ jobId: string }> {
+    if (this.owoxStorage) {
+      const { statementType } = await this.executeDryRunQuery(query, params);
+      if (statementType !== 'SELECT') throw new OwoxStorageStatementException(statementType);
+    }
+
     const queryConfig: Query = {
       query,
       ...this.getLocationOption(),
@@ -120,8 +161,57 @@ export class BigQueryApiAdapter {
       queryConfig.params = Object.fromEntries(params.map(p => [p.name, p.value]));
       queryConfig.parameterMode = 'NAMED';
     }
+    return this.runJob(queryConfig, signal);
+  }
 
-    const [job] = await this.bigQuery.createQueryJob(queryConfig);
+  /** Runs ODM's own view DDL: an OWOX Storage skips the SELECT check. */
+  public async executeViewDdl(ddl: string): Promise<void> {
+    await this.runJob({
+      query: ddl,
+      ...this.getLocationOption(),
+    });
+  }
+
+  /** Creates a query job; on an OWOX Storage, Google's daily quota refusal gets the OWOX message. */
+  private async createJob(queryConfig: Query): Promise<Job> {
+    try {
+      const [job] = await this.bigQuery.createQueryJob(queryConfig);
+      return job;
+    } catch (error) {
+      const { errors, message } = error as {
+        errors?: { reason?: string; message?: string }[];
+        message?: string;
+      };
+      if (this.owoxStorage && isDailyQuotaRefusal(errors?.[0]?.reason, message)) {
+        throw new OwoxStorageQueryLimitException();
+      }
+      // A refused job creation, and so every dry run, can name the account too.
+      if (this.owoxStorage && error instanceof Error) {
+        error.message = this.forOwoxStorage(error.message);
+        if (error.stack) error.stack = withoutServiceAccount(error.stack);
+        for (const item of errors ?? []) {
+          if (typeof item.message === 'string') item.message = this.forOwoxStorage(item.message);
+        }
+      }
+      throw error;
+    }
+  }
+
+  /**
+   * The text of a Google error on an OWOX Storage: without the account email. A two-part table name
+   * is looked up in the process project, which the user never sees: the error then gives the rule.
+   */
+  private forOwoxStorage(message: string): string {
+    const missing = /^Not found: Dataset ([^:\s]+):(\S+) was not found/.exec(message);
+    const projects = this.owoxStorageProjects;
+    if (projects && missing?.[1] === projects.process) {
+      return `Dataset ${missing[2]} was not found. On an OWOX Storage, write each table name in full: ${projects.datasets}.${missing[2]}.<table>.`;
+    }
+    return withoutServiceAccount(message);
+  }
+
+  private async runJob(queryConfig: Query, signal?: AbortSignal): Promise<{ jobId: string }> {
+    const job = await this.createJob(queryConfig);
 
     // Best-effort warehouse cancel: on abort, ask BigQuery to cancel the job. The poll loop below
     // then sees the job finish (cancelled) and throws, so we stop billing compute for a gone client.
@@ -161,9 +251,12 @@ export class BigQueryApiAdapter {
       if (metadata?.status?.state === 'DONE') {
         const errorResult = metadata.status.errorResult;
         if (errorResult) {
-          throw new Error(
-            errorResult.message ?? 'BigQuery query job failed without an error message'
-          );
+          if (this.owoxStorage && isDailyQuotaRefusal(errorResult.reason, errorResult.message)) {
+            throw new OwoxStorageQueryLimitException();
+          }
+          const message =
+            errorResult.message ?? 'BigQuery query job failed without an error message';
+          throw new Error(this.owoxStorage ? this.forOwoxStorage(message) : message);
         }
         return;
       }
@@ -211,6 +304,7 @@ export class BigQueryApiAdapter {
     schema?: TableSchema;
     location?: string;
     referencedTables: BigQueryTableReference[];
+    statementType: string;
   }> {
     const queryConfig: Query = {
       query,
@@ -222,13 +316,14 @@ export class BigQueryApiAdapter {
       queryConfig.parameterMode = 'NAMED';
     }
 
-    const [job] = await this.bigQuery.createQueryJob(queryConfig);
+    const job = await this.createJob(queryConfig);
     this.setLocationFromJob(job);
     return {
       totalBytesProcessed: Number(job.metadata.statistics.totalBytesProcessed),
       schema: job.metadata.statistics.query.schema ?? undefined,
       location: this.location,
       referencedTables: this.parseReferencedTables(job.metadata.statistics.query.referencedTables),
+      statementType: job.metadata.statistics.query.statementType,
     };
   }
 
@@ -347,7 +442,7 @@ export class BigQueryApiAdapter {
    */
   public async checkAccess(): Promise<void> {
     try {
-      const [, , res] = await this.bigQuery.query('SELECT 1', this.getLocationOption());
+      const [, , res] = await this.bigQuery.query(ACCESS_CHECK_QUERY, this.getLocationOption());
       this.setLocationFromJobReference(res?.jobReference?.location);
     } catch (e) {
       throw new Error(`BigQuery access error: ${e instanceof Error ? e.message : String(e)}`);

@@ -188,6 +188,7 @@ export default class Serve extends BaseCommand {
       configureTrustProxy,
       createHealthProbe,
       isDuckDbStorageEnabled,
+      isOwoxStorageEnabled,
       registerPluginCollectionsBodyParser,
     } = await import('@owox/backend');
 
@@ -217,6 +218,8 @@ export default class Serve extends BaseCommand {
     expressApp.set('idp', idpProvider);
     currentIdp = idpProvider;
 
+    // Computed before routing so a partial OWOX Storage configuration fails startup, not the flags call.
+    const owoxStorageEnabled = String(isOwoxStorageEnabled(process.env));
     // Register public route to expose whitelisted flags
     registerPublicFlagsRoute(expressApp, {
       computed: {
@@ -227,6 +230,7 @@ export default class Serve extends BaseCommand {
               DUCKDB_STORAGE_ENABLED: process.env.DUCKDB_STORAGE_ENABLED,
             })
           ),
+        OWOX_STORAGE_ENABLED: () => owoxStorageEnabled,
       },
     });
 

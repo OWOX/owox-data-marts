@@ -267,10 +267,7 @@ describe('RunDataQualityService', () => {
         id: 'storage-1',
         type: DataStorageType.GOOGLE_BIGQUERY,
       },
-      liveStorage: {
-        id: 'storage-1',
-        type: DataStorageType.GOOGLE_BIGQUERY,
-      },
+      liveStorage: dataMart.storage,
     });
     expect(compiler.compile).toHaveBeenCalledWith(
       expect.objectContaining({ resolveSourceQuery: expect.any(Function) })

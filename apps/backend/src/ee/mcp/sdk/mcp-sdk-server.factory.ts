@@ -61,6 +61,7 @@ export class McpSdkServerFactory {
     const chatgpt = mcpContext.integration === 'chatgpt';
     for (const tool of this.toolRegistry.getTools()) {
       if (tool.chatgpt === (chatgpt ? 'hidden' : 'only')) continue;
+      if (tool.isAvailable?.() === false) continue;
       const wrapped = this.instrumentation.wrap(tool.name, async (input, ctx) => {
         this.assertScopes(mcpContext, tool.requiredScopes);
         this.assertRole(mcpContext, tool.requiredRole);

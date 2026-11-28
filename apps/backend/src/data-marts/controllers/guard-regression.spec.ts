@@ -131,12 +131,23 @@ describe('DataStorage controller — editor guards unchanged', () => {
   const source = readController('data-storage.controller.ts');
   const decorators = extractAuthDecorators(source);
 
-  const mustBeEditor = ['create', 'update', 'delete'];
+  const mustBeEditor = [
+    'create',
+    'update',
+    'delete',
+    'createOwoxStorage',
+    'deleteOwoxStorageTable',
+    'restoreOwoxStorage',
+  ];
 
   it.each(mustBeEditor)('%s should require editor role', methodName => {
     const entry = decorators.find(d => d.method === methodName);
     expect(entry).toBeDefined();
     expect(entry!.role).toBe('editor');
+  });
+
+  it('lets a viewer read the OWOX Storage usage', () => {
+    expect(decorators.find(d => d.method === 'getOwoxStorageUsage')?.role).toBe('viewer');
   });
 });
 

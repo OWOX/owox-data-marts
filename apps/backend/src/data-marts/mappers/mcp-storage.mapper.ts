@@ -17,6 +17,7 @@ import type {
 } from '../facades/mcp-storage-management.facade';
 import { UpdateDataStorageCommand } from '../dto/domain/update-data-storage.command';
 import type { StorageCredentialSummary } from '../data-storage-types/storage-credential-state';
+import type { ManagedStorage } from '../entities/managed-storage.entity';
 import {
   ValidationResultCode,
   type ValidationResult,
@@ -41,19 +42,22 @@ const configSchemas: Record<
   [DataStorageType.DUCKDB]: null,
 };
 
+type OwoxStorageRecord = Pick<ManagedStorage, 'location' | 'datasetId'>;
+
 @Injectable()
 export class McpStorageMapper {
-  toSummary(dto: DataStorageDto) {
+  toSummary(dto: DataStorageDto, managed: OwoxStorageRecord | undefined) {
     return {
       id: dto.id,
       title: dto.title,
       type: dto.type,
       createdAt: dto.createdAt.toISOString(),
       modifiedAt: dto.modifiedAt.toISOString(),
+      owoxStorage: this.toOwoxStorage(managed),
     };
   }
 
-  toStorage(dto: DataStorageDto): McpStorageDto {
+  toStorage(dto: DataStorageDto, managed: OwoxStorageRecord | null): McpStorageDto {
     return {
       id: dto.id,
       title: dto.title,
@@ -74,7 +78,12 @@ export class McpStorageMapper {
       availableForMaintenance: dto.availableForMaintenance,
       createdAt: dto.createdAt.toISOString(),
       modifiedAt: dto.modifiedAt.toISOString(),
+      owoxStorage: this.toOwoxStorage(managed),
     };
+  }
+
+  private toOwoxStorage(managed: OwoxStorageRecord | null | undefined) {
+    return managed ? { location: managed.location, datasetId: managed.datasetId } : null;
   }
 
   toUpdateCommand(

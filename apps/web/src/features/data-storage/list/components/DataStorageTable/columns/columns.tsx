@@ -6,6 +6,7 @@ import {
   type StorageCredentialSummary,
 } from '../../../../shared';
 import { CredentialStateMark } from '../../../../../credentials';
+import type { OwoxStorageDto } from '../../../../shared/api/types/response/data-storage.response.dto';
 import { DataStorageTypeModel } from '../../../../shared/types/data-storage-type.model';
 import { DataStorageActionsCell } from '../DataStorageActionsCell';
 import { DataStorageColumnKey } from './columnKeys';
@@ -20,6 +21,7 @@ export interface DataStorageTableItem {
   id: string;
   title: string;
   type: DataStorageType;
+  owoxStorage?: OwoxStorageDto;
   createdAt: Date;
   modifiedAt: Date;
   publishedDataMartsCount: number;
@@ -99,7 +101,10 @@ export const getDataStorageColumns = ({
     ),
     cell: ({ row }) => {
       const type = row.getValue<DataStorageType>(DataStorageColumnKey.TYPE);
-      const { displayName, icon: Icon } = DataStorageTypeModel.getInfo(type);
+      const { displayName, icon: Icon } = DataStorageTypeModel.getStorageInfo({
+        type,
+        owoxStorage: row.original.owoxStorage,
+      });
 
       return (
         <div className='text-muted-foreground flex items-center gap-2'>

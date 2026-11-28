@@ -17,6 +17,8 @@ export interface StorageResourceNode {
   id: string;
   /** Human-friendly name when it differs from the id (e.g. GBQ project friendlyName). */
   label?: string;
+  /** Shown instead of the id. Fully qualified names keep the id. */
+  displayName?: string;
 }
 
 export interface StorageResourceLeaf extends StorageResourceNode {

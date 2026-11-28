@@ -61,6 +61,41 @@ describe('BigQueryQueryBuilder', () => {
       const sql = await builder.buildQuery(sqlDefinition('SELECT a, b FROM t'));
       expect(sql).toBe('SELECT a, b FROM t');
     });
+
+    // An OWOX Storage runs its jobs in another project than its datasets.
+    it('adds the storage project to a two-part connector table', async () => {
+      const sql = await builder.buildQuery(connectorDefinition('owox_eu_0123456789ab.holidays'), {
+        storageProjectId: 'owox-p-storage-001',
+      });
+      expect(sql).toBe('SELECT *\nFROM `owox-p-storage-001`.`owox_eu_0123456789ab`.`holidays`');
+    });
+
+    // A domain-scoped project id has a dot, so it must stay one quoted part.
+    it('keeps a domain-scoped storage project in one part', async () => {
+      const sql = await builder.buildQuery(connectorDefinition('ds.tbl'), {
+        storageProjectId: 'example.com:proj',
+      });
+      expect(sql).toBe('SELECT *\nFROM `example.com:proj`.`ds`.`tbl`');
+    });
+
+    it('adds the storage project to a two-part connector table with output controls', async () => {
+      const built = await builder.buildQuery(connectorDefinition('ds.tbl'), {
+        storageProjectId: 'owox-p-storage-001',
+        limit: 5,
+      });
+      expect(typeof built === 'string' ? built : built.sql).toContain(
+        'FROM `owox-p-storage-001`.`ds`.`tbl` AS src'
+      );
+    });
+
+    it('keeps a three-part connector table and a two-part one without a storage project', async () => {
+      const qualified = await builder.buildQuery(connectorDefinition('proj.ds.tbl'), {
+        storageProjectId: 'other',
+      });
+      const bare = await builder.buildQuery(connectorDefinition('ds.tbl'));
+      expect(qualified).toBe('SELECT *\nFROM `proj`.`ds`.`tbl`');
+      expect(bare).toBe('SELECT *\nFROM `ds`.`tbl`');
+    });
   });
 
   describe('buildQuery with columns filter', () => {
