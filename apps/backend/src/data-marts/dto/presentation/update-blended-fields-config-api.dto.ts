@@ -25,13 +25,15 @@ const PATH_MESSAGE = `path must be a dot-separated chain where each segment ${AL
 
 export class BlendedFieldOverrideApiDto {
   @ApiPropertyOptional({
+    type: String,
+    nullable: true,
     description: 'Optional custom alias shown in reports for this blended field.',
   })
   @IsOptional()
   @IsString()
   @MinLength(1)
   @MaxLength(255)
-  alias?: string;
+  alias?: string | null;
 
   @ApiPropertyOptional()
   @IsOptional()
@@ -63,14 +65,17 @@ export class BlendedSourceApiDto {
   @Matches(ALIAS_PATH_REGEX, { message: PATH_MESSAGE })
   path: string;
 
-  @ApiProperty({
+  @ApiPropertyOptional({
+    type: String,
+    nullable: true,
     description: 'Display label shown in report column headers.',
     example: 'Orders',
   })
+  @IsOptional()
   @IsString()
   @MinLength(1)
   @MaxLength(255)
-  alias: string;
+  alias?: string | null;
 
   @ApiPropertyOptional()
   @IsOptional()

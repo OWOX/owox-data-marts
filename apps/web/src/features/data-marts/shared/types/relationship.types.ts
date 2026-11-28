@@ -284,7 +284,7 @@ export interface BlendedFieldOverride {
 
 export interface BlendedSource {
   path: string;
-  alias: string;
+  alias?: string;
   isExcluded?: boolean;
   /**
    * Per-join override of the relationship description. Absent → this join inherits the

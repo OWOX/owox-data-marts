@@ -310,7 +310,7 @@ describe('RelationshipDetailsSheet', () => {
     await waitFor(() => {
       expect(dataMartRelationshipService.updateBlendedFieldsConfig).toHaveBeenCalledWith(
         'orders',
-        { sources: [{ path: 'customers', alias: 'customers', isExcluded: true }] },
+        { sources: [{ path: 'customers', isExcluded: true }] },
         expect.anything()
       );
     });
@@ -356,7 +356,7 @@ describe('RelationshipDetailsSheet', () => {
         {
           sources: [
             { path: 'products', alias: 'prod', fields: { sku: { isHidden: true } } },
-            { path: 'customers', alias: 'customers', isExcluded: true },
+            { path: 'customers', isExcluded: true },
           ],
         },
         expect.anything()
@@ -398,9 +398,7 @@ describe('RelationshipDetailsSheet', () => {
     expect(dataMartRelationshipService.updateBlendedFieldsConfig).toHaveBeenCalledTimes(1);
 
     resolveFirstSave(
-      sourceDataMart([
-        { path: 'customers', alias: 'customers', isExcluded: true },
-      ]) as unknown as UpdateConfigResult
+      sourceDataMart([{ path: 'customers', isExcluded: true }]) as unknown as UpdateConfigResult
     );
     await waitFor(() => {
       expect(dataMartRelationshipService.updateBlendedFieldsConfig).toHaveBeenCalledTimes(2);
@@ -409,8 +407,8 @@ describe('RelationshipDetailsSheet', () => {
       'orders',
       {
         sources: [
-          { path: 'customers', alias: 'customers', isExcluded: true },
-          { path: 'products', alias: 'products', isExcluded: true },
+          { path: 'customers', isExcluded: true },
+          { path: 'products', isExcluded: true },
         ],
       },
       expect.anything()
@@ -459,9 +457,7 @@ describe('RelationshipDetailsSheet', () => {
     expect(dataMartRelationshipService.updateBlendedFieldsConfig).toHaveBeenCalledTimes(1);
 
     resolveFirstSave(
-      sourceDataMart([
-        { path: 'customers', alias: 'customers', isExcluded: true },
-      ]) as unknown as UpdateConfigResult
+      sourceDataMart([{ path: 'customers', isExcluded: true }]) as unknown as UpdateConfigResult
     );
     await waitFor(() => {
       expect(dataMartRelationshipService.updateBlendedFieldsConfig).toHaveBeenCalledTimes(2);
@@ -470,8 +466,8 @@ describe('RelationshipDetailsSheet', () => {
       'orders',
       {
         sources: [
-          { path: 'customers', alias: 'customers', isExcluded: true },
-          { path: 'products', alias: 'products', isExcluded: true },
+          { path: 'customers', isExcluded: true },
+          { path: 'products', isExcluded: true },
         ],
       },
       expect.anything()

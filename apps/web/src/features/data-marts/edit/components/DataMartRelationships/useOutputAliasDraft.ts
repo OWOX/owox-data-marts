@@ -14,44 +14,42 @@ export interface OutputAliasDraft {
  * The editable Output Alias of a joined Data Mart: typed text saves after a pause or on blur.
  * Owned by the component that outlives the Report Fields tab (the accordion row, the details
  * sheet), so switching tabs or collapsing the row does not drop a pending save.
- *
- * @param fallbackAlias shown while `source` is null (join conditions not configured yet) —
- * matches the value the relationship creator persisted.
  */
 export function useOutputAliasDraft(
   source: SourceEntry | null,
   fallbackAlias: string,
   onAliasChange: (source: SourceEntry, alias: string) => void
 ): OutputAliasDraft {
-  const savedValue = source?.alias ?? fallbackAlias;
+  const savedAlias = source?.alias ?? '';
+  const savedValue = savedAlias || fallbackAlias;
   const [localAlias, setLocalAlias] = useState(savedValue);
   const debouncedAlias = useDebounce(localAlias, 500);
-  const lastSavedAlias = useRef(savedValue);
+  const lastSavedAlias = useRef(savedAlias);
   const isDirtyRef = useRef(false);
 
   useEffect(() => {
     setLocalAlias(savedValue);
-    lastSavedAlias.current = savedValue;
+    lastSavedAlias.current = savedAlias;
     isDirtyRef.current = false;
-  }, [savedValue]);
+  }, [savedAlias, savedValue]);
 
   useEffect(() => {
     if (!source) return;
-    if (!isDirtyRef.current) return;
+    if (!isDirtyRef.current || debouncedAlias !== localAlias) return;
     if (debouncedAlias !== lastSavedAlias.current) {
       onAliasChange(source, debouncedAlias);
       lastSavedAlias.current = debouncedAlias;
       isDirtyRef.current = false;
     }
-  }, [debouncedAlias, source, onAliasChange]);
+  }, [debouncedAlias, localAlias, source, onAliasChange]);
 
   const saveNow = () => {
-    if (!source) return;
+    if (!source || !isDirtyRef.current) return;
     if (localAlias !== lastSavedAlias.current) {
       onAliasChange(source, localAlias);
       lastSavedAlias.current = localAlias;
-      isDirtyRef.current = false;
     }
+    isDirtyRef.current = false;
   };
 
   // Closing the panel, or the row unmounting, inside the typing pause would otherwise drop the
@@ -74,6 +72,9 @@ export function useOutputAliasDraft(
       setLocalAlias(next);
       isDirtyRef.current = true;
     },
-    onBlur: saveNow,
+    onBlur: () => {
+      saveNow();
+      if (localAlias === '') setLocalAlias(fallbackAlias);
+    },
   };
 }

@@ -8,7 +8,7 @@ import { dataMartTargetSchema } from './data-mart-model.schemas';
 const field = BlendedFieldOverrideSchema.shape;
 const fieldSettings = z.strictObject({
   alias: field.alias.describe(
-    'Label for this field on this path. By default, reports use the native field alias or name.'
+    'Optional field label for this join path. Omit it to use the native field alias. If the field has no native alias, reports use its name.'
   ),
   isHidden: field.isHidden.describe('Set to true to hide this field in the report column picker.'),
   aggregateFunction: field.aggregateFunction.describe(
@@ -27,7 +27,7 @@ const sourceSettings = z.strictObject({
   alias: source.alias.meta({
     title: 'Output Alias',
     description:
-      'Output Alias for this joined source in report column labels. The default is the target Data Mart title.',
+      'Optional Output Alias for this join. Omit it to use the joined Data Mart title in report column labels.',
   }),
   isExcluded: source.isExcluded.describe(
     'Set to true to turn off "Allow for reporting" for this join.'

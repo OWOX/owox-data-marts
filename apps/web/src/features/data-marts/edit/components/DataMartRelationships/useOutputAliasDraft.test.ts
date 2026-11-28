@@ -16,6 +16,56 @@ const source: SourceEntry = {
 };
 
 describe('useOutputAliasDraft', () => {
+  it('saves the inherited title as an Output Alias only when the user enters it', () => {
+    const onAliasChange = vi.fn();
+    const { result, rerender, unmount } = renderHook(
+      ({ title }) =>
+        useOutputAliasDraft({ ...source, alias: undefined, title }, title, onAliasChange),
+      { initialProps: { title: 'Customers' } }
+    );
+    expect(result.current).toMatchObject({
+      value: 'Customers',
+      savedValue: 'Customers',
+    });
+    rerender({ title: 'Partners' });
+    expect(result.current).toMatchObject({
+      value: 'Partners',
+      savedValue: 'Partners',
+    });
+    act(() => {
+      result.current.onBlur();
+    });
+    expect(onAliasChange).not.toHaveBeenCalled();
+    act(() => {
+      result.current.onChange('Partners');
+    });
+    act(() => {
+      result.current.onBlur();
+    });
+    unmount();
+    expect(onAliasChange).toHaveBeenCalledOnce();
+    expect(onAliasChange).toHaveBeenCalledWith(
+      expect.objectContaining({ aliasPath: 'customers' }),
+      'Partners'
+    );
+  });
+
+  it.each([undefined, 'Customers'])('shows the target title after clearing the alias %p', alias => {
+    const onAliasChange = vi.fn();
+    const { result, unmount } = renderHook(() =>
+      useOutputAliasDraft({ ...source, alias }, 'Customers', onAliasChange)
+    );
+    act(() => {
+      result.current.onChange('');
+    });
+    act(() => {
+      result.current.onBlur();
+    });
+    expect(result.current.value).toBe('Customers');
+    unmount();
+    expect(onAliasChange.mock.calls.map(([, value]) => value)).toEqual(alias ? [''] : []);
+  });
+
   it('saves a rename still waiting for its typing pause when it unmounts', () => {
     const onAliasChange = vi.fn();
     const { result, unmount } = renderHook(() =>

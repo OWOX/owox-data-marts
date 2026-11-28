@@ -331,7 +331,6 @@ function RelationshipDetailsBody({
                   // stored by alias path and takes effect once the join is configured.
                   details.onHideForReportingChange(
                     source?.aliasPath ?? details.aliasPath ?? relationship.targetAlias,
-                    source?.alias ?? relationship.targetAlias,
                     !checked
                   );
                 }}
