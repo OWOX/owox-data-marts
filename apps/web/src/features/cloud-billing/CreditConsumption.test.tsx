@@ -146,6 +146,10 @@ describe('Credits consumption by license', () => {
       }
     );
 
+    expect(screen.getByRole('link', { name: 'Credit consumption help' })).toHaveAttribute(
+      'href',
+      'https://docs.owox.com/docs/getting-started/billing/consumption-units/'
+    );
     fireEvent.click(await screen.findByRole('button', { name: 'Google Sheets Report Run' }));
     const europe = within(screen.getByRole('region', { name: 'Europe deployment' }));
     const us = within(screen.getByRole('region', { name: 'US deployment' }));

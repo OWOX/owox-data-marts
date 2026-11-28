@@ -1,5 +1,5 @@
 import { useId, useMemo, useState } from 'react';
-import { CalendarDays, ChevronDown, Gem } from 'lucide-react';
+import { CalendarDays, ChevronDown, ExternalLink, Gem } from 'lucide-react';
 import { Button } from '@owox/ui/components/button';
 import { createColumnHelper, getCoreRowModel, useReactTable } from '@tanstack/react-table';
 import { CardAction, CardContent, CardHeader, CardTitle } from '@owox/ui/components/card';
@@ -24,6 +24,8 @@ import {
   AccordionTrigger,
 } from '@owox/ui/components/accordion';
 import { BaseTable } from '../../shared/components/Table/BaseTable';
+import { Tooltip, TooltipContent, TooltipTrigger } from '@owox/ui/components/tooltip';
+import { appHelpLinks } from '../../shared/constants/app-help-links';
 import { BillingLoadState } from './BillingLoadState';
 import { formatDateShort } from '../../utils/date-formatters';
 import { ConsumptionDetails } from './ConsumptionDetails';
@@ -169,10 +171,25 @@ export function CreditConsumption({ origin }: { origin: string }) {
   return (
     <div className='flex flex-col gap-4'>
       <div className='dm-card flex flex-col gap-4'>
-        <CardHeader className='px-0'>
+        <CardHeader className='flex items-center gap-1 px-0'>
           <CardTitle role='heading' aria-level={2}>
             Credit balance
           </CardTitle>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button asChild variant='ghost' size='icon-sm' className='text-muted-foreground'>
+                <a
+                  href={appHelpLinks.creditConsumption}
+                  target='_blank'
+                  rel='noopener noreferrer'
+                  aria-label='Credit consumption help'
+                >
+                  <ExternalLink aria-hidden='true' />
+                </a>
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent>Credit consumption help</TooltipContent>
+          </Tooltip>
         </CardHeader>
         <CardContent className='px-0'>
           {balance.data ? (

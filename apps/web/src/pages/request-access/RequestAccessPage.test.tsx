@@ -95,6 +95,9 @@ describe('RequestAccessPage', () => {
     expect(screen.getByText('Business User')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /Create new project/ })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /Request access/ })).toBeInTheDocument();
+    expect(
+      screen.getByRole('link', { name: 'Learn how project access requests work' })
+    ).toHaveAttribute('href', 'https://docs.owox.com/docs/project/members/#manual-provisioning');
     expect(screen.queryByText('Request access to existing project')).not.toBeInTheDocument();
   });
 

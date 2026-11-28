@@ -1,4 +1,5 @@
-import { CircleUserRound, LogOut, Monitor, Moon, Sun } from 'lucide-react';
+import { CircleUserRound, FileText, LogOut, Monitor, Moon, Shield, Sun } from 'lucide-react';
+import { appHelpLinks } from '../../../shared/constants/app-help-links';
 import type { UserMenuItem } from './types';
 
 export const UserMenuItems = ({
@@ -6,11 +7,13 @@ export const UserMenuItems = ({
   setTheme,
   signOut,
   openMyAccount,
+  showLegalLinks,
 }: {
   theme: string | undefined;
   setTheme: (theme: string) => void;
   signOut: () => void;
   openMyAccount?: () => void;
+  showLegalLinks: boolean;
 }): UserMenuItem[] => [
   ...(openMyAccount
     ? [
@@ -38,6 +41,23 @@ export const UserMenuItems = ({
       ],
     },
   },
+  ...(showLegalLinks
+    ? [
+        { type: 'separator' as const },
+        {
+          type: 'link' as const,
+          title: 'Privacy policy',
+          icon: Shield,
+          href: appHelpLinks.privacyPolicy,
+        },
+        {
+          type: 'link' as const,
+          title: 'Terms of service',
+          icon: FileText,
+          href: appHelpLinks.termsOfService,
+        },
+      ]
+    : []),
   { type: 'separator' },
   {
     type: 'item',
