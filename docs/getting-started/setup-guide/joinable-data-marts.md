@@ -207,6 +207,8 @@ You can chain relationships across more than two Data Marts.
 
 The Joinable Data Marts block has a **Graph** view that visualizes every relationship reachable from the source Data Mart, including transitive paths.
 
+Its cards look like the cards of the [Models canvas](models-canvas.md#what-a-card-shows): the icon and title, the input source, the trigger, report and relationship counts, and the Data Quality, Data Last Updated and sharing footer. Here the badges cannot be clicked, and the relationships count covers every relationship of the Data Mart in its Storage, not only the arrows in this graph. The trigger, report and relationship counts show only when you can see the Data Mart's Storage. A card also shows the relationship's [SQL Alias](#sql-alias) and the number of fields the relationship brings in. The card of the source Data Mart is tinted. A warning above a card names a draft, a loop or a join that is not configured.
+
 A small graph opens whole. A graph too large to read that way opens on the source Data Mart and the relationships next to it; the **Fit to view** button (the target icon in the top-right corner) shows the whole graph.
 
 ![Graph view of the Joinable Data Marts block showing transitive paths and Loop stubs](https://imagedelivery.net/zKr-4bdC5CBGL2DuuEmvYw/e570279e-6b2d-4fe2-1b05-5d7dbdfce300/public)

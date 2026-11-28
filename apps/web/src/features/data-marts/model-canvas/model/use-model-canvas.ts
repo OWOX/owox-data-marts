@@ -127,20 +127,34 @@ async function enrichNodes(
   return enriched;
 }
 
+/**
+ * Cache key of a storage's model (its Data Marts and relationships). The Models
+ * canvas and the Joinable Data Marts diagram read the same entry, and the Data
+ * Last Updated refresh writes into it.
+ */
+export function modelCanvasTopologyQueryKey(projectId: string, storageId: string | null) {
+  return ['model-canvas', projectId, storageId] as const;
+}
+
+/** A storage's Data Marts (every page) and relationships, without detail enrichment. */
+export async function fetchModelCanvasTopology(
+  storageId: string,
+  signal?: AbortSignal
+): Promise<ModelCanvasTopologyData> {
+  const config = { signal, ...SILENT_REQUEST_OPTIONS };
+  const [nodes, edges] = await Promise.all([
+    modelCanvasService.getDataMarts(storageId, config),
+    modelCanvasService.getEdges(storageId, config),
+  ]);
+  return { nodes, edges };
+}
+
 export function useModelCanvas(storageId: string | null) {
   const { projectId = '' } = useParams<{ projectId: string }>();
 
   const baseQuery = useQuery({
-    queryKey: ['model-canvas', projectId, storageId],
-    queryFn: async ({ signal }): Promise<ModelCanvasTopologyData> => {
-      const id = storageId ?? '';
-      const config = { signal, ...SILENT_REQUEST_OPTIONS };
-      const [nodes, edges] = await Promise.all([
-        modelCanvasService.getDataMarts(id, config),
-        modelCanvasService.getEdges(id, config),
-      ]);
-      return { nodes, edges };
-    },
+    queryKey: modelCanvasTopologyQueryKey(projectId, storageId),
+    queryFn: ({ signal }) => fetchModelCanvasTopology(storageId ?? '', signal),
     enabled: Boolean(storageId),
   });
 

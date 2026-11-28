@@ -39,8 +39,8 @@ export class DataStorageApiService extends ApiService {
    *
    * @return {Promise<DataStorageListResponseDto>} A promise that resolves to an object representing the list of data storages.
    */
-  async getDataStorages(): Promise<DataStorageListResponseDto> {
-    return this.get<DataStorageListResponseDto>('/');
+  async getDataStorages(config?: AxiosRequestConfig): Promise<DataStorageListResponseDto> {
+    return this.get<DataStorageListResponseDto>('/', undefined, config);
   }
 
   /**

@@ -70,7 +70,7 @@ The page URL carries the filters and the search (`rel`, `status`, `search`). Sha
 
 ## Canvas settings
 
-The gear button on the canvas opens the view settings. They are preferences stored in your browser and do not change the model itself. The Joinable Data Marts diagram offers the same settings for what its cards have. Those are Input source, Fields, Status and the field rows. It stores its own values.
+The gear button on the canvas opens the view settings. They are preferences stored in your browser and do not change the model itself. The [Joinable Data Marts](joinable-data-marts.md#transitive-joins) diagram offers the same settings, except **Draft badge**: there a draft is named above its card. Its **Fields** counts the fields a relationship brings in. It stores its own values.
 
 - **View** picks the card density with two cards at the top of the menu. **Compact mode** cards show everything listed in [What a card shows](#what-a-card-shows). **ERD** cards add the field rows of the Data Mart's Output Schema, primary keys first. Long schemas collapse behind a **+N more fields** toggle.
 - **Horizontal** and **Vertical** pick the layout algorithm. Picking an algorithm re-runs the layout and drops the card positions you dragged.

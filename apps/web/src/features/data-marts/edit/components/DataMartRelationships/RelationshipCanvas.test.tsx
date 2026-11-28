@@ -2,11 +2,21 @@ import type { ReactNode } from 'react';
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { NOTHING_HIDDEN } from '../../../shared/canvas/object-labels';
+import { DataMartDefinitionType } from '../../../shared/enums/data-mart-definition-type.enum';
 import type { ErdCardField } from '../../../shared/canvas/erd-fields';
 import type { DataMartRelationship } from '../../../shared/types/relationship.types';
 import { RelationshipCanvas } from './RelationshipCanvas';
 import { getViewportForBounds } from '@xyflow/react';
 import { GRAPH_READABLE_ZOOM, getGraphZoomRange } from './relationship-canvas-zoom';
+import {
+  CARD_FIRST_BADGE_ROW_HEIGHT,
+  CARD_NO_FOOTER_PADDING,
+  CARD_TITLE_ROW_HEIGHT,
+} from '../../../model-canvas/model/erd-node';
+
+/** A related card's header with one pill line and no footer (no details passed in). */
+const CARD_HEADER_WITHOUT_FOOTER =
+  CARD_TITLE_ROW_HEIGHT + CARD_FIRST_BADGE_ROW_HEIGHT + CARD_NO_FOOTER_PADDING;
 
 const FIT_VIEW_PADDING = 1 / 0.85 - 1;
 
@@ -21,8 +31,11 @@ interface ReactFlowStubProps {
     height?: number;
     data: {
       isSource: boolean;
+      isCycleStub?: boolean;
+      definitionType?: string | null;
       fields?: { name: string }[];
       onOpenExternal: () => void;
+      onOpenQuality: () => void;
     };
   }[];
   edges?: {
@@ -301,6 +314,41 @@ describe('RelationshipCanvas viewport', () => {
       expect(reactFlowHarness.fitView.mock.calls.length).toBeGreaterThan(matchZooms);
     });
     expect(reactFlowHarness.setViewport).toHaveBeenCalledTimes(1);
+  });
+
+  it('does not pull a panned view back to the matches when card facts arrive', async () => {
+    const relationships = Array.from({ length: 12 }, (_, index) =>
+      buildRelationship(`rel-${String(index)}`, `target-${String(index)}`)
+    );
+    const props = { ...buildCanvasProps(relationships), searchQuery: 'target-3' };
+    const { rerender } = render(<RelationshipCanvas {...props} />);
+
+    await waitFor(() => {
+      expect(reactFlowHarness.fitView).toHaveBeenCalledWith(
+        expect.objectContaining({ nodes: [{ id: 'path:target-3' }] })
+      );
+    });
+    // The user pans away from the matches.
+    fireEvent.pointerDown(screen.getByTestId('react-flow'));
+    const zoomsBefore = reactFlowHarness.fitView.mock.calls.length;
+
+    // Facts arrive (or a polled quality summary changes): the graph is rebuilt,
+    // the matches are the same.
+    rerender(
+      <RelationshipCanvas
+        {...props}
+        cardDetails={new Map([['target-3', { availableForReporting: true }]])}
+      />
+    );
+    rerender(
+      <RelationshipCanvas
+        {...props}
+        cardDetails={new Map([['target-3', { availableForReporting: false }]])}
+      />
+    );
+
+    await new Promise(resolve => setTimeout(resolve, 20));
+    expect(reactFlowHarness.fitView.mock.calls.length).toBe(zoomsBefore);
   });
 
   it('passes the low zoom floor to a full fit while the interactive floor is raised', async () => {
@@ -724,11 +772,13 @@ describe('RelationshipCanvas view settings', () => {
     fireEvent.click(screen.getByRole('switch', { name: 'Show join fields' }));
     expect(props.onShowJoinFieldsChange).toHaveBeenCalledWith(true);
 
-    fireEvent.click(screen.getByRole('checkbox', { name: /^Status/ }));
+    fireEvent.click(screen.getByRole('checkbox', { name: /^Reports/ }));
     expect(props.onObjectLabelsChange).toHaveBeenCalledWith({
       ...NOTHING_HIDDEN,
-      status: true,
+      reports: true,
     });
+    // A draft is named by the warning above its card, so there is no draft option.
+    expect(screen.queryByRole('checkbox', { name: /^Status|^Draft/ })).not.toBeInTheDocument();
   });
 
   it('sizes ERD cards to their collapsed field rows', async () => {
@@ -744,9 +794,10 @@ describe('RelationshipCanvas view settings', () => {
       expect(reactFlowHarness.latestProps?.nodes).toHaveLength(2);
     });
     const target = reactFlowHarness.latestProps?.nodes?.find(node => !node.data.isSource);
-    // 92 header + 4 collapsed rows × 26 + the "+2 more" toggle row.
+    // Header (title, the alias pill line, no footer until the details load)
+    // + 4 collapsed rows × 26 + the "+2 more" toggle row.
     expect(target?.width).toBe(256);
-    expect(target?.height).toBe(92 + 4 * 26 + 26);
+    expect(target?.height).toBe(CARD_HEADER_WITHOUT_FOOTER + 4 * 26 + 26);
     // The rows themselves must reach the card, not just the sizing math.
     expect(target?.data.fields?.map(field => field.name)).toEqual([
       'field_0',
@@ -774,8 +825,8 @@ describe('RelationshipCanvas view settings', () => {
       expect(reactFlowHarness.latestProps?.nodes).toHaveLength(2);
     });
     const target = () => reactFlowHarness.latestProps?.nodes?.find(node => !node.data.isSource);
-    // 92 header + 2 rows × 26 + one 14px description line.
-    expect(target()?.height).toBe(92 + 2 * 26 + 14);
+    // Header + 2 rows × 26 + one 14px description line.
+    expect(target()?.height).toBe(CARD_HEADER_WITHOUT_FOOTER + 2 * 26 + 14);
 
     rerender(
       <RelationshipCanvas
@@ -786,7 +837,7 @@ describe('RelationshipCanvas view settings', () => {
       />
     );
     await waitFor(() => {
-      expect(target()?.height).toBe(92 + 2 * 26);
+      expect(target()?.height).toBe(CARD_HEADER_WITHOUT_FOOTER + 2 * 26);
     });
   });
 
@@ -839,6 +890,57 @@ describe('RelationshipCanvas view settings', () => {
     await waitFor(() => {
       expect(reactFlowHarness.latestProps?.edges?.[0]?.data?.joinLabel).toEqual(['id = source_id']);
     });
+  });
+});
+
+describe('RelationshipCanvas cards', () => {
+  beforeEach(() => {
+    localStorage.clear();
+    reactFlowHarness.fitView.mockReset().mockResolvedValue(true);
+    reactFlowHarness.setViewport.mockReset().mockResolvedValue(true);
+    reactFlowHarness.latestProps = null;
+    reactFlowHarness.store.width = 800;
+    reactFlowHarness.store.height = 600;
+  });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  it('gives a loop stub back to the root the root input source', async () => {
+    render(
+      <RelationshipCanvas
+        {...buildCanvasProps([
+          buildRelationship('rel-1', 'target-1'),
+          buildRelationship('rel-loop', 'source-1'),
+        ])}
+        dataMartDefinitionType={DataMartDefinitionType.SQL}
+        showLooped
+      />
+    );
+
+    await waitFor(() => {
+      expect(reactFlowHarness.latestProps?.nodes).toHaveLength(3);
+    });
+    const loop = reactFlowHarness.latestProps?.nodes?.find(node => node.data.isCycleStub);
+    expect(loop?.data.definitionType).toBe(DataMartDefinitionType.SQL);
+  });
+
+  it("opens a Data Mart's Data Quality tab in a new tab, never leaving Data Setup", async () => {
+    const open = vi.spyOn(window, 'open').mockReturnValue(null);
+    render(<RelationshipCanvas {...buildCanvasProps([buildRelationship('rel-1', 'target-1')])} />);
+
+    await waitFor(() => {
+      expect(reactFlowHarness.latestProps?.nodes).toHaveLength(2);
+    });
+    const target = reactFlowHarness.latestProps?.nodes?.find(node => !node.data.isSource);
+    target?.data.onOpenQuality();
+
+    expect(open).toHaveBeenCalledWith(
+      '/data-marts/target-1/quality',
+      '_blank',
+      'noopener,noreferrer'
+    );
   });
 });
 

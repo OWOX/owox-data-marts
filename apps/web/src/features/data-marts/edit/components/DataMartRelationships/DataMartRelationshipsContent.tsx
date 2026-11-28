@@ -65,7 +65,10 @@ import {
 import { buildSourceList } from './source-entries';
 import { TargetDataMartPicker } from './TargetDataMartPicker';
 import { useBlendedFieldsConfigEditor } from './useBlendedFieldsConfigEditor';
-import { useRelationshipDefinitionTypes } from './useRelationshipDefinitionTypes';
+import {
+  useRelationshipCardDetails,
+  type RelationshipCardRoot,
+} from './useRelationshipCardDetails';
 import { useTransientRelationships } from './useTransientRelationships';
 
 // Load React Flow and the graph renderer only when the user switches to graph
@@ -81,6 +84,9 @@ const CanvasSuspenseFallback = (
 );
 
 const VIEW_MODE_KEY = 'relationship-view-mode';
+/** The block's `CollapsibleCard` name; the card stores its collapsed state under `collapsed-card-<name>`. */
+const RELATIONSHIPS_CARD_NAME = 'relationships';
+const RELATIONSHIPS_CARD_COLLAPSED_KEY = `collapsed-card-${RELATIONSHIPS_CARD_NAME}`;
 const CONTENT_MIN_H = 480;
 
 // Canvas view settings are per-browser preferences (not per data mart),
@@ -232,13 +238,39 @@ export function DataMartRelationshipsContent({
   const { rows: transientRows, isLoading: isLoadingTransient } =
     useTransientRelationships(relationshipGraph);
 
-  // Enrichment fetches full data-mart details — only worth it when the
-  // diagram is actually on screen (the list view never renders badges).
-  const definitionTypes = useRelationshipDefinitionTypes(
+  // The block stays mounted while collapsed; its diagram is not on screen then.
+  const [isBlockCollapsed, setIsBlockCollapsed] = useState(
+    () => storageService.get(RELATIONSHIPS_CARD_COLLAPSED_KEY, 'boolean') ?? false
+  );
+
+  // The cards' facts (input source, counts, quality, freshness, sharing) cost
+  // extra requests — only worth it while the diagram is on screen with cards
+  // to draw (the list view and a collapsed block show none of them, and
+  // without relationships the diagram is not drawn at all).
+  const cardRoot = useMemo<RelationshipCardRoot>(
+    () => ({
+      id: dataMartId,
+      storageId,
+      icon: dataMart?.icon ?? null,
+      dataLastUpdated: dataMart?.dataLastUpdated ?? null,
+      availableForReporting: dataMart?.availableForReporting,
+      availableForMaintenance: dataMart?.availableForMaintenance,
+    }),
+    [
+      dataMartId,
+      storageId,
+      dataMart?.icon,
+      dataMart?.dataLastUpdated,
+      dataMart?.availableForReporting,
+      dataMart?.availableForMaintenance,
+    ]
+  );
+  const { definitionTypes, cardDetails, runQuality, invalidateModel } = useRelationshipCardDetails({
+    root: cardRoot,
     relationshipGraph,
     relationships,
-    viewMode === 'graph'
-  );
+    enabled: viewMode === 'graph' && !isBlockCollapsed && relationships.length > 0,
+  });
 
   // Toolbar filters apply to both the list and the diagram (and keep the
   // inline and fullscreen canvas instances in sync); keys are scoped per data
@@ -369,12 +401,19 @@ export function DataMartRelationshipsContent({
         toast.success('Relationship deleted');
         void loadRelationships();
         invalidateBlendableSchema();
+        invalidateModel();
         onRelationshipsChanged?.();
       } catch {
         toast.error('Failed to delete relationship');
       }
     },
-    [dataMartId, loadRelationships, invalidateBlendableSchema, onRelationshipsChanged]
+    [
+      dataMartId,
+      loadRelationships,
+      invalidateBlendableSchema,
+      invalidateModel,
+      onRelationshipsChanged,
+    ]
   );
 
   const handleRelationshipUpdated = useCallback(
@@ -389,6 +428,7 @@ export function DataMartRelationshipsContent({
       // skeleton and fold every other open row.
       void loadRelationships({ keepList: context?.afterUnmount });
       invalidateBlendableSchema();
+      invalidateModel();
       onRelationshipsChanged?.();
     },
     [
@@ -397,6 +437,7 @@ export function DataMartRelationshipsContent({
       loadRelationships,
       refreshDataMart,
       invalidateBlendableSchema,
+      invalidateModel,
       onRelationshipsChanged,
     ]
   );
@@ -426,9 +467,10 @@ export function DataMartRelationshipsContent({
       setIsAddingNew(false);
       void loadRelationships();
       invalidateBlendableSchema();
+      invalidateModel();
       onRelationshipsChanged?.();
     },
-    [loadRelationships, invalidateBlendableSchema, onRelationshipsChanged]
+    [loadRelationships, invalidateBlendableSchema, invalidateModel, onRelationshipsChanged]
   );
 
   if (!dataMart) return null;
@@ -539,6 +581,8 @@ export function DataMartRelationshipsContent({
             objectLabels={objectLabels}
             onObjectLabelsChange={handleObjectLabelsChange}
             fieldsByAliasPath={canvasFieldsByAliasPath}
+            cardDetails={cardDetails}
+            onRunQuality={runQuality}
             onRequestFullscreen={() => {
               setIsFullscreen(true);
             }}
@@ -679,7 +723,11 @@ export function DataMartRelationshipsContent({
 
   return (
     <div className='flex flex-col gap-4'>
-      <CollapsibleCard collapsible name='relationships'>
+      <CollapsibleCard
+        collapsible
+        name={RELATIONSHIPS_CARD_NAME}
+        onCollapsedChange={setIsBlockCollapsed}
+      >
         <CollapsibleCardHeader>
           <CollapsibleCardHeaderTitle
             icon={Link2}
@@ -733,6 +781,8 @@ export function DataMartRelationshipsContent({
                 objectLabels={objectLabels}
                 onObjectLabelsChange={handleObjectLabelsChange}
                 fieldsByAliasPath={canvasFieldsByAliasPath}
+                cardDetails={cardDetails}
+                onRunQuality={runQuality}
                 className='rounded-none border-0'
                 style={{ width: '100%', height: '100%' }}
               />

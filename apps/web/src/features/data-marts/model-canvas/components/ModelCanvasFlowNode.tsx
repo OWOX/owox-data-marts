@@ -1,16 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import {
-  CalendarClock,
-  Columns3,
-  ExternalLink,
-  FileText,
-  Info,
-  Link2,
-  PencilLine,
-  Share2,
-  Users,
-  type LucideIcon,
-} from 'lucide-react';
+import { ExternalLink, Info, PencilLine, Share2, Users, type LucideIcon } from 'lucide-react';
 import { Handle, Position, useUpdateNodeInternals, type Node, type NodeProps } from '@xyflow/react';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@owox/ui/components/tooltip';
 import { DataMartDefinitionType } from '../../shared/enums/data-mart-definition-type.enum';
@@ -40,7 +29,7 @@ import type { CanvasNodeField, CanvasNodeRelationship } from '../model/types';
 import { CardRelationshipsSection } from './CardRelationshipsSection';
 import type { CanvasDirection } from '../../shared/canvas/canvas-direction';
 import type { DataQualityCompactSummary } from '../../shared/types';
-import { DATA_MART_SHARING_TEXTS } from '../../../../shared/components/AvailabilitySheet/data-mart-sharing-texts';
+import { CARD_COUNT_BADGE_ICONS, CardPill, SharingIcon } from '../../shared/canvas/card-parts';
 import { DataQualityCanvasStatusIcon } from './DataQualityCanvasStatusIcon';
 import { DataLastUpdatedCanvasIcon } from './DataLastUpdatedCanvasIcon';
 import type { DataLastUpdatedDto } from '../../shared/types/api/response/data-mart-data-last-updated.dto';
@@ -82,104 +71,10 @@ export interface ModelCanvasFlowNodeData {
   onOpenRelationship?: (relationshipId: string, options?: { viaKeyboard?: boolean }) => void;
 }
 
-const BADGE_ICONS: Record<Exclude<CardBadgeKind, 'definition'>, LucideIcon> = {
-  fields: Columns3,
-  triggers: CalendarClock,
-  reports: FileText,
-  // The icon the Joinable Data Marts section uses, so relationships read the same everywhere.
-  relationships: Link2,
-};
-
-/**
- * Soft-filled pill with a leading icon, as on the product website's Data Mart cards.
- * The layout estimate relies on these classes: keep `px-1.5`, `gap-1` and the `h-3 w-3`
- * icon in sync with `CARD_BADGE_CHROME`, and `text-[11px]` with `CARD_BADGE_FONT_SIZE_PX`.
- */
-function CardPill({
-  icon: Icon,
-  children,
-  toggle,
-}: {
-  icon: React.ComponentType<{ className?: string }>;
-  children: React.ReactNode;
-  /** Makes the pill a button that opens and closes a section of the card. */
-  toggle?: { expanded: boolean; label: string; onToggle: () => void };
-}) {
-  const className =
-    'inline-flex h-5 shrink-0 items-center gap-1 rounded-md px-1.5 text-[11px] leading-none whitespace-nowrap';
-  const content = (
-    <>
-      <span className='inline-flex shrink-0' aria-hidden='true'>
-        <Icon className='h-3 w-3' />
-      </span>
-      {children}
-    </>
-  );
-  if (!toggle) {
-    return <span className={`bg-muted text-muted-foreground ${className}`}>{content}</span>;
-  }
-  return (
-    <button
-      type='button'
-      className={`nodrag cursor-pointer transition-colors ${className} ${
-        toggle.expanded
-          ? 'bg-foreground/10 text-foreground'
-          : 'bg-muted text-muted-foreground hover:text-foreground hover:bg-foreground/10'
-      }`}
-      aria-expanded={toggle.expanded}
-      aria-label={toggle.label}
-      title={toggle.label}
-      onPointerDown={e => {
-        e.stopPropagation();
-      }}
-      onClick={e => {
-        // The card itself toggles its edge highlight on click — keep the two apart.
-        e.stopPropagation();
-        toggle.onToggle();
-      }}
-    >
-      {content}
-    </button>
-  );
-}
-
-/**
- * A sharing flag in the card footer; renders nothing while the flag is off or
- * unknown. The tooltip names the flag and what it allows, in the words of the
- * Share Data Mart sheet.
- */
-function SharingIcon({
-  icon: Icon,
-  flag,
-  on,
-}: {
-  icon: LucideIcon;
-  flag: keyof typeof DATA_MART_SHARING_TEXTS;
-  on?: boolean;
-}) {
-  if (!on) return null;
-  const { label, description } = DATA_MART_SHARING_TEXTS[flag];
-  return (
-    <Tooltip>
-      <TooltipTrigger asChild>
-        <button
-          type='button'
-          className='hover:text-foreground nodrag inline-flex cursor-default rounded p-0.5 transition-colors'
-          aria-label={label}
-          onPointerDown={e => {
-            e.stopPropagation();
-          }}
-        >
-          <Icon className='h-3.5 w-3.5' aria-hidden='true' />
-        </button>
-      </TooltipTrigger>
-      <TooltipContent side='top' align='end' role='tooltip' className='max-w-xs'>
-        <div className='text-xs font-medium'>{label}</div>
-        <div className='text-xs opacity-80'>{description}</div>
-      </TooltipContent>
-    </Tooltip>
-  );
-}
+const BADGE_ICONS: Record<
+  Exclude<CardBadgeKind, 'definition'>,
+  LucideIcon
+> = CARD_COUNT_BADGE_ICONS;
 
 export type ModelCanvasFlowNodeType = Node<
   ModelCanvasFlowNodeData & Record<string, unknown>,

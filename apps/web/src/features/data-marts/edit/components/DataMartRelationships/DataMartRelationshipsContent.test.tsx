@@ -131,8 +131,21 @@ vi.mock('../../../shared/services/data-mart-relationship.service', () => ({
   },
 }));
 
-vi.mock('./useRelationshipDefinitionTypes', () => ({
-  useRelationshipDefinitionTypes: () => new Map<string, null>(),
+const cardDetailsMocks = vi.hoisted(() => ({
+  invalidateModel: vi.fn(),
+  enabled: [] as boolean[],
+}));
+
+vi.mock('./useRelationshipCardDetails', () => ({
+  useRelationshipCardDetails: ({ enabled }: { enabled: boolean }) => {
+    cardDetailsMocks.enabled.push(enabled);
+    return {
+      definitionTypes: new Map<string, null>(),
+      cardDetails: new Map(),
+      runQuality: () => Promise.resolve(),
+      invalidateModel: cardDetailsMocks.invalidateModel,
+    };
+  },
 }));
 
 vi.mock('./RelationshipAccordionItem', () => ({
@@ -244,6 +257,25 @@ describe('DataMartRelationshipsContent toolbar filters', () => {
 
     expect(rowTitles()).toEqual(['Alpha', 'Beta', 'Root']);
     expect(localStorage.getItem('relationship-canvas-show-looped:dm-1')).toBe('true');
+  });
+
+  it('asks for the graph card facts only while the diagram is on screen', async () => {
+    renderContent();
+    await waitFor(() => {
+      expect(rowTitles().length).toBeGreaterThan(0);
+    });
+    // The list view shows no card facts.
+    expect(cardDetailsMocks.enabled.at(-1)).toBe(false);
+
+    fireEvent.mouseDown(screen.getByRole('tab', { name: /Graph/ }), { button: 0 });
+    await screen.findByTestId('relationship-canvas');
+    expect(cardDetailsMocks.enabled.at(-1)).toBe(true);
+
+    // A collapsed block keeps its diagram mounted but off screen.
+    fireEvent.click(screen.getByRole('button', { name: /Joinable Data Marts/ }));
+    await waitFor(() => {
+      expect(cardDetailsMocks.enabled.at(-1)).toBe(false);
+    });
   });
 
   it('passes the toolbar filters to the diagram so both views stay in sync', async () => {
@@ -635,6 +667,7 @@ describe('DataMartRelationshipsContent relationship saves', () => {
   it('still reloads the list after a Join Settings save', async () => {
     await renderRows();
     const alpha = harness.accordionPropsByRowKey.get('alpha')!;
+    cardDetailsMocks.invalidateModel.mockClear();
 
     act(() => {
       alpha.onRelationshipUpdated(
@@ -647,6 +680,8 @@ describe('DataMartRelationshipsContent relationship saves', () => {
       expect(service.getRelationshipGraph).toHaveBeenCalledTimes(2);
     });
     expect(harness.toast.success).toHaveBeenCalledWith('Relationship updated');
+    // The graph cards count relationships from the storage model: it is reread too.
+    expect(cardDetailsMocks.invalidateModel).toHaveBeenCalledOnce();
   });
 
   it('reloads behind the rows after a Join Settings save sent as its row closed', async () => {
