@@ -87,9 +87,41 @@ After running `npx changeset`, rename its generated file to this convention
 before committing it. Apply the rule to new changesets; do not rename an
 existing changeset without first confirming its owning Work Item.
 
-Write the changeset title and body in user-facing language. Explain what changed
-and its practical effect; omit implementation detail that does not help a user
-understand the release.
+### What a Changeset Contains
+
+A changeset carries the version bump and one bold title, and nothing else:
+
+```markdown
+---
+'owox': minor
+---
+
+**Cheaper incremental imports into Google BigQuery**
+```
+
+Write the title in user-facing language: say what gets better for the reader,
+and for what, in sentence case. Do not add a description, images or links to the
+changeset.
+
+The public changelog is the page
+[owox.com/product/changelog](https://www.owox.com/product/changelog). Each entry
+there is the changeset's title plus a summary of one to three sentences: who
+gets what better, with any breaking or migration consequence first. The summary
+is written on owox.com, not in this repository, and it is ready before the
+release that ships the change. The filename without `.md` is the entry's key: it
+joins the changeset to its changelog entry and is the entry's anchor on the
+page, so do not rename a changeset once its entry exists.
+
+For OWOX-managed work, the author of the change writes the summary. For a
+contribution from outside OWOX, the maintainer who merges it does.
+
+Everything a summary has no room for belongs in the pull request description:
+screenshots, limits, the steps of a migration. The changelog entry links to the
+pull request. How to use what changed belongs in the documentation.
+
+`apps/owox/CHANGELOG.md` and the other `CHANGELOG.md` files are generated from
+the changeset titles when a release is cut. Do not edit them and do not write
+for them.
 
 ## Contributor Workflow
 
@@ -100,7 +132,8 @@ understand the release.
 # Create a changeset only when the policy above requires one
 npx changeset
 
-# Rename the generated file to start with the owning Fibery Work Item ID
+# Rename the generated file to start with the owning Fibery Work Item ID,
+# and keep only the bold title in it
 
 # Choose the appropriate bump type:
 # - major: for breaking changes (use sparingly)
@@ -137,11 +170,13 @@ needs no deployment.
    PR changes only changelogs, package versions and `package-lock.json`, so Test
    OWOX, the E2E suites and Audit all repeat what `main` already ran and can be
    cancelled.
-3. **Read the changelog.** Read the new section of `apps/owox/CHANGELOG.md` in
-   the PR. The bot reformats the whole file with Prettier on every update. If an
-   inline code span wraps across lines, every pass indents the following lines
-   further, until markdownlint fails with MD046. Fix the original entry with a
-   regular PR to `main`; the bot then regenerates the release PR.
+3. **Check what the release holds.** The PR lists the changesets it consumes
+   and adds their titles to `apps/owox/CHANGELOG.md`. Every one of them needs
+   its entry, with a summary, ready for
+   [owox.com/product/changelog](https://www.owox.com/product/changelog), and no
+   entry may be assigned to this version for a change that has not merged. Fix
+   a wrong title with a regular PR to `main`; the bot then regenerates the
+   release PR.
 4. **Merge.** Approve and merge the PR.
 5. **Wait for the publish.** `publish.yml` keeps only the newest pending run, so
    a merge right behind the release can replace the release run. Wait until the
