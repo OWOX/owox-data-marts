@@ -2,7 +2,7 @@
 
 ## 25.0.0
 
-### Patch Changes
+### Patch Changes 25.0.0
 
 - @owox/idp-protocol@0.46.0
 

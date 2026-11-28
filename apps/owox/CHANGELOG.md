@@ -2,7 +2,7 @@
 
 ## 0.46.0
 
-### Minor Changes
+### Minor Changes 0.46.0
 
 - f312134: **Faster plugin updates: check for a new version from the Plugins page**
 
@@ -191,9 +191,9 @@
 
   <!-- markdownlint-disable-file MD041 MD036 -->
 
-### Patch Changes
+### Patch Changes 0.46.0
 
-- 22b61f1: # Fix Bank of Canada label description
+- 22b61f1: **Fix Bank of Canada label description**
 
   Describe the `label` field of the Bank of Canada connector as a currency pair (e.g., USDCAD) instead of a currency code.
   - @owox/internal-helpers@0.46.0

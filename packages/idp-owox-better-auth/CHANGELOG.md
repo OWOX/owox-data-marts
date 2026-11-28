@@ -2,7 +2,7 @@
 
 ## 0.46.0
 
-### Patch Changes
+### Patch Changes 0.46.0
 
 - @owox/internal-helpers@0.46.0
 - @owox/idp-protocol@0.46.0

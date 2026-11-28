@@ -2,7 +2,7 @@
 
 ## 0.46.0
 
-### Patch Changes
+### Patch Changes 0.46.0
 
 - @owox/api-client@0.46.0
 
