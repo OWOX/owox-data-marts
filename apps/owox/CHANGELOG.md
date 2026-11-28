@@ -1,5 +1,208 @@
 # owox
 
+## 0.46.0
+
+### Minor Changes
+
+- f312134: **Faster plugin updates: check for a new version from the Plugins page**
+
+  You publish a plugin release and want it now, not after the daily update check. Previously, you opened each plugin's page, clicked **Check and Update** and went back to **Plugins**. Now, when you point to the card of an installed plugin on the **Plugins** page, **Check and Update** appears next to its version. The check runs in place, a message tells you the result, and the card shows the new version.
+
+  ![The Plugins page with two installed plugin cards. The pointer is on the Gyroscope card, so the Check and Update button and its tooltip show next to its version. The other card shows no button](https://imagedelivery.net/zKr-4bdC5CBGL2DuuEmvYw/decdd548-4423-47e8-abb1-320833b25200/public)
+
+  See [Update or roll back](../../docs/plugins/authoring-guide.md#update-or-roll-back).
+
+  <!-- markdownlint-disable-file MD041 MD036 -->
+
+- 934146b: **Manage Cloud projects in OWOX Data Marts**
+
+  Cloud users previously opened Platform to create a project from the project menu or to change a project's name. Now you can create a project from the OWOX Data Marts menu and open it as soon as it is ready.
+  If your project list is empty, you can also select **Create project** in **My profile → Projects**.
+
+  Project Admins can rename or delete a project in **Project Settings → Overview**. If billing prevents deletion, settle any open invoices or negative balance and try again. After deletion, OWOX opens your updated list in **My profile → Projects**. When you delete your last project and My profile is enabled, OWOX opens **My profile → Overview**.
+
+  See [Manage Cloud projects](../../docs/project/#manage-cloud-projects).
+
+- 72be2cd: **Sign in directly to OWOX Cloud**
+
+  Sign in or create an account directly on app.owox.com and return to the page you were
+  opening. This removes the redirect through platform.owox.com for Google, Microsoft,
+  and email sign-in.
+
+  <!-- markdownlint-disable-file MD041 MD036 -->
+
+- 4268d51: **Switch projects without another sign-in**
+
+  Opening another project in OWOX Cloud could send you through the sign-in flow again. Now you can
+  pick another project or open a project link and continue in your current session.
+
+  In **My profile → Projects**, you can open a project by its name or go to a specific settings tab
+  from the row menu. Project Admins can rename a project directly in the table. Projects being
+  removed stay in the list until removal is complete.
+
+  Your permissions are checked in the selected project. If you are viewing App as another user, the session stays read-only when you switch projects.
+
+  See [OWOX Cloud configuration](../../docs/getting-started/deployment-guide/environment-variables.md) for deployment requirements.
+
+  <!-- markdownlint-disable-file MD041 MD036 -->
+
+- 0ad3d03: **What's New opens the release notes on owox.com**
+
+  The **Read the changelog** button in the What's New popover and **What's new** in the **Help** menu opened the changelog on docs.owox.com, which is being retired. Both now open the release notes at [owox.com/product/changelog](https://www.owox.com/product/changelog), and the button goes straight to the release the popover announces.
+
+- 8018e7e: **Plugin charts match their table when a metric filter selects the groups**
+
+  A plugin often shows a table grouped by one column and a chart of the same data by day, for example the order statuses with revenue above 100. The chart read checked the metric filter for each day, not for each status. So the chart showed other groups and other numbers than the table: a day could show the revenue of a status that the table removed. A workaround with an `in` filter of the passing values worked only for one plain column and up to 500 values. Now the chart can check the filter at the table's grouping, so it shows the same groups and numbers as the table.
+
+  A read checks its metric filters at a separate grouping with `traverseData(id, { havingGroupBy: { column: ['status'] } })`. OWOX finds the groups that pass the filters, keeps their rows, and groups the kept rows by the read's own columns. The grouping can have more than one column, date buckets, joined columns and row-level Calculated Fields. A `NULL` group that passes keeps its rows. Run totals count only the kept rows. The check reads the source one more time.
+
+  Scripts that call the HTTP Data endpoint directly send `havingGroupBy` as base64url-encoded JSON, the same as `filter` and `dateTrunc`. An older server ignores the parameter and checks the filters at the read's own grouping. See [Read Data Mart data](../../docs/plugins/authoring-guide.md#read-data-mart-data) and [Stream Data Mart rows](../../docs/api/api-client.md#stream-data-mart-rows).
+
+  <!-- markdownlint-disable-file MD041 MD036 -->
+
+- ee0db33: **Find unmatched rows in related Google BigQuery Data Marts**
+
+  **You can now see unmatched join values when a relationship check uses a complex view or SQL query.** Previously, BigQuery could reject the check with `Correlated subqueries ... not supported`. The check then showed **Execution error**.
+
+  **Relationship integrity** checks source join values against the target Data Mart. **Reverse relationship** checks target join values against the source Data Mart. If a check finds unmatched rows, it shows **Failed** and lists examples of their join values.
+
+  See [Data Quality Checks](../../docs/getting-started/setup-guide/data-quality-checks.md).
+
+  <!-- markdownlint-disable-file MD041 MD036 -->
+
+- 842cafc: **Plugins no longer get a server error when they save several collection documents at once**
+
+  A plugin keeps its state in collections, for example member preferences or a shared dashboard. Previously, when a plugin saved or deleted two or more documents at the same time, some of these requests failed with `HTTP_ERROR`, status 500. A failed request saved nothing, so the change was lost unless the plugin sent it again. Two plugins in one project failed the same way when they saved at the same time. Plugins in different projects also failed when they created new documents at the same time. The cause was a database deadlock between the parallel requests. Now the requests in one project wait for each other, and each one completes.
+
+  Only deployments with a MySQL database had this error, OWOX Data Marts Cloud included. SQLite deployments did not have it. See [Persist plugin state as JSON with collections](../../docs/plugins/authoring-guide.md#persist-plugin-state-as-json-with-collections).
+
+  <!-- markdownlint-disable-file MD041 MD036 -->
+
+- 32ca328: **Know what to fix when Credentials do not load for a connector test**
+
+  When you test a custom connector with **Use a Credential**, the Credential field could show only "Could not load Credentials." and **Try again**. If the server refused the request, for example because the manifest was not valid, a retry got the same answer, and **Run test** stayed disabled until you selected a Credential. Now the field shows the server's reason, such as `node "items" uniqueKeys names "iid", which is not one of its fields`. Fix the manifest, and the list loads again.
+
+  ![Test settings in the Connector Builder: Use a Credential is on, and a warning in the Credential field says the manifest is not valid because uniqueKeys names a field that the node does not have](https://imagedelivery.net/zKr-4bdC5CBGL2DuuEmvYw/b6b3152a-2610-489d-5c54-939874432e00/public)
+
+  The Credential field in a Data Mart's configuration of a custom connector also shows the reason. There **Try again** stays: if the Data Mart uses the latest version of the connector, a new version can change the answer.
+
+  See [Test on live data](../../docs/connectors/connector-builder.md#step-5-test-on-live-data).
+
+  <!-- markdownlint-disable-file MD041 MD036 -->
+
+- 309f49e: **Filters on Google BigQuery calculated fields no longer fail because of a wrong type**
+
+  A new calculated field starts with the type `STRING`. When its formula returned another type, for example `TRUE` or `FALSE`, OWOX still offered text filters for it. A filter such as "equals true" then failed in Google BigQuery with `No matching signature for operator =`, in Reports, HTTP Data API reads and plugins. Now, when you save a new or changed calculated field on Google BigQuery, OWOX checks the type the formula returns and uses it.
+
+  **When you edit a calculated field that Reports use, its type can change. A number becomes a metric, so the aggregations a Report may use and the Report output can change.** A calculated field saved earlier keeps its type until you edit its formula or its type.
+
+  ![The Output Schema after Save: the calculated field is_large_order with the formula IF(amount > 50, TRUE, FALSE) has the type BOOLEAN, and a warning says that OWOX changed its type from STRING to BOOLEAN](https://imagedelivery.net/zKr-4bdC5CBGL2DuuEmvYw/e2e85140-9f60-4765-95fa-66201e1c3b00/public)
+  - The save shows a warning that names the field, its old type and its new type.
+  - A numeric type you chose stays when the formula also returns a number. `FLOAT`, `NUMERIC` and `BIGNUMERIC` also stay over a text formula, because OWOX casts the value to them in filters and aggregations.
+  - To keep a different type, cast the value in the formula, for example `CAST(EXTRACT(YEAR FROM order_date) AS STRING)`.
+  - A field whose formula reads a field with a new or changed formula gets the same check. Other fields keep their type. Other storages are unaffected.
+
+  See [Calculated Fields](../../docs/getting-started/setup-guide/calculated-fields.md).
+
+  <!-- markdownlint-disable-file MD041 MD036 -->
+
+- 57b91c9: **Start using a plugin right after you install it**
+
+  A member who installed a plugin from the **Plugins** page saw only the card icon change. The plugin appeared as a new item under **Plugins** in the sidebar, and in a short browser window that item was below the visible part. Members could not tell where the plugin went or how to open it. Now **Install** opens the plugin, as **Publish & Install** already does, on the **Plugins** page and on the plugin's own page. See [Publish and install](../../docs/plugins/authoring-guide.md#publish-and-install).
+
+  ![Metric Watch open right after Install in a short browser window, with its new item highlighted under Plugins in the sidebar](https://imagedelivery.net/zKr-4bdC5CBGL2DuuEmvYw/ca827941-905f-4d7a-18db-a8e868d7ec00/public)
+
+  <!-- markdownlint-disable-file MD041 MD036 -->
+
+- cdb4fc1: **Opening an installed plugin is easier: select its card on the Plugins page**
+
+  An installed plugin opened only from its row under **Plugins** in the sidebar. When the sidebar is collapsed, it hides that row. The plugin's card on the **Plugins** page opened the plugin's own page, and that page has no way into the plugin. Now a click on the card of an installed plugin opens the plugin. The gear on the card still opens the plugin's page with its settings.
+
+  ![The Plugins page with the sidebar collapsed, a pointer on the card of the installed Gyroscope plugin, and the gear in the card's corner](https://imagedelivery.net/zKr-4bdC5CBGL2DuuEmvYw/b8d59689-ed4b-4cb2-626d-09ebec530400/public)
+
+  See [Test the installed plugin](../../docs/plugins/authoring-guide.md#test-the-installed-plugin).
+
+  <!-- markdownlint-disable-file MD041 MD036 -->
+
+- 42f785f: **Relationships that repeat join paths no longer make OWOX Data Marts unavailable**
+
+  A Data Mart can reach other Data Marts through a chain of relationships, and each route is a join path with its own fields in the column picker. Previously, when the relationships of a storage repeated paths, for example a reverse relationship next to each relationship, one Data Mart could reach millions of join paths. Its column picker, data preview, Graph view, a report run, an HTTP Data request or an MCP tool call then used all the server memory. The server stopped answering for every user of the deployment until it restarted. Now OWOX Data Marts stops at 5,000 join paths per Data Mart and returns the error `TOO_MANY_JOIN_PATHS`, which tells you to remove the relationships that repeat a path.
+
+  See [Too many join paths](../../docs/getting-started/setup-guide/joinable-data-marts.md#too-many-join-paths).
+
+  <!-- markdownlint-disable-file MD041 MD036 -->
+
+- fd090ee: **See post-click and post-view conversions separately in Facebook Ads data**
+
+  An analyst who evaluates Facebook Ads campaigns needs to know how many conversions came after a click and how many after someone only saw the ad. Previously each conversion arrived as one number counted by the ad set's attribution setting, so the two were mixed and the split was visible only in Meta Ads Manager. Now you list attribution windows in the connector, and each conversion carries a value for every window.
+
+  Set **Action Attribution Windows** under **Advanced** settings to a comma-separated list such as `1d_click,7d_click,1d_view`. Every entry in `actions`, `action_values`, `conversions`, `conversion_values` and the other action fields then gets a key for each window that has a value, for example `{"action_type":"purchase","value":"10","1d_click":"6","7d_click":"7","1d_view":"3"}`. The setting works on every insights endpoint of the Facebook Ads connector.
+
+  ![Advanced settings of the Facebook Ads connector with Action Attribution Windows set to 1d_click,7d_click,1d_view](https://cdn.owox.com/eacafbaa-2f5c-43da-4234-18f33a604c00/public)
+  - With the setting empty, imports stay as they were.
+  - `value` does not change and is not the sum of the listed windows.
+  - A window missing from an entry means zero. Action types Meta does not split keep only `value`.
+  - A malformed window fails the run with an error that names the setting.
+  - Meta no longer returns data for `7d_view` and `28d_view`.
+  - Rows imported earlier get the windows after a backfill.
+
+  See [Split Conversions by Attribution Window](../../packages/connectors/src/Sources/FacebookMarketing/GETTING_STARTED.md#split-conversions-by-attribution-window).
+
+  <!-- markdownlint-disable-file MD041 MD036 -->
+
+- ad872e5: **See which companies and roles your LinkedIn ads reach: breakdowns by company and member demographics**
+
+  Teams that run account-based campaigns on LinkedIn judge them by the target companies they reach, not by clicks. The LinkedIn Ads connector imported metrics only by creative, campaign, account and location, so these teams copied company data from Campaign Manager by hand and could not join it with their CRM. Now six new endpoints import each campaign's daily impressions, clicks, spend, engagement and conversions per value: **Ad Analytics by Company**, **by Job Title**, **by Seniority**, **by Job Function**, **by Industry** and **by Company Size**. Each value comes with its LinkedIn URN and its English name, such as `Microsoft` for `urn:li:organization:1035`; company size comes as a band such as `SIZE_201_TO_500`.
+
+  ![The LinkedIn Ads connector setup at the Select data step. The list ends with the six new endpoints: Ad Analytics by Company, by Job Title, by Seniority, by Job Function, by Industry and by Company Size](https://imagedelivery.net/zKr-4bdC5CBGL2DuuEmvYw/d5667669-cc61-4101-4ac4-76c52e125100/public)
+  - LinkedIn gives one breakdown at a time, so there is no table of job titles inside a company. Rows link to the campaign, not to the creative.
+  - LinkedIn returns at most the top 100 values for each ad on each day, drops values with fewer than 3 events, returns nothing for ads that reached too few members, and approximates the metrics. Sums over days can therefore be lower than Campaign Manager shows. Companies outside your targeting can also appear. Data can be 24–48 hours late.
+
+  See [metrics by company, job title, or other member demographics](../../packages/connectors/src/Sources/LinkedInAds/GETTING_STARTED.md#how-do-i-see-metrics-by-company-job-title-or-other-member-demographics) in the LinkedIn Ads guide.
+
+  <!-- markdownlint-disable-file MD041 MD036 -->
+
+- 990f9ec: **Apps on the HTTP Data API can open one record by its hidden key**
+
+  Analysts often hide technical keys such as `obligation_id` so they stay out of reports. An app that reads a Data Mart over the HTTP Data API often needs that key to show one record per row and read it back later. Until now the API refused a hidden column, so the only fix was to show the key again, which put it back on every report picker and into MCP answers. Now the HTTP Data API returns a hidden column of the Data Mart when the request selects it by name.
+  - Select the column with `column=obligation_id`. A `filter`, `sort`, `aggregation`, `dateTrunc` or `havingGroupBy` rule may use it by name too, for example a filter `obligation_id eq 42`; only `column` adds it to the rows.
+  - Reading all columns (`columns=*`, `columns=**`, or no `column` at all) returns the same columns as before.
+  - Reports, report runs, destinations and MCP keep hiding these columns.
+  - A hidden calculated field and a field inside a RECORD stay unavailable by name. Select a hidden RECORD as a whole instead.
+  - A request is refused when a hidden column it selects shares its name with a part of another selected column, for example `id` next to `customer.id`. Leave one of the two out.
+
+  See [Output Controls](../../docs/getting-started/setup-guide/output-controls.md#hidden-columns-warning).
+
+- 3c63a18: **Give each join a distinct Output Alias through MCP**
+
+  The report column picker can show the same **Output Alias** for different joins to the same Data Mart. Previously, you had to switch to the OWOX Data Marts web interface to change it. Your AI assistant can now use MCP to give each join a distinct name and set the **Alias** for individual fields.
+
+  `get_data_mart_setup` returns the saved settings for direct and nested joins in `blended_fields_config` on the root Data Mart. `update_data_mart_blended_fields_config` replaces those settings. Include all overrides you want to keep, or send `null` to clear them all.
+
+  See [Data Mart setup through MCP](../../docs/getting-started/setup-guide/mcp.md#data-mart-setup-models-and-execution).
+
+  <!-- markdownlint-disable-file MD041 MD036 -->
+
+- a7570e7: **Owners no longer look removed from the project while a page loads**
+
+  The owners of a Data Mart, Storage, Destination, Report or Credential are listed on its page, and a yellow warning marks an owner who has left the project. Previously that warning showed for about a second each time the page opened, as if every owner had left, because the list of project members had not loaded yet. Anyone checking who owns a resource could not tell whether an owner had really left. If the member list failed to load, the warning stayed. Now the warning appears only after the member list has loaded, and only when an owner is no longer a member of the project. If the list cannot load, the owner picker says so and offers to try again, instead of listing every owner as removed.
+
+  See [Ownership](../../docs/project/ownership-and-sharing.md#ownership).
+
+  <!-- markdownlint-disable-file MD041 MD036 -->
+
+### Patch Changes
+
+- 22b61f1: # Fix Bank of Canada label description
+
+  Describe the `label` field of the Bank of Canada connector as a currency pair (e.g., USDCAD) instead of a currency code.
+  - @owox/internal-helpers@0.46.0
+  - @owox/idp-protocol@0.46.0
+  - @owox/idp-better-auth@0.46.0
+  - @owox/idp-owox-better-auth@0.46.0
+  - @owox/backend@0.46.0
+  - @owox/web@0.46.0
+
 ## 0.45.0
 
 ### Minor Changes 0.45.0

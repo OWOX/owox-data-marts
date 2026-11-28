@@ -1,5 +1,11 @@
 # @owox/plugin-sdk
 
+## 0.46.0
+
+### Patch Changes
+
+- @owox/api-client@0.46.0
+
 ## 0.45.0
 
 ### Patch Changes 0.45.0

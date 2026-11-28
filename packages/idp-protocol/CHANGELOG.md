@@ -1,5 +1,11 @@
 # @owox/idp-protocol
 
+## 0.46.0
+
+### Patch Changes
+
+- @owox/internal-helpers@0.46.0
+
 ## 0.45.0
 
 ### Patch Changes 0.45.0
